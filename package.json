@@ -1,0 +1,17 @@
+{
+  "name": "website-for-semen",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "animejs": "^4.5.0",
+    "motion": "^14.2.0"
+  }
+}

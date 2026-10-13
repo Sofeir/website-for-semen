@@ -1,0 +1,16 @@
+﻿# зависимости
+node_modules/
+
+# секреты
+.env
+.env.local
+
+# служебное
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# локальные инструменты
+.claude/
+.playwright-mcp/
