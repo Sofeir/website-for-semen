@@ -1,4 +1,4 @@
-﻿# зависимости
+# зависимости
 node_modules/
 
 # секреты
@@ -12,5 +12,7 @@ npm-debug.log*
 Thumbs.db
 
 # локальные инструменты
-.claude/
+.claude/*
+!.claude/hooks/
+!.claude/settings.json
 .playwright-mcp/
