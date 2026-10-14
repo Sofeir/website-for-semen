@@ -16,11 +16,21 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+function hasDemoSession() {
+  try {
+    return Boolean(sessionStorage.getItem('asoft-demo-user') ?? localStorage.getItem('asoft-demo-user'));
+  } catch {
+    return false;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const me = useQuery({
     queryKey: keys.me,
     queryFn: async () => {
+      // Демо: без сохранённого входа сразу показываем форму, не дожидаясь запуска базы (она грузится в фоне).
+      if (import.meta.env.VITE_DEMO && !hasDemoSession()) return null;
       try {
         const r = await api.get<MeResponse>('/auth/me');
         setCsrfToken(r.csrfToken);
