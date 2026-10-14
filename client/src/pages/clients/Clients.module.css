@@ -1,0 +1,138 @@
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+
+@media (min-width: 768px) {
+  .toolbar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .toolbar > :first-child {
+    margin: 0;
+    padding: 0;
+  }
+  .toolbar > :last-child {
+    width: min(420px, 50%);
+  }
+}
+
+.search {
+  border-radius: var(--r-pill);
+}
+
+.tableCard {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface-2);
+}
+
+.table td {
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--border-soft);
+}
+
+.table tbody tr {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .table tbody tr:hover td {
+    background: var(--blue-50);
+  }
+}
+
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.nameCell b {
+  display: block;
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.subLine {
+  display: block;
+  color: var(--text-muted);
+}
+
+.icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--blue-100);
+  color: var(--blue-700);
+}
+
+.icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mobileList {
+  padding: var(--s-2) var(--s-4);
+}
+
+.mobileItem {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 64px;
+  padding: var(--s-2) 0;
+  border-top: 1px solid var(--border-soft);
+  color: inherit;
+}
+
+.mobileItem:first-child {
+  border-top: 0;
+}
+
+.mobileMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobileMain b {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.mobileMain span {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--s-4);
+}

@@ -1,0 +1,253 @@
+.page {
+  min-width: 0;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-4);
+}
+
+@media (min-width: 1180px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: var(--s-5);
+    align-items: start;
+  }
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+  max-width: 920px;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  margin-bottom: var(--s-4);
+}
+
+.sectionNum {
+  display: inline-grid;
+  place-items: center;
+  min-width: 40px;
+  height: 28px;
+  border-radius: var(--r-pill);
+  background: var(--ink-900);
+  color: var(--white);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  margin-top: var(--s-2);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--danger-text);
+}
+
+.devices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.device {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.device + .device {
+  padding-top: var(--s-6);
+  border-top: 1px dashed var(--border);
+}
+
+.deviceHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.deviceHead b {
+  flex: 1;
+}
+
+.deviceNum {
+  display: inline-grid;
+  place-items: center;
+  min-width: 40px;
+  height: 26px;
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1.5px var(--blue-500);
+  color: var(--blue-700);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.past {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--blue-50);
+}
+
+.pastLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--blue-800);
+}
+
+.addDevice {
+  margin-top: var(--s-5);
+}
+
+.accTitle {
+  font-size: var(--fs-lg);
+}
+
+/* Правая колонка: сводка квитанции + сохранение. На телефоне — липкая кнопка снизу. */
+.aside {
+  display: contents;
+}
+
+.summary {
+  display: none;
+}
+
+.saveBar {
+  position: sticky;
+  bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 8px);
+  z-index: 5;
+  padding: var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--glass-strong);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow:
+    var(--shadow-md),
+    inset 0 0 0 1px var(--glass-border);
+}
+
+@media (min-width: 768px) {
+  .saveBar {
+    bottom: var(--s-4);
+    max-width: 920px;
+  }
+}
+
+@media (min-width: 1180px) {
+  .aside {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-3);
+    position: sticky;
+    top: 96px;
+  }
+
+  .summary {
+    display: block;
+    padding: var(--s-5);
+    border-radius: var(--r-lg);
+    background: var(--ink-900);
+    color: var(--text-on-dark);
+    box-shadow: var(--shadow-md);
+  }
+
+  .saveBar {
+    position: static;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+.summaryLabel {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-lg);
+  margin-bottom: var(--s-4);
+}
+
+.summaryDl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.summaryDl dt {
+  font-size: var(--fs-xs);
+  color: var(--text-on-dark-muted);
+  margin-top: var(--s-2);
+}
+
+.summaryDl dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.missing {
+  font-weight: 400;
+  color: var(--text-on-dark-muted);
+}
+
+/* Успех */
+.done {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.doneIcon {
+  width: 48px;
+  height: 48px;
+  color: var(--teal-600);
+}
+
+.receipt {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--teal-50);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+  color: var(--text);
+}
+
+.receipt > svg {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  color: var(--teal-700);
+}
+
+.receipt > span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.receipt > span span {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.receiptArrow {
+  opacity: 0.6;
+}

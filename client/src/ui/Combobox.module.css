@@ -1,0 +1,38 @@
+.wrap {
+  position: relative;
+}
+
+.list {
+  position: absolute;
+  z-index: var(--z-overlay);
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  max-height: 260px;
+  overflow-y: auto;
+  padding: var(--s-1);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 0 0 1px var(--border-soft);
+}
+
+.option {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-sm);
+  text-align: left;
+  font-size: var(--fs-md);
+}
+
+.active {
+  background: var(--surface-3);
+}
+
+.selected {
+  font-weight: 600;
+  color: var(--blue-700);
+}

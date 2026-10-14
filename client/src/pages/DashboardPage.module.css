@@ -1,0 +1,121 @@
+.plate {
+  padding: var(--s-5);
+  margin-bottom: var(--s-5);
+}
+
+@media (min-width: 768px) {
+  .plate {
+    padding: var(--s-6) var(--s-8);
+  }
+}
+
+.greeting {
+  color: var(--text-on-dark-muted);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  margin-bottom: var(--s-4);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+
+@media (min-width: 900px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  border-radius: var(--r-lg);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: var(--text-on-dark);
+  min-width: 0;
+  transition: background-color var(--dur) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .stat:hover {
+    background: rgba(255, 255, 255, 0.11);
+  }
+}
+
+.statValue {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-display);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.statAlert {
+  color: #ffb4ac;
+}
+
+.statOk {
+  color: var(--teal-300);
+}
+
+.statLabel {
+  font-size: var(--fs-sm);
+  color: var(--text-on-dark-muted);
+  line-height: 1.3;
+}
+
+.grid {
+  display: grid;
+  gap: var(--s-4);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s-5);
+    align-items: start;
+  }
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.more {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--primary-text);
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+}
+
+.intakeMobile {
+  display: inline-flex;
+}
+
+@media (min-width: 768px) {
+  .intakeMobile {
+    display: none;
+  }
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .col {
+    gap: var(--s-5);
+  }
+}

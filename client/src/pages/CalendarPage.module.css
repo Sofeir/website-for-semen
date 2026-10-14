@@ -1,0 +1,201 @@
+.layout {
+  display: grid;
+  gap: var(--s-4);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1100px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: var(--s-5);
+    align-items: start;
+  }
+}
+
+.monthCard {
+  padding: var(--s-3);
+}
+
+@media (min-width: 768px) {
+  .monthCard {
+    padding: var(--s-5);
+  }
+}
+
+.monthHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-bottom: var(--s-3);
+}
+
+.monthTitle {
+  flex: 1;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-lg);
+}
+
+.assignee {
+  margin-bottom: var(--s-3);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.weekday {
+  text-align: center;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: var(--s-1) 0;
+}
+
+.day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 52px;
+  padding: 6px 2px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  text-align: left;
+  min-width: 0;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.weekend {
+  background: var(--ink-100);
+}
+
+.outside {
+  opacity: 0.45;
+}
+
+.today .dayNum {
+  background: var(--blue-600);
+  color: var(--white);
+}
+
+.selected {
+  box-shadow: inset 0 0 0 2px var(--ink-900);
+  background: var(--surface);
+}
+
+@media (hover: hover) {
+  .day:hover {
+    background: var(--blue-50);
+  }
+}
+
+.dayNum {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dots {
+  display: flex;
+  gap: 3px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.dotOpen {
+  background: var(--blue-500);
+}
+
+.dotLate {
+  background: var(--red-500);
+}
+
+.dotDone {
+  background: var(--teal-500);
+}
+
+.chips {
+  display: none;
+}
+
+/* На широком экране вместо точек — названия задач */
+@media (min-width: 900px) {
+  .day {
+    align-items: stretch;
+    min-height: 108px;
+    padding: 6px;
+  }
+
+  .dayNum {
+    align-self: flex-start;
+  }
+
+  .dots {
+    display: none;
+  }
+
+  .chips {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .chip {
+    display: block;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chipOpen {
+    background: var(--blue-100);
+    color: var(--blue-800);
+  }
+
+  .chipLate {
+    background: var(--red-100);
+    color: var(--red-700);
+  }
+
+  .chipDone {
+    background: var(--teal-100);
+    color: var(--teal-700);
+    text-decoration: line-through;
+  }
+
+  .moreChip {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    padding: 0 6px;
+  }
+}
+
+.agenda {
+  min-width: 0;
+}
+
+.agendaTitle {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  margin-bottom: var(--s-2);
+}

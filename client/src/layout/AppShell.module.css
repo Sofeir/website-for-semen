@@ -1,0 +1,650 @@
+.shell {
+  min-height: 100dvh;
+}
+
+/* ---------- Бренд ---------- */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  color: var(--ink-900);
+}
+
+.brandMark {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: 0 6px 16px -8px rgba(27, 58, 107, 0.6);
+}
+
+.brandCompact .brandMark {
+  width: 36px;
+  height: 36px;
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+  min-width: 0;
+}
+
+.brandName {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-900);
+}
+
+.brandSub {
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--teal-700);
+  margin-top: 3px;
+}
+
+/* ---------- Боковая панель: стеклянный блок с отдельными плашками ---------- */
+.sidebar {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: var(--s-3);
+    bottom: var(--s-3);
+    left: max(var(--s-3), env(safe-area-inset-left));
+    z-index: var(--z-nav);
+    width: var(--rail-w);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s-2);
+    padding: var(--s-3) var(--s-2);
+    border-radius: var(--r-xl);
+  }
+
+  .sideBrand {
+    display: grid;
+    place-items: center;
+    margin-bottom: var(--s-2);
+    border-radius: var(--r-lg);
+  }
+
+  /* Логотип в полтора раза крупнее прежнего */
+  .sideBrand .brandMark {
+    width: 60px;
+    height: 60px;
+    box-shadow:
+      0 0 0 3px rgba(255, 255, 255, 0.7),
+      0 10px 24px -10px rgba(27, 58, 107, 0.7);
+  }
+
+  .sideBrand .brandText {
+    display: none;
+  }
+
+  .sideNav {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: none;
+    /* запас под тени плашек, иначе их обрежет прокрутка */
+    width: calc(100% + 2 * var(--s-2));
+    margin: 0 calc(-1 * var(--s-2));
+    padding: 2px var(--s-2) var(--s-2);
+  }
+
+  .sideLink {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 4px;
+    border-radius: var(--r-lg);
+    color: var(--ink-700);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-align: center;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out),
+      transform var(--dur-fast) var(--ease-out);
+  }
+
+  .sideLink svg {
+    width: 22px;
+    height: 22px;
+    flex: none;
+  }
+
+  .sideLink:active {
+    transform: scale(0.97);
+  }
+
+  .sideLinkActive {
+    background: var(--lg-fill-active);
+    color: var(--ink-900);
+    box-shadow:
+      var(--lg-rim),
+      0 0 0 1px rgba(31, 122, 240, 0.18),
+      0 10px 24px -12px rgba(22, 104, 214, 0.55);
+  }
+
+  .sideLinkActive svg {
+    color: var(--blue-600);
+  }
+
+  .sideFoot {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s-2);
+    padding-top: var(--s-1);
+  }
+
+  .sideUser {
+    display: grid;
+    place-items: center;
+    padding: 6px;
+    border-radius: var(--r-pill);
+  }
+
+  .sideUserName {
+    display: none;
+  }
+}
+
+@media (hover: hover) and (min-width: 768px) {
+  .sideLink:not(.sideLinkActive):hover {
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.4) 100%);
+    color: var(--ink-900);
+  }
+
+  .sideUser:hover {
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.45) 100%);
+  }
+}
+
+@media (min-width: 1280px) {
+  .sidebar {
+    width: var(--sidebar-w);
+    align-items: stretch;
+    padding: var(--s-4);
+  }
+
+  .sideBrand {
+    display: flex;
+    justify-content: flex-start;
+    padding: var(--s-2) var(--s-2) var(--s-3);
+  }
+
+  .sideBrand .brand {
+    gap: var(--s-4);
+  }
+
+  .sideBrand .brandText {
+    display: flex;
+  }
+
+  .sideBrand .brandName {
+    font-size: 1.5rem;
+  }
+
+  .sideBrand .brandSub {
+    font-size: var(--fs-sm);
+    margin-top: 5px;
+  }
+
+  .sideLink {
+    flex-direction: row;
+    gap: var(--s-3);
+    padding: 0 var(--s-3);
+    min-height: 50px;
+    font-size: var(--fs-md);
+    font-weight: 500;
+    text-align: left;
+  }
+
+  /* иконка в маленьком стеклянном квадрате */
+  .sideLink svg {
+    box-sizing: content-box;
+    padding: 6px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.55);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .sideLinkActive {
+    font-weight: 600;
+  }
+
+  .sideLinkActive svg {
+    background: var(--blue-600);
+    color: var(--white);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 6px 14px -6px rgba(22, 104, 214, 0.8);
+  }
+
+  .sideFoot {
+    align-items: stretch;
+  }
+
+  .sideUser {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    padding: var(--s-2) var(--s-3) var(--s-2) var(--s-2);
+    border-radius: var(--r-lg);
+    text-align: left;
+    width: 100%;
+  }
+
+  .sideUserName {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.25;
+  }
+
+  .sideUserName b {
+    font-weight: 600;
+    font-size: var(--fs-sm);
+  }
+
+  .sideUserName span {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+  }
+}
+
+/* ---------- Основная колонка ---------- */
+.main {
+  min-width: 0;
+  padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + var(--s-6));
+}
+
+@media (min-width: 768px) {
+  .main {
+    margin-left: calc(var(--rail-w) + var(--s-3));
+    padding-bottom: var(--s-10);
+  }
+}
+
+@media (min-width: 1280px) {
+  .main {
+    margin-left: calc(var(--sidebar-w) + var(--s-3));
+  }
+}
+
+/* Стеклянная шапка */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: calc(var(--header-h) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) var(--gutter) 0;
+  padding-left: max(var(--gutter), env(safe-area-inset-left));
+  padding-right: max(var(--gutter), env(safe-area-inset-right));
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow:
+    inset 0 -1px 0 rgba(255, 255, 255, 0.6),
+    0 1px 0 rgba(11, 42, 74, 0.05);
+}
+
+@media (min-width: 768px) {
+  .header {
+    margin: 0 var(--gutter);
+    margin-top: var(--s-3);
+    top: var(--s-3);
+    padding: 0 var(--s-2) 0 var(--s-4);
+    min-height: 60px;
+    padding: 0;
+    gap: var(--s-3);
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+  }
+}
+
+.headerBrand {
+  display: inline-flex;
+}
+
+@media (min-width: 768px) {
+  .headerBrand {
+    display: none;
+  }
+}
+
+.headerTitle {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: var(--fs-lg);
+}
+
+@media (min-width: 768px) {
+  .headerTitle {
+    display: none;
+  }
+}
+
+.headerSearch {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .headerSearch {
+    display: block;
+    flex: 4 1 0;
+    min-width: 0;
+    max-width: 560px;
+    border-radius: var(--r-pill);
+  }
+
+  /* Поиск — стеклянная капсула, поле внутри прозрачное */
+  .headerSearch input {
+    height: 54px;
+    padding-left: 54px;
+    background: transparent;
+    font-weight: 500;
+  }
+
+  .headerSearch input::placeholder {
+    color: var(--ink-600);
+  }
+
+  .headerSearch input:focus {
+    background: rgba(255, 255, 255, 0.7);
+  }
+
+  .headerSearch svg:first-child {
+    left: 10px;
+    width: 34px;
+    height: 34px;
+    padding: 8px;
+    border-radius: 50%;
+    background: var(--blue-600);
+    color: var(--white);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 6px 14px -6px rgba(22, 104, 214, 0.8);
+  }
+
+  .headerActions {
+    gap: var(--s-2);
+    padding: 5px;
+    border-radius: var(--r-pill);
+  }
+}
+
+.headerSpacer {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .headerSpacer {
+    display: block;
+    flex: 1;
+  }
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.mobileOnly {
+  display: inline-grid;
+}
+
+.desktopOnly {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .mobileOnly {
+    display: none;
+  }
+  .desktopOnly {
+    display: inline-flex;
+  }
+}
+
+.bellWrap {
+  position: relative;
+}
+
+.badge {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--red-500);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--bg-top);
+  pointer-events: none;
+}
+
+.content {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--s-5) var(--gutter) 0;
+  padding-left: max(var(--gutter), env(safe-area-inset-left));
+  padding-right: max(var(--gutter), env(safe-area-inset-right));
+}
+
+@media (min-width: 768px) {
+  .content {
+    padding-top: var(--s-8);
+  }
+}
+
+/* ---------- Нижняя панель (телефон) ---------- */
+/* Плавающая стеклянная капсула, как панель вкладок в iOS 26 */
+.bottomNav {
+  position: fixed;
+  left: max(var(--s-3), env(safe-area-inset-left));
+  right: max(var(--s-3), env(safe-area-inset-right));
+  bottom: max(var(--s-3), env(safe-area-inset-bottom));
+  z-index: var(--z-nav);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: stretch;
+  height: 64px;
+  padding: 0 var(--s-1);
+  border-radius: var(--r-pill);
+}
+
+@media (min-width: 768px) {
+  .bottomNav {
+    display: none;
+  }
+}
+
+.bottomLink {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--ink-600);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottomLink svg {
+  width: 23px;
+  height: 23px;
+}
+
+.bottomLinkActive {
+  color: var(--blue-700);
+}
+
+.bottomLinkActive .bottomIcon {
+  background: var(--lg-fill-active);
+  box-shadow:
+    var(--lg-rim),
+    0 6px 14px -8px rgba(22, 104, 214, 0.6);
+}
+
+.bottomIcon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 30px;
+  border-radius: var(--r-pill);
+  transition: background-color var(--dur) var(--ease-out);
+}
+
+/* Центральная кнопка приёма */
+.bottomCta .bottomIcon {
+  width: 52px;
+  height: 36px;
+  background: var(--primary);
+  color: var(--white);
+  box-shadow: 0 8px 18px -8px rgba(22, 104, 214, 0.8);
+}
+
+.bottomCta.bottomLinkActive .bottomIcon {
+  background: var(--ink-900);
+}
+
+/* ---------- Меню «Ещё» ---------- */
+.moreGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s-2);
+}
+
+.moreLink {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 56px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.moreLink svg {
+  width: 22px;
+  height: 22px;
+  color: var(--blue-600);
+  flex: none;
+}
+
+.moreUser {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) 0 var(--s-4);
+}
+
+/* Меню пользователя */
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 240px;
+  padding: var(--s-2);
+  border-radius: var(--r-md);
+  background: var(--glass-strong);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow:
+    var(--shadow-md),
+    inset 0 0 0 1px var(--glass-border);
+  z-index: var(--z-overlay);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+  text-align: left;
+}
+
+.menuItem svg {
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+}
+
+@media (hover: hover) {
+  .menuItem:hover {
+    background: var(--surface-3);
+  }
+}
+
+.menuHead {
+  padding: var(--s-2) var(--s-3) var(--s-3);
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: var(--s-1);
+  font-size: var(--fs-sm);
+}
+
+.menuHead b {
+  display: block;
+}
+
+.menuHead span {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.userBtnWrap {
+  position: relative;
+}
+
+/* На телефоне шапка сама стеклянная — кнопкам отдельная капсула не нужна */
+@media (max-width: 767.98px) {
+  .headerActions {
+    background: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .headerActions::before,
+  .headerActions::after {
+    display: none;
+  }
+}

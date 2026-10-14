@@ -1,0 +1,119 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sheet);
+  background: rgba(7, 29, 52, 0.38);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.panel {
+  position: relative;
+  width: 100%;
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  outline: none;
+}
+
+.full {
+  height: calc(100dvh - 12px - env(safe-area-inset-top));
+}
+
+.grabber {
+  flex: none;
+  width: 40px;
+  height: 5px;
+  margin: 8px auto 0;
+  border-radius: var(--r-pill);
+  background: var(--ink-200);
+}
+
+.head {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-4) var(--s-3) var(--s-5);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  padding-top: 8px;
+}
+
+.subtitle {
+  margin-top: 4px;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-2) var(--s-5) var(--s-5);
+}
+
+.foot {
+  flex: none;
+  display: flex;
+  gap: var(--s-3);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  padding: var(--s-3) var(--s-5) calc(var(--s-3) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-soft);
+  background: var(--surface);
+}
+
+.foot > * {
+  flex: 1 1 auto;
+}
+
+@media (min-width: 768px) {
+  .overlay {
+    align-items: center;
+    padding: var(--s-6);
+  }
+
+  .panel {
+    width: min(100%, var(--sheet-w, 560px));
+    max-height: min(88dvh, 920px);
+    border-radius: var(--r-xl);
+  }
+
+  .full {
+    height: auto;
+  }
+
+  .grabber {
+    display: none;
+  }
+
+  .head {
+    padding: var(--s-5) var(--s-5) var(--s-3) var(--s-6);
+  }
+
+  .body {
+    padding: var(--s-2) var(--s-6) var(--s-6);
+  }
+
+  .foot {
+    padding: var(--s-4) var(--s-6);
+  }
+
+  .foot > * {
+    flex: 0 0 auto;
+  }
+}

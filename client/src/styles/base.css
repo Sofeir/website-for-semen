@@ -1,0 +1,223 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  line-height: var(--lh);
+  color: var(--text);
+  background: var(--bg-mid);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01';
+  overflow-x: hidden;
+}
+
+/* Статичный мягкий фон. Отдельный слой, чтобы не зависеть от background-attachment на iOS. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60% 45% at 0% 0%, rgba(42, 133, 116, 0.3) 0%, transparent 70%),
+    radial-gradient(55% 50% at 8% 100%, rgba(31, 122, 240, 0.28) 0%, transparent 70%),
+    radial-gradient(45% 40% at 100% 55%, rgba(42, 133, 116, 0.16) 0%, transparent 70%),
+    radial-gradient(90% 60% at 100% 0%, rgba(255, 255, 255, 0.8) 0%, transparent 60%),
+    linear-gradient(165deg, var(--bg-top) 0%, var(--bg-mid) 48%, var(--bg-bottom) 100%);
+  pointer-events: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ul,
+ol,
+figure {
+  margin: 0;
+}
+
+ul,
+ol {
+  padding: 0;
+  list-style: none;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: var(--primary-text);
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+input,
+select,
+textarea {
+  font-size: var(--fs-md);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: var(--blue-200);
+  color: var(--ink-900);
+}
+
+.num,
+time,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.wrap {
+  flex-wrap: wrap;
+}
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- Liquid Glass ----------
+   Стекло в духе iOS 26: размытие и насыщение фона, блик по кромке (::after)
+   и мягкое световое пятно сверху (::before). Преломление не имитируем —
+   SVG-фильтры в backdrop-filter работают только в Chromium. */
+:where(.lg) {
+  position: relative;
+  isolation: isolate;
+  background: var(--lg-fill);
+  -webkit-backdrop-filter: blur(24px) saturate(1.9) brightness(1.05);
+  backdrop-filter: blur(24px) saturate(1.9) brightness(1.05);
+  box-shadow: var(--lg-rim), var(--lg-shadow);
+}
+
+/* Внутри стеклянной панели — без повторного размытия, только заливка и блик */
+:where(.lg-flat) {
+  position: relative;
+  isolation: isolate;
+  background: var(--lg-fill-soft);
+  box-shadow: var(--lg-rim), var(--lg-shadow-sm);
+}
+
+:where(.lg, .lg-flat)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(120% 70% at 30% -10%, rgba(255, 255, 255, 0.55) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+/* Кромка: светлая в верхнем левом и нижнем правом углу, как у стекла на свету */
+:where(.lg, .lg-flat)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.25) 30%,
+    rgba(255, 255, 255, 0.08) 55%,
+    rgba(255, 255, 255, 0.7) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}

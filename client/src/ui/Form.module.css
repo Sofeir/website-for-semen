@@ -1,0 +1,341 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.hint {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.error {
+  font-size: var(--fs-xs);
+  color: var(--danger-text);
+  font-weight: 500;
+}
+
+.control {
+  width: 100%;
+  min-height: var(--field-h);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-md);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+  appearance: none;
+}
+
+.control::placeholder {
+  color: var(--ink-400);
+}
+
+.control:focus {
+  outline: none;
+  border-color: var(--blue-500);
+  box-shadow: var(--ring);
+}
+
+.control[aria-invalid='true'] {
+  border-color: var(--red-500);
+}
+
+.control:disabled {
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+@media (hover: hover) {
+  .control:hover:not(:focus):not(:disabled) {
+    border-color: var(--border-strong);
+  }
+}
+
+textarea.control {
+  padding: var(--s-3) var(--s-4);
+  min-height: 96px;
+  resize: vertical;
+  line-height: var(--lh);
+}
+
+.selectWrap {
+  position: relative;
+}
+
+.selectWrap select {
+  padding-right: 44px;
+  cursor: pointer;
+}
+
+.selectWrap svg {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.inputIcon {
+  position: relative;
+}
+
+.inputIcon > svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.inputIcon > input {
+  padding-left: 44px;
+}
+
+/* Крупные чипы-чекбоксы: удобно пальцем */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--tap);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chip input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.chip:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.chipMark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.chipMark svg {
+  width: 12px;
+  height: 12px;
+  opacity: 0;
+}
+
+.chipOn {
+  background: var(--ink-900);
+  color: var(--white);
+  box-shadow: none;
+}
+
+.chipOn .chipMark {
+  background: var(--teal-500);
+  box-shadow: none;
+}
+
+.chipOn .chipMark svg {
+  opacity: 1;
+  color: var(--white);
+}
+
+@media (hover: hover) {
+  .chip:not(.chipOn):hover {
+    box-shadow: inset 0 0 0 1px var(--ink-400);
+    background: var(--surface-2);
+  }
+}
+
+/* Сегментный переключатель */
+.segmented {
+  display: inline-flex;
+  padding: 4px;
+  gap: 4px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 0 0 1px var(--border-soft);
+  max-width: 100%;
+}
+
+.segmented.block {
+  display: flex;
+  width: 100%;
+}
+
+.segment {
+  position: relative;
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: 40px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+  z-index: 0;
+}
+
+.segment svg {
+  width: 18px;
+  height: 18px;
+}
+
+.segmentActive {
+  color: var(--text);
+}
+
+.segmentBg {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  z-index: -1;
+}
+
+/* Обычный чекбокс */
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--tap);
+  cursor: pointer;
+  font-size: var(--fs-md);
+  user-select: none;
+}
+
+.check input {
+  appearance: none;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border-radius: 7px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.check input:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.check input:checked::after {
+  content: '';
+  width: 6px;
+  height: 11px;
+  border: solid var(--white);
+  border-width: 0 2px 2px 0;
+  rotate: 45deg;
+  translate: 0 -1px;
+}
+
+.check input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.grid2 {
+  display: grid;
+  gap: var(--s-4);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .grid2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.grid3 {
+  display: grid;
+  gap: var(--s-4);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .grid3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.span2 {
+  grid-column: 1 / -1;
+}
+
+.inputTrail {
+  position: relative;
+}
+
+.withTrailing {
+  padding-right: 52px;
+}
+
+.trailing {
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.chipsInvalid .chip:not(.chipOn) {
+  box-shadow: inset 0 0 0 1px var(--red-500);
+}

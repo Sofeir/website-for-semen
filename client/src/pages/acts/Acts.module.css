@@ -1,0 +1,313 @@
+.page {
+  min-width: 0;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--tap);
+  margin: calc(var(--s-3) * -1) 0 var(--s-1);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.head {
+  margin-bottom: var(--s-5);
+}
+
+.headTags {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-2);
+  font-size: var(--fs-sm);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-h1);
+  line-height: 1.15;
+}
+
+.sub {
+  margin-top: var(--s-2);
+  color: var(--text-2);
+}
+
+.layout {
+  display: grid;
+  gap: var(--s-4);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1100px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: var(--s-5);
+    align-items: start;
+  }
+  .aside {
+    position: sticky;
+    top: 96px;
+  }
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+/* Строки акта: на узком — карточки, в широком контейнере — таблица */
+.items {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.itemsHead {
+  display: none;
+}
+
+.item {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.itemName {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 48px;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cellLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.sum {
+  justify-content: flex-end;
+}
+
+.sum b {
+  min-height: var(--field-h);
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+
+.del {
+  position: absolute;
+  top: var(--s-2);
+  right: var(--s-2);
+}
+
+.emptyItems {
+  padding: var(--s-5);
+  text-align: center;
+  color: var(--text-muted);
+  border: 1.5px dashed var(--border);
+  border-radius: var(--r-md);
+}
+
+@container (min-width: 620px) {
+  .itemsHead,
+  .item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 84px 116px 116px 44px;
+    gap: var(--s-2);
+    align-items: center;
+  }
+  .itemsHead {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    padding: 0 var(--s-1);
+  }
+  .item {
+    padding: 0;
+    background: transparent;
+  }
+  .itemName {
+    grid-column: auto;
+    padding-right: 0;
+  }
+  .cellLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .sum b {
+    justify-content: flex-end;
+  }
+  .del {
+    position: static;
+  }
+}
+
+.services {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--s-3);
+}
+
+.service {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--s-2) var(--s-2);
+  border-top: 1px solid var(--border-soft);
+  text-align: left;
+  border-radius: var(--r-xs);
+}
+
+.services li:first-child .service {
+  border-top: 0;
+}
+
+@media (hover: hover) {
+  .service:hover {
+    background: var(--blue-50);
+  }
+}
+
+.serviceName {
+  flex: 1;
+  min-width: 0;
+}
+
+.servicePrice {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+}
+
+.servicePlus {
+  width: 18px;
+  height: 18px;
+  color: var(--blue-600);
+  flex: none;
+}
+
+.totalCard {
+  min-width: 0;
+}
+
+.totalLabel {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.total {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-display);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: var(--s-5);
+  overflow-wrap: anywhere;
+}
+
+.pdfBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: var(--field-h);
+  border-radius: var(--r-pill);
+  background: var(--blue-100);
+  color: var(--blue-800);
+  font-weight: 600;
+}
+
+/* Список актов */
+.list {
+  padding-top: var(--s-2);
+  padding-bottom: var(--s-2);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.row:first-child {
+  border-top: 0;
+}
+
+.rowLink {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  color: inherit;
+  flex-wrap: wrap;
+}
+
+.rowMain {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rowMain span {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.rowSum {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pdf {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--tap);
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--r-pill);
+  background: var(--blue-100);
+  color: var(--blue-800);
+  font-weight: 700;
+  font-size: var(--fs-xs);
+}
+
+.hideSm {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .hideSm {
+    display: inline-flex;
+  }
+}

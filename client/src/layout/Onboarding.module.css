@@ -1,0 +1,41 @@
+.dots {
+  display: flex;
+  gap: var(--s-2);
+  margin-bottom: var(--s-5);
+}
+
+.dot {
+  min-width: 52px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1.5px var(--border);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  transition: all var(--dur) var(--ease-out);
+}
+
+.dot[aria-current='step'] {
+  background: var(--ink-900);
+  box-shadow: none;
+  color: var(--white);
+}
+
+.step {
+  min-height: 150px;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-xl);
+  line-height: 1.2;
+  margin-bottom: var(--s-3);
+}
+
+.text {
+  color: var(--text-2);
+  max-width: 52ch;
+}

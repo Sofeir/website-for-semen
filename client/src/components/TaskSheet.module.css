@@ -1,0 +1,86 @@
+.pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: 6px;
+}
+
+.desc {
+  white-space: pre-line;
+  color: var(--text-2);
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+}
+
+.late {
+  color: var(--danger-text);
+  font-weight: 600;
+}
+
+.chainTitle {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  margin: var(--s-2) 0 var(--s-3);
+}
+
+.chain {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.step {
+  position: relative;
+  display: flex;
+  gap: var(--s-3);
+}
+
+.step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 21px;
+  top: 30px;
+  bottom: calc(var(--s-3) * -1);
+  width: 2px;
+  background: var(--border);
+}
+
+.stepNum {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  height: 28px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--blue-100);
+  color: var(--blue-800);
+}
+
+.step[data-done='true'] .stepNum {
+  background: var(--teal-100);
+  color: var(--teal-700);
+}
+
+.stepBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 3px;
+}
+
+.stepMeta {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.stepComment {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  white-space: pre-line;
+}

@@ -4,15 +4,23 @@ node_modules/
 # секреты
 .env
 .env.local
+.env.*.local
 
-# служебное
+# сборка и служебное
+client/dist/
+client/dist-demo/
+uploads/
+test-results/
+playwright-report/
 *.log
 npm-debug.log*
 .DS_Store
 Thumbs.db
+~$*
 
 # локальные инструменты
 .claude/*
 !.claude/hooks/
 !.claude/settings.json
+!.claude/launch.json
 .playwright-mcp/

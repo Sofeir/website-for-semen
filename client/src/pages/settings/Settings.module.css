@@ -1,0 +1,287 @@
+.tabs {
+  margin-bottom: var(--s-4);
+}
+
+.dictLayout {
+  display: grid;
+  gap: var(--s-4);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1024px) {
+  .dictLayout {
+    grid-template-columns: 240px minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.dictNav {
+  display: flex;
+  gap: var(--s-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0 var(--gutter);
+}
+
+.dictNav::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .dictNav {
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    gap: 2px;
+  }
+}
+
+.dictNavItem {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: var(--tap);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.55);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.dictNavItem[aria-current='page'] {
+  background: var(--ink-900);
+  color: var(--white);
+}
+
+.dictNavItem[aria-current='page'] :global(.muted) {
+  color: var(--text-on-dark-muted);
+}
+
+@media (min-width: 1024px) {
+  .dictNavItem {
+    border-radius: var(--r-md);
+  }
+}
+
+.dict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.dictHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-2);
+}
+
+.dictTitle {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+
+.dictHint {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  margin-top: 2px;
+  max-width: 70ch;
+}
+
+.dictTools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.dictTools > :first-child:not(:last-child) {
+  min-width: 200px;
+}
+
+.dictList {
+  display: flex;
+  flex-direction: column;
+}
+
+.dictItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-2) 0;
+  border-top: 1px solid var(--border-soft);
+  min-height: 56px;
+}
+
+.dictItem:first-child {
+  border-top: 0;
+}
+
+.inactive .dictName {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.dictName {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-weight: 500;
+}
+
+.dictMeta {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.activeLabel {
+  font-size: var(--fs-sm);
+}
+
+.stageNo {
+  display: inline-grid;
+  place-items: center;
+  min-width: 40px;
+  height: 26px;
+  border-radius: var(--r-pill);
+  background: var(--ink-900);
+  color: var(--white);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.dictForm {
+  width: 100%;
+  display: grid;
+  gap: var(--s-2);
+  grid-template-columns: 1fr;
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--blue-50);
+}
+
+@media (min-width: 640px) {
+  .dictForm {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dictForm > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.dictFormActions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--s-2);
+}
+
+.dictEmpty {
+  padding: var(--s-5);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.users {
+  display: flex;
+  flex-direction: column;
+}
+
+.user {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.user:first-child {
+  border-top: 0;
+}
+
+.user[data-inactive='true'] {
+  opacity: 0.6;
+}
+
+.userMain {
+  flex: 1 1 160px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.userMain span {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.roleSelect {
+  min-width: 220px;
+}
+
+.days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s-5);
+}
+
+.previewWrap {
+  overflow-x: auto;
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--border-soft);
+  max-width: 100%;
+}
+
+.preview {
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  min-width: 100%;
+}
+
+.preview th {
+  text-align: left;
+  vertical-align: top;
+  padding: var(--s-2);
+  background: var(--surface-2);
+  min-width: 180px;
+}
+
+.previewHeader {
+  display: block;
+  font-weight: 600;
+  margin-bottom: var(--s-2);
+}
+
+.preview td {
+  padding: var(--s-2);
+  border-top: 1px solid var(--border-soft);
+  white-space: nowrap;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.importDone {
+  display: flex;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--teal-50);
+  color: var(--teal-800);
+  font-size: var(--fs-sm);
+}
+
+.importDone > svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
