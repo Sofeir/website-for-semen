@@ -13,6 +13,9 @@ export const importRouter = Router();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 
+const MAX_ROWS = 5000;
+const MAX_COLS = 100;
+
 /** Разобранные файлы ждут подтверждения 30 минут. */
 const pending = new Map<string, { userId: number; headers: string[]; rows: string[][]; expires: number }>();
 
@@ -127,11 +130,15 @@ importRouter.post(
       const ws = wb.worksheets[0];
       if (!ws) throw new HttpError(400, 'В файле нет листов');
       table = [];
-      ws.eachRow({ includeEmpty: false }, (row) => {
+      // Лишнее не читаем: файл с миллионом строк или колонок не должен съесть память сервера.
+      const cols = Math.min(ws.columnCount, MAX_COLS);
+      for (let r = 1; r <= ws.rowCount && table.length <= MAX_ROWS; r++) {
+        const row = ws.getRow(r);
+        if (!row.hasValues) continue;
         const values: string[] = [];
-        for (let c = 1; c <= ws.columnCount; c++) values.push(cellText(row.getCell(c).value));
+        for (let c = 1; c <= cols; c++) values.push(cellText(row.getCell(c).value));
         table.push(values);
-      });
+      }
     } else if (ext === '.csv') {
       table = parseCsv(file.buffer.toString('utf8').replace(/^﻿/, ''));
     } else {
@@ -140,7 +147,7 @@ importRouter.post(
     table = table.filter((r) => r.some((c) => c));
     if (table.length < 2) throw new HttpError(400, 'В файле нет строк с данными');
     const headers = table[0].map((h, i) => h || `Колонка ${i + 1}`);
-    const rows = table.slice(1, 5001);
+    const rows = table.slice(1, MAX_ROWS + 1);
     const token = crypto.randomBytes(16).toString('hex');
     for (const [k, v] of pending) if (v.expires < Date.now()) pending.delete(k);
     pending.set(token, { userId: req.user!.id, headers, rows, expires: Date.now() + 30 * 60_000 });
