@@ -23,6 +23,7 @@ function canScroll(el: Element, dy: number): boolean {
 function scrollableAncestor(start: EventTarget | null, dy: number): Element | null {
   let el = start instanceof Element ? start : null;
   while (el && el !== document.body && el !== document.documentElement) {
+    if (el.hasAttribute('data-native-scroll')) return null; // колёса выбора листаются самим браузером с «прилипанием»
     const oy = getComputedStyle(el).overflowY;
     if ((oy === 'auto' || oy === 'scroll') && canScroll(el, dy)) return el;
     el = el.parentElement;
