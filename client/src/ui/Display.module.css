@@ -6,6 +6,18 @@
   min-width: 0;
 }
 
+/* Карточки подряд чередуют тон: белая, чуть голубоватая, белая… Заметно глазу, но без резкой разницы */
+.card + .card,
+.card + .card + .card + .card,
+.card + .card + .card + .card + .card + .card {
+  background: var(--surface-soft);
+}
+
+.card + .card + .card,
+.card + .card + .card + .card + .card {
+  background: var(--surface);
+}
+
 .pad {
   padding: var(--s-5);
 }
