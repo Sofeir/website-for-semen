@@ -268,9 +268,8 @@ function UserMenu({ onTour }: { placement: 'side'; onTour: () => void }) {
           >
             <div className={s.menuHead}>
               <b>{me.fullName}</b>
-              <span>
-                {ROLE_LABELS[me.role]}, логин {me.login}
-              </span>
+              <span>{ROLE_LABELS[me.role]}</span>
+              <span>логин {me.login}</span>
             </div>
             <button type="button" role="menuitem" className={s.menuItem} onClick={() => navigate('/profile')}>
               <UserRound aria-hidden />
