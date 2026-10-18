@@ -39,6 +39,19 @@ body::before {
   pointer-events: none;
 }
 
+/* На узком экране фон — те же градиенты, но слабее: иначе зелёное и синее пятна
+   растягиваются по высоте телефона и фон выглядит грязнее, чем на компьютере */
+@media (max-width: 767.98px) {
+  body::before {
+    background:
+      radial-gradient(70% 28% at 0% 0%, rgba(42, 133, 116, 0.16) 0%, transparent 70%),
+      radial-gradient(70% 26% at 0% 100%, rgba(31, 122, 240, 0.14) 0%, transparent 70%),
+      radial-gradient(60% 24% at 100% 60%, rgba(42, 133, 116, 0.08) 0%, transparent 70%),
+      radial-gradient(100% 34% at 100% 0%, rgba(255, 255, 255, 0.85) 0%, transparent 60%),
+      linear-gradient(170deg, #eef4fb 0%, #e2edf8 55%, #d3e4f4 100%);
+  }
+}
+
 h1,
 h2,
 h3,

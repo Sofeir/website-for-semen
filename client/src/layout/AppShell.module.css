@@ -129,11 +129,11 @@
   }
 
   .sideLinkActive {
-    background: var(--lg-fill-active);
+    background: var(--fg-fill-active);
     color: var(--ink-900);
     box-shadow:
-      var(--lg-rim),
-      0 0 0 1px rgba(31, 122, 240, 0.18),
+      var(--fg-rim),
+      var(--fg-active-ring),
       0 10px 24px -12px rgba(22, 104, 214, 0.55);
   }
 
@@ -479,6 +479,11 @@
   height: 64px;
   padding: 0 var(--s-1);
   border-radius: var(--r-pill);
+  /* нижний слой — сплошной цвет, чтобы контент под панелью не просвечивал */
+  background: var(--fg-fill), #eef5fc;
+  -webkit-backdrop-filter: var(--fg-blur);
+  backdrop-filter: var(--fg-blur);
+  box-shadow: var(--fg-rim), var(--fg-shadow);
 }
 
 @media (min-width: 768px) {
@@ -510,9 +515,10 @@
 }
 
 .bottomLinkActive .bottomIcon {
-  background: var(--lg-fill-active);
+  background: var(--fg-fill-active);
   box-shadow:
-    var(--lg-rim),
+    var(--fg-rim),
+    var(--fg-active-ring),
     0 6px 14px -8px rgba(22, 104, 214, 0.6);
 }
 
@@ -529,6 +535,7 @@
 .bottomCta .bottomIcon {
   width: 52px;
   height: 36px;
+  margin-block: -3px; /* выше обычной иконки на 6px — подпись «Приём» остаётся на одной линии с остальными */
   background: var(--primary);
   color: var(--white);
   box-shadow: 0 8px 18px -8px rgba(22, 104, 214, 0.8);
@@ -548,13 +555,22 @@
 .moreLink {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--s-3);
-  min-height: 56px;
-  padding: 0 var(--s-4);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
+  min-height: 60px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-lg);
+  background: var(--fg-fill);
+  box-shadow: var(--fg-rim), var(--fg-shadow-sm);
   font-weight: 600;
   color: var(--text);
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.moreLink:active {
+  transform: scale(0.97);
 }
 
 .moreLink svg {
