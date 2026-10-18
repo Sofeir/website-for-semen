@@ -55,17 +55,42 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   outline: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-200) transparent;
 }
 
+.list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.list::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--ink-200);
+  background-clip: content-box;
+}
+
+.list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Всплывающая панель: плотное стекло того же семейства, что и плашки меню */
 .pop {
   position: fixed;
   z-index: var(--z-toast);
-  padding: var(--s-1);
-  border-radius: var(--r-md);
-  background: var(--surface);
+  width: max-content;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 6px;
+  border-radius: var(--r-lg);
+  background: rgba(252, 254, 255, 0.95);
+  -webkit-backdrop-filter: var(--fg-blur);
+  backdrop-filter: var(--fg-blur);
   box-shadow:
-    var(--shadow-lg),
-    inset 0 0 0 1px var(--border-soft);
+    0 0 0 1px rgba(11, 42, 74, 0.06),
+    inset 0 1px 0 #ffffff,
+    inset 0 0 0 1px rgba(255, 255, 255, 0.8),
+    0 2px 6px rgba(11, 42, 74, 0.08),
+    0 24px 48px -16px rgba(11, 42, 74, 0.38);
   transform-origin: top center;
   animation: pop var(--dur) var(--ease-out);
 }
@@ -84,6 +109,7 @@
 
 .groupLabel {
   padding: var(--s-2) var(--s-3) var(--s-1);
+  white-space: nowrap;
   font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -97,12 +123,19 @@
   gap: var(--s-3);
   min-height: var(--tap);
   padding: 0 var(--s-3);
-  border-radius: var(--r-sm);
+  border-radius: 14px;
   font-size: var(--fs-md);
   color: var(--text);
   text-align: left;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* мышью можно целиться точнее, чем пальцем */
+@media (hover: hover) and (pointer: fine) {
+  .pop .option {
+    min-height: 40px;
+  }
 }
 
 .optionText {
@@ -116,7 +149,7 @@
 }
 
 .option[data-active='true'] {
-  background: var(--surface-3);
+  background: rgba(22, 104, 214, 0.08);
 }
 
 .selected {
@@ -125,7 +158,7 @@
 }
 
 .selected[data-active='false'] {
-  background: var(--blue-50);
+  background: rgba(22, 104, 214, 0.12);
 }
 
 .disabled {
