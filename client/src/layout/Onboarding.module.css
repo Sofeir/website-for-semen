@@ -18,7 +18,7 @@
 }
 
 .dot[aria-current='step'] {
-  background: var(--ink-900);
+  background: var(--surface-dark);
   box-shadow: none;
   color: var(--white);
 }

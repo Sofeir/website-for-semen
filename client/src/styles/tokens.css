@@ -67,7 +67,9 @@
   --surface-soft: #eff5fc;
   --surface-2: var(--ink-50);
   --surface-3: var(--ink-100);
-  --surface-dark: var(--ink-900);
+  /* тёмные плашки: средний синий, чтобы белый и приглушённый текст на них читались легко */
+  --surface-dark: #1f4f84;
+  --surface-dark-hover: #2a5d98;
   /* Панели с текстом (уведомления, меню, подсказки, поиск) — сплошные: за ними ничего не должно просвечивать */
   --glass: rgba(246, 250, 254, 0.92);
   --glass-strong: #fbfdff;
@@ -104,7 +106,7 @@
   --text-2: var(--ink-700);
   --text-muted: var(--ink-500);
   --text-on-dark: #eef4fb;
-  --text-on-dark-muted: #a9c0d8;
+  --text-on-dark-muted: #c6d8ec;
 
   --border: var(--ink-200);
   --border-soft: var(--ink-150);

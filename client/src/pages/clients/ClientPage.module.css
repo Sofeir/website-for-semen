@@ -22,7 +22,7 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: var(--ink-900);
+  background: var(--surface-dark);
   color: var(--white);
 }
 

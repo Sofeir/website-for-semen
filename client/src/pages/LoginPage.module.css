@@ -28,7 +28,7 @@
     border-radius: var(--r-xl);
     background:
       radial-gradient(110% 80% at 100% 0%, rgba(42, 133, 116, 0.45) 0%, transparent 60%),
-      radial-gradient(80% 60% at 0% 100%, rgba(31, 122, 240, 0.25) 0%, transparent 60%), var(--ink-900);
+      radial-gradient(80% 60% at 0% 100%, rgba(141, 188, 247, 0.25) 0%, transparent 60%), var(--surface-dark);
     color: var(--text-on-dark);
     padding: var(--s-10);
   }
