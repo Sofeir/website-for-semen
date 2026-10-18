@@ -74,6 +74,111 @@ interface Pos {
 const WRAPPED = Symbol('pickerWrapped');
 const nativeValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
 
+const ROW = 40;
+
+/**
+ * Колесо выбора, как при установке будильника: список листается, строка по центру — выбранная.
+ * Значение подхватывается, когда прокрутка остановилась. Тап по строке выбирает её сразу.
+ */
+function Wheel({
+  items,
+  value,
+  initial,
+  label,
+  onPick,
+}: {
+  items: number[];
+  value: number | null;
+  initial: number;
+  label: string;
+  onPick: (v: number) => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const quiet = useRef(true); // true — прокрутку вызвали мы сами, а не человек
+  const timer = useRef<number>();
+
+  const goTo = useCallback((index: number, smooth: boolean) => {
+    const el = box.current;
+    if (!el) return;
+    quiet.current = true;
+    el.scrollTo({ top: index * ROW, behavior: smooth ? 'smooth' : 'auto' });
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => (quiet.current = false), smooth ? 450 : 80);
+  }, []);
+
+  const shown = value ?? initial;
+  const shownIndex = Math.max(0, items.indexOf(shown));
+
+  // при открытии и при внешней смене значения ставим колесо на нужную строку
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (el && Math.abs(el.scrollTop - shownIndex * ROW) > 1 && quiet.current) goTo(shownIndex, false);
+    if (el && !quiet.current && Math.abs(el.scrollTop - shownIndex * ROW) > ROW / 2) goTo(shownIndex, false);
+  }, [shownIndex, goTo]);
+
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  const onScroll = () => {
+    if (quiet.current) return;
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      const el = box.current;
+      if (!el) return;
+      const i = Math.max(0, Math.min(items.length - 1, Math.round(el.scrollTop / ROW)));
+      if (el.scrollTop !== i * ROW) el.scrollTo({ top: i * ROW, behavior: 'smooth' });
+      if (items[i] !== value) onPick(items[i]);
+    }, 110);
+  };
+
+  const step = (delta: number) => {
+    const i = Math.max(0, Math.min(items.length - 1, shownIndex + delta));
+    goTo(i, true);
+    onPick(items[i]);
+  };
+
+  return (
+    <div className={s.wheelWrap}>
+      <div className={s.wheelBand} aria-hidden />
+      <div
+        ref={box}
+        role="listbox"
+        aria-label={label}
+        tabIndex={0}
+        data-native-scroll
+        className={s.wheel}
+        onScroll={onScroll}
+        onPointerDown={() => (quiet.current = false)}
+        onWheel={() => (quiet.current = false)}
+        onTouchStart={() => (quiet.current = false)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            step(1);
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            step(-1);
+          }
+        }}
+      >
+        {items.map((v, i) => (
+          <div
+            key={v}
+            role="option"
+            aria-selected={v === value}
+            className={cx(s.wheelItem, v === value && s.wheelOn)}
+            onClick={() => {
+              goTo(i, true);
+              onPick(v);
+            }}
+          >
+            {p2(v)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Поле даты и времени в стиле приложения вместо встроенного календаря браузера.
  * Снаружи это обычный <input type="date | time | datetime-local">: те же value, onChange, ref,
@@ -128,7 +233,7 @@ export const DateTimeInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HT
     const parts = parse(kind, value);
     const minDay = min ? String(min).slice(0, 10) : '';
     const maxDay = max ? String(max).slice(0, 10) : '';
-    const minuteStep = Math.min(30, Math.max(1, step ? Math.round(Number(step) / 60) : 5));
+    const minuteStep = Math.min(30, Math.max(1, step ? Math.round(Number(step) / 60) : 1));
 
     const place = useCallback(() => {
       const t = trigger.current;
@@ -259,6 +364,7 @@ export const DateTimeInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HT
     const title = fieldLabel || rest['aria-label'] || '';
     const hours = Array.from({ length: 24 }, (_, i) => i);
     const minutes = Array.from({ length: Math.ceil(60 / minuteStep) }, (_, i) => i * minuteStep).filter((m) => m < 60);
+    const minuteItems = parts && !minutes.includes(parts.mi) ? [...minutes, parts.mi].sort((x, y) => x - y) : minutes;
     const canClear = kind !== 'time' && !rest.required;
 
     const body = (
@@ -310,33 +416,21 @@ export const DateTimeInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HT
           )}
           {kind !== 'date' && (
             <div className={s.time}>
-              <div className={s.timeLabel}>Часы</div>
-              <div className={s.hours}>
-                {hours.map((h) => (
-                  <button
-                    key={h}
-                    type="button"
-                    className={cx(s.cell, parts?.h === h && s.selected)}
-                    aria-pressed={parts?.h === h}
-                    onClick={() => pickTime(h, null)}
-                  >
-                    {p2(h)}
-                  </button>
-                ))}
-              </div>
-              <div className={s.timeLabel}>Минуты</div>
-              <div className={s.minutes}>
-                {minutes.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    className={cx(s.cell, parts?.mi === m && s.selected)}
-                    aria-pressed={parts?.mi === m}
-                    onClick={() => pickTime(null, m)}
-                  >
-                    {p2(m)}
-                  </button>
-                ))}
+              <div className={s.wheels}>
+                <div className={s.timeLabel}>Часы</div>
+                <span />
+                <div className={s.timeLabel}>Минуты</div>
+                <Wheel label="Часы" items={hours} value={parts?.h ?? null} initial={9} onPick={(h) => pickTime(h, null)} />
+                <span className={s.colon} aria-hidden>
+                  :
+                </span>
+                <Wheel
+                  label="Минуты"
+                  items={minuteItems}
+                  value={parts?.mi ?? null}
+                  initial={0}
+                  onPick={(m) => pickTime(null, m)}
+                />
               </div>
             </div>
           )}

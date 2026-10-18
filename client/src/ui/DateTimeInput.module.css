@@ -100,10 +100,6 @@
   border-left: 1px solid var(--border-soft);
 }
 
-.pop .hours,
-.pop .minutes {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
 
 /* ---------- Календарь ---------- */
 .calHead {
@@ -191,14 +187,12 @@
 }
 
 @media (hover: hover) {
-  .day:hover:not(:disabled):not(.selected),
-  .cell:hover:not(.selected) {
+  .day:hover:not(:disabled):not(.selected) {
     background: rgba(22, 104, 214, 0.09);
   }
 }
 
 .day:focus-visible,
-.cell:focus-visible,
 .link:focus-visible,
 .done:focus-visible,
 .nav:focus-visible {
@@ -221,31 +215,81 @@
 
 .timeLabel {
   margin-bottom: var(--s-1);
+  text-align: center;
   font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text-muted);
 }
 
-.hours,
-.minutes {
+/* Колёса часов и минут, как в будильнике */
+.wheels {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 2px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  column-gap: var(--s-1);
+  align-items: center;
 }
 
-.hours {
-  margin-bottom: var(--s-3);
+.colon {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
-.cell {
+.wheelWrap {
+  position: relative;
+}
+
+.wheel {
+  height: 200px;
+  padding: 80px 0;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  outline: none;
+  /* верх и низ плавно растворяются */
+  -webkit-mask-image: linear-gradient(transparent 0, #000 28%, #000 72%, transparent 100%);
+  mask-image: linear-gradient(transparent 0, #000 28%, #000 72%, transparent 100%);
+}
+
+.wheel::-webkit-scrollbar {
+  display: none;
+}
+
+.wheel:focus-visible {
+  border-radius: 12px;
+  box-shadow: var(--ring);
+}
+
+/* полоса выбранной строки */
+.wheelBand {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 80px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(22, 104, 214, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(31, 122, 240, 0.16);
+  pointer-events: none;
+}
+
+.wheelItem {
+  height: 40px;
   display: grid;
   place-items: center;
-  min-height: 34px;
-  border-radius: 10px;
-  font-size: var(--fs-sm);
-  font-weight: 500;
+  scroll-snap-align: center;
+  font-size: var(--fs-lg);
   font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+.wheelOn {
+  color: var(--blue-700);
+  font-weight: 700;
 }
 
 /* ---------- Низ ---------- */
@@ -316,10 +360,6 @@
 }
 
 .sheet .day {
-  min-height: 44px;
-}
-
-.sheet .cell {
   min-height: 44px;
 }
 
