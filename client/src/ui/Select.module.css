@@ -1,0 +1,194 @@
+.wrap {
+  position: relative;
+}
+
+/* Настоящий <select> остаётся для форм и тестов, но не виден и не ловит нажатия */
+.native {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  padding-right: 44px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trigger:disabled {
+  cursor: default;
+}
+
+.value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: rotate var(--dur) var(--ease-out);
+}
+
+.chevronOpen {
+  rotate: 180deg;
+}
+
+/* ---------- Список ---------- */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  outline: none;
+}
+
+.pop {
+  position: fixed;
+  z-index: var(--z-toast);
+  padding: var(--s-1);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 0 0 1px var(--border-soft);
+  transform-origin: top center;
+  animation: pop var(--dur) var(--ease-out);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.group + .group {
+  margin-top: var(--s-1);
+  padding-top: var(--s-1);
+  border-top: 1px solid var(--border-soft);
+}
+
+.groupLabel {
+  padding: var(--s-2) var(--s-3) var(--s-1);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: var(--tap);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-md);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.optionText {
+  min-width: 0;
+}
+
+.option svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.option[data-active='true'] {
+  background: var(--surface-3);
+}
+
+.selected {
+  font-weight: 600;
+  color: var(--blue-700);
+}
+
+.selected[data-active='false'] {
+  background: var(--blue-50);
+}
+
+.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---------- Лист снизу (телефон) ---------- */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-toast);
+  background: rgba(7, 29, 52, 0.4);
+  animation: fade var(--dur) var(--ease-out);
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  max-height: min(72dvh, 560px);
+  padding: var(--s-2) var(--s-3) calc(var(--s-4) + env(safe-area-inset-bottom));
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: rise var(--dur-slow) var(--ease-out);
+}
+
+.grab {
+  flex: none;
+  width: 40px;
+  height: 4px;
+  margin: 2px auto var(--s-3);
+  border-radius: 2px;
+  background: var(--ink-200);
+}
+
+.sheetTitle {
+  flex: none;
+  padding: 0 var(--s-3) var(--s-2);
+  font-weight: 600;
+  font-size: var(--fs-lg);
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(100%);
+  }
+}

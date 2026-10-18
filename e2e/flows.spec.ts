@@ -35,7 +35,7 @@ async function advance(page: Page, orderUrl: string, buttonName: RegExp, respons
   await page.goto(orderUrl);
   await page.getByRole('button', { name: buttonName }).click();
   const dialog = page.getByRole('dialog');
-  if (responsible) await dialog.getByRole('combobox').first().selectOption({ label: responsible });
+  if (responsible) await dialog.locator('select').first().selectOption({ label: responsible });
   await dialog.getByRole('button', { name: /^(Перевести|Выдать)$/ }).click();
   await expect(dialog).toBeHidden();
 }
