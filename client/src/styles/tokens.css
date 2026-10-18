@@ -63,6 +63,8 @@
   --bg-mid: #d6e5f4;
   --bg-bottom: #b8d1ea;
   --surface: var(--white);
+  /* чуть голубее белого: для соседних карточек, чтобы блоки не сливались; текст на нём читается так же */
+  --surface-soft: #eff5fc;
   --surface-2: var(--ink-50);
   --surface-3: var(--ink-100);
   --surface-dark: var(--ink-900);

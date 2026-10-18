@@ -180,8 +180,8 @@ export function AppShell() {
             <HelpCircle aria-hidden />
             Подсказки
           </button>
+          <LogoutTile />
         </div>
-        <LogoutRow />
       </Sheet>
 
       <Sheet open={searchOpen} onClose={() => setSearchOpen(false)} title="Поиск" full>
@@ -199,20 +199,19 @@ export function AppShell() {
   );
 }
 
-function LogoutRow() {
+function LogoutTile() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   return (
     <button
       type="button"
-      className={s.menuItem}
-      style={{ marginTop: 'var(--s-4)', color: 'var(--danger-text)' }}
+      className={s.moreLink}
       onClick={async () => {
         await logout();
         navigate('/login');
       }}
     >
-      <LogOut aria-hidden style={{ color: 'inherit' }} />
+      <LogOut aria-hidden />
       Выйти
     </button>
   );
