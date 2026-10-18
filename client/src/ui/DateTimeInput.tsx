@@ -75,10 +75,14 @@ const WRAPPED = Symbol('pickerWrapped');
 const nativeValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
 
 const ROW = 40;
+const PAD = 80; // два пустых ряда сверху и снизу, чтобы крайние значения тоже вставали в центр
 
 /**
- * Колесо выбора, как при установке будильника: список листается, строка по центру — выбранная.
- * Значение подхватывается, когда прокрутка остановилась. Тап по строке выбирает её сразу.
+ * Колесо выбора, как при установке будильника. Управление своё, без прокрутки браузера:
+ *  — колесо мыши: один щелчок равен одной строке, повторные события от одного щелчка отбрасываются;
+ *  — палец и перетаскивание мышью: строки идут за пальцем, после отпускания колесо докатывается до ближайшей строки;
+ *  — тап или клик по строке выбирает её; стрелки вверх и вниз работают с клавиатуры.
+ * Значение записывается сразу, а не после остановки.
  */
 function Wheel({
   items,
@@ -94,46 +98,127 @@ function Wheel({
   onPick: (v: number) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
-  const quiet = useRef(true); // true — прокрутку вызвали мы сами, а не человек
-  const timer = useRef<number>();
-
-  const goTo = useCallback((index: number, smooth: boolean) => {
-    const el = box.current;
-    if (!el) return;
-    quiet.current = true;
-    el.scrollTo({ top: index * ROW, behavior: smooth ? 'smooth' : 'auto' });
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => (quiet.current = false), smooth ? 450 : 80);
-  }, []);
+  const pos = useRef(0);
+  const raf = useRef(0);
+  const drag = useRef<{ y: number; start: number; moved: boolean; t: number; v: number } | null>(null);
+  const lastEvent = useRef(0);
+  const max = (items.length - 1) * ROW;
+  const clamp = useCallback((n: number) => Math.max(0, Math.min(max, n)), [max]);
 
   const shown = value ?? initial;
-  const shownIndex = Math.max(0, items.indexOf(shown));
+  const index = Math.max(0, items.indexOf(shown));
+  const indexRef = useRef(index);
+  indexRef.current = index;
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const onPickRef = useRef(onPick);
+  onPickRef.current = onPick;
+
+  const setPos = useCallback((n: number) => {
+    pos.current = n;
+    if (box.current) box.current.scrollTop = n;
+  }, []);
+
+  const glide = useCallback(
+    (to: number) => {
+      cancelAnimationFrame(raf.current);
+      const from = pos.current;
+      if (Math.abs(to - from) < 0.5) return setPos(to);
+      const t0 = performance.now();
+      const dur = Math.min(260, 120 + Math.abs(to - from) * 0.8);
+      const tick = (now: number) => {
+        const k = Math.min(1, (now - t0) / dur);
+        const e = 1 - Math.pow(1 - k, 3);
+        setPos(from + (to - from) * e);
+        if (k < 1) raf.current = requestAnimationFrame(tick);
+      };
+      raf.current = requestAnimationFrame(tick);
+    },
+    [setPos],
+  );
+
+  const choose = useCallback(
+    (i: number) => {
+      const n = Math.max(0, Math.min(itemsRef.current.length - 1, i));
+      glide(n * ROW);
+      if (itemsRef.current[n] !== valueRef.current) onPickRef.current(itemsRef.current[n]);
+    },
+    [glide],
+  );
 
   // при открытии и при внешней смене значения ставим колесо на нужную строку
   useLayoutEffect(() => {
+    if (drag.current) return;
+    if (Math.abs(pos.current - index * ROW) > 0.5) setPos(index * ROW);
+  }, [index, setPos]);
+
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
+
+  // колесо мыши: нативный слушатель, чтобы можно было отменить прокрутку страницы
+  useEffect(() => {
     const el = box.current;
-    if (el && Math.abs(el.scrollTop - shownIndex * ROW) > 1 && quiet.current) goTo(shownIndex, false);
-    if (el && !quiet.current && Math.abs(el.scrollTop - shownIndex * ROW) > ROW / 2) goTo(shownIndex, false);
-  }, [shownIndex, goTo]);
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const now = performance.now();
+      // события, идущие вплотную друг за другом, — это один щелчок (или одно движение по тачпаду): одна строка
+      const sameGesture = now - lastEvent.current < 110;
+      lastEvent.current = now;
+      if (sameGesture) return;
+      const dy = e.deltaMode === 0 ? e.deltaY : e.deltaY * ROW;
+      if (Math.abs(dy) < 4) return;
+      const dir = dy > 0 ? 1 : -1;
+      choose(indexRef.current + dir);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [choose]);
 
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-
-  const onScroll = () => {
-    if (quiet.current) return;
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => {
-      const el = box.current;
-      if (!el) return;
-      const i = Math.max(0, Math.min(items.length - 1, Math.round(el.scrollTop / ROW)));
-      if (el.scrollTop !== i * ROW) el.scrollTo({ top: i * ROW, behavior: 'smooth' });
-      if (items[i] !== value) onPick(items[i]);
-    }, 110);
+  const itemAt = (clientY: number) => {
+    const r = box.current!.getBoundingClientRect();
+    pos.current = box.current!.scrollTop;
+    return Math.floor((clientY - r.top + pos.current - PAD) / ROW);
   };
 
-  const step = (delta: number) => {
-    const i = Math.max(0, Math.min(items.length - 1, shownIndex + delta));
-    goTo(i, true);
-    onPick(items[i]);
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    cancelAnimationFrame(raf.current);
+    if (box.current) pos.current = box.current.scrollTop;
+    box.current?.setPointerCapture(e.pointerId);
+    drag.current = { y: e.clientY, start: pos.current, moved: false, t: performance.now(), v: 0 };
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    const dy = e.clientY - d.y;
+    if (!d.moved && Math.abs(dy) < 5) return;
+    d.moved = true;
+    const now = performance.now();
+    const next = clamp(d.start - dy);
+    d.v = (next - pos.current) / Math.max(1, now - d.t); // px/мс, куда едет колесо
+    d.t = now;
+    setPos(next);
+  };
+
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d) return;
+    if (!d.moved) {
+      const i = itemAt(e.clientY);
+      if (i >= 0 && i < items.length) choose(i);
+      return;
+    }
+    const fresh = performance.now() - d.t < 90; // палец остановился перед отпусканием — без инерции
+    const target = pos.current + (fresh && Math.abs(d.v) > 0.5 ? d.v * 90 : 0);
+    const i = Math.round(clamp(target) / ROW);
+    // за один бросок — не больше пяти строк от места, где отпустили
+    const from = Math.round(pos.current / ROW);
+    choose(Math.max(from - 5, Math.min(from + 5, i)));
   };
 
   return (
@@ -146,31 +231,25 @@ function Wheel({
         tabIndex={0}
         data-native-scroll
         className={s.wheel}
-        onScroll={onScroll}
-        onPointerDown={() => (quiet.current = false)}
-        onWheel={() => (quiet.current = false)}
-        onTouchStart={() => (quiet.current = false)}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => {
+          drag.current = null;
+          choose(index);
+        }}
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown') {
             e.preventDefault();
-            step(1);
+            choose(index + 1);
           } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            step(-1);
+            choose(index - 1);
           }
         }}
       >
-        {items.map((v, i) => (
-          <div
-            key={v}
-            role="option"
-            aria-selected={v === value}
-            className={cx(s.wheelItem, v === value && s.wheelOn)}
-            onClick={() => {
-              goTo(i, true);
-              onPick(v);
-            }}
-          >
+        {items.map((v) => (
+          <div key={v} role="option" aria-selected={v === value} className={cx(s.wheelItem, v === value && s.wheelOn)}>
             {p2(v)}
           </div>
         ))}
