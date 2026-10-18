@@ -1,0 +1,359 @@
+.wrap {
+  position: relative;
+}
+
+/* Настоящий input остаётся для форм, но не виден и не ловит нажатия */
+.native {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  padding-right: 44px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trigger:disabled {
+  cursor: default;
+}
+
+.value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.placeholder {
+  color: var(--ink-400);
+}
+
+.icon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* ---------- Панель (компьютер) ---------- */
+.pop {
+  position: fixed;
+  z-index: var(--z-toast);
+  padding: var(--s-3);
+  border-radius: var(--r-lg);
+  background: rgba(252, 254, 255, 0.96);
+  -webkit-backdrop-filter: var(--fg-blur);
+  backdrop-filter: var(--fg-blur);
+  box-shadow:
+    0 0 0 1px rgba(11, 42, 74, 0.06),
+    inset 0 1px 0 #ffffff,
+    inset 0 0 0 1px rgba(255, 255, 255, 0.8),
+    0 2px 6px rgba(11, 42, 74, 0.08),
+    0 24px 48px -16px rgba(11, 42, 74, 0.38);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-200) transparent;
+  animation: pop var(--dur) var(--ease-out);
+  transform-origin: top center;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  outline: none;
+}
+
+.cols {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+/* на компьютере календарь и время рядом, чтобы панель была невысокой */
+.pop .cols {
+  flex-direction: row;
+  gap: var(--s-4);
+}
+
+.pop .cal {
+  flex: 0 0 292px;
+}
+
+.pop .time {
+  flex: 1;
+  min-width: 0;
+  padding: 0 0 0 var(--s-4);
+  border-top: none;
+  border-left: 1px solid var(--border-soft);
+}
+
+.pop .hours,
+.pop .minutes {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* ---------- Календарь ---------- */
+.calHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+}
+
+.month {
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.nav {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--fg-fill);
+  box-shadow: var(--fg-rim), var(--fg-shadow-sm);
+  color: var(--text-2);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (hover: hover) {
+  .nav:hover {
+    background: var(--fg-fill-active);
+  }
+}
+
+.weekdays,
+.days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.weekdays {
+  margin-bottom: 2px;
+}
+
+.weekdays span {
+  padding: var(--s-1) 0;
+  text-align: center;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.day {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-height: 38px;
+  border-radius: 12px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.out {
+  color: var(--ink-400);
+  font-weight: 400;
+}
+
+.today {
+  box-shadow: inset 0 0 0 1.5px var(--blue-300);
+  color: var(--blue-700);
+  font-weight: 600;
+}
+
+.day:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .day:hover:not(:disabled):not(.selected),
+  .cell:hover:not(.selected) {
+    background: rgba(22, 104, 214, 0.09);
+  }
+}
+
+.day:focus-visible,
+.cell:focus-visible,
+.link:focus-visible,
+.done:focus-visible,
+.nav:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.selected {
+  background: var(--primary);
+  color: var(--white);
+  font-weight: 600;
+  box-shadow: 0 6px 12px -8px rgba(22, 104, 214, 0.8);
+}
+
+/* ---------- Время ---------- */
+.time {
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border-soft);
+}
+
+.timeLabel {
+  margin-bottom: var(--s-1);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.hours,
+.minutes {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.hours {
+  margin-bottom: var(--s-3);
+}
+
+.cell {
+  display: grid;
+  place-items: center;
+  min-height: 34px;
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- Низ ---------- */
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-top: var(--s-1);
+}
+
+.footLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.link {
+  min-height: 36px;
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--primary-text);
+}
+
+.linkMuted {
+  color: var(--text-muted);
+}
+
+.done {
+  min-height: 38px;
+  padding: 0 var(--s-5);
+  border-radius: var(--r-pill);
+  background: var(--primary);
+  color: var(--white);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+/* ---------- Лист снизу (телефон) ---------- */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-toast);
+  background: rgba(7, 29, 52, 0.4);
+  animation: fade var(--dur) var(--ease-out);
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  max-height: 92dvh;
+  padding: var(--s-2) var(--s-4) calc(var(--s-4) + env(safe-area-inset-bottom));
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: rise var(--dur-slow) var(--ease-out);
+}
+
+.sheet .body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sheet .day {
+  min-height: 44px;
+}
+
+.sheet .cell {
+  min-height: 44px;
+}
+
+.grab {
+  flex: none;
+  width: 40px;
+  height: 4px;
+  margin: 2px auto var(--s-3);
+  border-radius: 2px;
+  background: var(--ink-200);
+}
+
+.sheetTitle {
+  flex: none;
+  padding-bottom: var(--s-2);
+  font-weight: 600;
+  font-size: var(--fs-lg);
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(100%);
+  }
+}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useConfirm } from '@/ui/Confirm';
 import s from './LoginPage.module.css';
 
 const ACCOUNTS = [
@@ -11,6 +12,7 @@ const ACCOUNTS = [
 /** Подсказка на экране входа демо-версии: чьим сотрудником войти и как стереть данные. */
 export function DemoPanel({ onPick }: { onPick: (login: string, password: string) => void }) {
   const [ready, setReady] = useState(false);
+  const confirm = useConfirm();
 
   useEffect(() => {
     let alive = true;
@@ -39,9 +41,14 @@ export function DemoPanel({ onPick }: { onPick: (login: string, password: string
         <button
           type="button"
           className={s.demoReset}
-          onClick={() => {
-            if (confirm('Стереть все изменения и вернуть исходные демо-данные?'))
-              import('@/demo/runtime').then(({ resetDemo }) => resetDemo());
+          onClick={async () => {
+            const ok = await confirm({
+              title: 'Стереть все изменения?',
+              body: 'Вернутся исходные демо-данные. Всё, что вы добавили, пропадёт.',
+              confirm: 'Стереть',
+              danger: true,
+            });
+            if (ok) import('@/demo/runtime').then(({ resetDemo }) => resetDemo());
           }}
         >
           Сбросить демо-данные
