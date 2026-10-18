@@ -152,7 +152,7 @@ textarea.control {
 }
 
 .chipOn {
-  background: var(--ink-900);
+  background: var(--surface-dark);
   color: var(--white);
   box-shadow: none;
 }

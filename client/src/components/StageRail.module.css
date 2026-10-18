@@ -28,7 +28,7 @@
 }
 
 .current .bar {
-  background: var(--ink-900);
+  background: var(--surface-dark);
 }
 
 .label {
@@ -60,7 +60,7 @@
 }
 
 .current .num {
-  background: var(--ink-900);
+  background: var(--surface-dark);
   box-shadow: none;
   color: var(--white);
 }

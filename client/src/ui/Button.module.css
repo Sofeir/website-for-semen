@@ -57,7 +57,7 @@
 }
 
 .dark {
-  background: var(--ink-900);
+  background: var(--surface-dark);
   color: var(--text-on-dark);
 }
 
@@ -84,7 +84,7 @@
     background: var(--primary-soft);
   }
   .dark:hover:not(:disabled) {
-    background: var(--ink-800);
+    background: var(--surface-dark-hover);
   }
   .success:hover:not(:disabled) {
     background: var(--teal-700);
@@ -157,7 +157,7 @@
   width: var(--tap);
   height: var(--tap);
   border-radius: 50%;
-  background: var(--ink-900);
+  background: var(--surface-dark);
   color: var(--white);
   transition:
     background-color var(--dur-fast) var(--ease-out),

@@ -227,7 +227,7 @@
 }
 
 .hItem[data-open='true'] .hDot {
-  background: var(--ink-900);
+  background: var(--surface-dark);
   box-shadow: 0 0 0 3px var(--ink-150);
 }
 

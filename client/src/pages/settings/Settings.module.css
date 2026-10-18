@@ -53,7 +53,7 @@
 }
 
 .dictNavItem[aria-current='page'] {
-  background: var(--ink-900);
+  background: var(--surface-dark);
   color: var(--white);
 }
 
@@ -153,7 +153,7 @@
   min-width: 40px;
   height: 26px;
   border-radius: var(--r-pill);
-  background: var(--ink-900);
+  background: var(--surface-dark);
   color: var(--white);
   font-size: var(--fs-xs);
   font-weight: 600;

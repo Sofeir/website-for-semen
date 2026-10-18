@@ -538,7 +538,7 @@
 }
 
 .bottomCta.bottomLinkActive .bottomIcon {
-  background: var(--ink-900);
+  background: var(--surface-dark);
 }
 
 /* ---------- Меню «Ещё» ---------- */
