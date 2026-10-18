@@ -588,16 +588,56 @@
   position: absolute;
   right: 0;
   top: calc(100% + 8px);
-  min-width: 240px;
+  min-width: 288px;
   padding: var(--s-2);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   background: var(--glass-strong);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
   box-shadow:
-    var(--shadow-md),
-    inset 0 0 0 1px var(--glass-border);
+    0 0 0 1px rgba(11, 42, 74, 0.06),
+    0 2px 6px rgba(11, 42, 74, 0.08),
+    0 24px 48px -16px rgba(11, 42, 74, 0.38);
   z-index: var(--z-overlay);
+}
+
+/* шапка меню — своя цветная плашка, чтобы меню не выглядело безликим */
+.menuHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  margin-bottom: var(--s-2);
+  border-radius: var(--r-md);
+  background: linear-gradient(rgba(227, 238, 253, 0.85), rgba(227, 238, 253, 0.85));
+  box-shadow: inset 0 0 0 1px rgba(31, 122, 240, 0.12);
+}
+
+.menuWho {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.menuWho b {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.menuRole {
+  padding: 2px 10px;
+  border-radius: var(--r-pill);
+  background: var(--blue-600);
+  color: var(--white);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.menuLogin {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
 }
 
 .menuItem {
@@ -605,41 +645,61 @@
   align-items: center;
   gap: var(--s-3);
   width: 100%;
-  min-height: var(--tap);
+  min-height: 52px;
   padding: 0 var(--s-3);
-  border-radius: var(--r-sm);
-  font-size: var(--fs-sm);
+  border-radius: var(--r-md);
+  font-size: var(--fs-md);
   font-weight: 500;
   color: var(--text);
   text-align: left;
+  transition: background-color var(--dur-fast) var(--ease-out);
 }
 
-.menuItem svg {
-  width: 18px;
-  height: 18px;
-  color: var(--text-muted);
+.menuIcon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+
+.menuIcon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.toneBlue {
+  background: var(--blue-100);
+  color: var(--blue-700);
+}
+
+.toneAmber {
+  background: var(--amber-100);
+  color: var(--amber-700);
+}
+
+.toneRed {
+  background: var(--red-100);
+  color: var(--red-700);
+}
+
+.menuItemDanger {
+  color: var(--red-700);
 }
 
 @media (hover: hover) {
   .menuItem:hover {
-    background: var(--surface-3);
+    background: rgba(22, 104, 214, 0.07);
+  }
+
+  .menuItemDanger:hover {
+    background: var(--red-50);
   }
 }
 
-.menuHead {
-  padding: var(--s-2) var(--s-3) var(--s-3);
-  border-bottom: 1px solid var(--border-soft);
-  margin-bottom: var(--s-1);
-  font-size: var(--fs-sm);
-}
-
-.menuHead b {
-  display: block;
-}
-
-.menuHead span {
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
+.menuItem:active {
+  background: rgba(22, 104, 214, 0.12);
 }
 
 .userBtnWrap {

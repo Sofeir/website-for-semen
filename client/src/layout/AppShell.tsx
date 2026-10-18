@@ -267,13 +267,17 @@ function UserMenu({ onTour }: { placement: 'side'; onTour: () => void }) {
             transition={{ duration: 0.15 }}
           >
             <div className={s.menuHead}>
-              <b>{me.fullName}</b>
-              <span>
-                {ROLE_LABELS[me.role]}, логин {me.login}
-              </span>
+              <Avatar name={me.fullName} size={44} />
+              <div className={s.menuWho}>
+                <b>{me.fullName}</b>
+                <span className={s.menuRole}>{ROLE_LABELS[me.role]}</span>
+                <span className={s.menuLogin}>логин {me.login}</span>
+              </div>
             </div>
             <button type="button" role="menuitem" className={s.menuItem} onClick={() => navigate('/profile')}>
-              <UserRound aria-hidden />
+              <span className={cx(s.menuIcon, s.toneBlue)}>
+                <UserRound aria-hidden />
+              </span>
               Профиль и уведомления
             </button>
             <button
@@ -285,19 +289,23 @@ function UserMenu({ onTour }: { placement: 'side'; onTour: () => void }) {
                 onTour();
               }}
             >
-              <HelpCircle aria-hidden />
+              <span className={cx(s.menuIcon, s.toneAmber)}>
+                <HelpCircle aria-hidden />
+              </span>
               Показать подсказки
             </button>
             <button
               type="button"
               role="menuitem"
-              className={s.menuItem}
+              className={cx(s.menuItem, s.menuItemDanger)}
               onClick={async () => {
                 await logout();
                 navigate('/login');
               }}
             >
-              <LogOut aria-hidden />
+              <span className={cx(s.menuIcon, s.toneRed)}>
+                <LogOut aria-hidden />
+              </span>
               Выйти
             </button>
           </motion.div>
