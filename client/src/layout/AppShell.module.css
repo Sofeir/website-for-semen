@@ -603,16 +603,26 @@
 }
 
 .menuHead {
-  padding: var(--s-2) var(--s-3) var(--s-1);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  /* единая плашка с именем и ролью: чуть голубее остальных кнопок, но без яркости */
+  background: linear-gradient(rgba(232, 241, 253, 0.9), rgba(232, 241, 253, 0.9));
+  box-shadow:
+    inset 0 0 0 1px rgba(31, 122, 240, 0.14),
+    0 1px 2px rgba(11, 42, 74, 0.05);
   font-size: var(--fs-sm);
 }
 
 .menuHead b {
   display: block;
+  font-size: var(--fs-md);
+  line-height: 1.3;
 }
 
 .menuHead span {
-  color: var(--text-muted);
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-600);
   font-size: var(--fs-xs);
 }
 
