@@ -9,6 +9,9 @@ import '@fontsource/unbounded/600.css';
 import './styles/tokens.css';
 import './styles/base.css';
 import { App } from './app/App';
+import { installSmoothWheel } from './lib/smoothWheel';
+
+installSmoothWheel();
 
 if (import.meta.env.VITE_DEMO) {
   // Демо работает без сервера: готовим базу заранее и открываем PDF из браузера.
