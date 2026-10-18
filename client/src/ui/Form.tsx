@@ -11,6 +11,7 @@ import {
 import { motion } from 'motion/react';
 import { Check } from 'lucide-react';
 import { cx } from './Button';
+import { DateTimeInput, type PickerKind } from './DateTimeInput';
 import s from './Form.module.css';
 
 export const formStyles = s;
@@ -74,6 +75,11 @@ export const Input = forwardRef<
   HTMLInputElement,
   InputHTMLAttributes<HTMLInputElement> & { icon?: ReactNode; trailing?: ReactNode }
 >(function Input({ className, icon, trailing, ...rest }, ref) {
+  // даты и время — свой календарь в стиле приложения, а не встроенный в браузер
+  const { type } = rest;
+  if (type === 'date' || type === 'time' || type === 'datetime-local') {
+    return <DateTimeInput ref={ref} className={className} {...rest} type={type as PickerKind} />;
+  }
   const input = <input ref={ref} className={cx(s.control, className, trailing ? s.withTrailing : undefined)} {...rest} />;
   if (!icon && !trailing) return input;
   return (

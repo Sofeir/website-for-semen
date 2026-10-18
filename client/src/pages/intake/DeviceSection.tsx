@@ -308,20 +308,14 @@ export function DeviceSection({
                 control={control}
                 name={`${path}.department`}
                 render={({ field }) => (
-                  <>
-                    <Input
-                      {...cp}
-                      value={field.value ?? ''}
-                      onChange={field.onChange}
-                      list={`departments-${index}`}
-                      placeholder="Например, бухгалтерия"
-                    />
-                    <datalist id={`departments-${index}`}>
-                      {departments.map((d) => (
-                        <option key={d} value={d} />
-                      ))}
-                    </datalist>
-                  </>
+                  <Combobox
+                    {...cp}
+                    options={departments.map((d, i) => ({ id: i + 1, name: d }))}
+                    valueId={null}
+                    text={field.value ?? ''}
+                    placeholder="Например, бухгалтерия"
+                    onChange={({ text }) => field.onChange(text)}
+                  />
                 )}
               />
             )}
