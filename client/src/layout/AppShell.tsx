@@ -71,7 +71,7 @@ export function AppShell() {
               key={n.to}
               to={n.to}
               end={n.end}
-              className={({ isActive }) => cx(s.sideLink, 'lg-flat', isActive && s.sideLinkActive)}
+              className={({ isActive }) => cx(s.sideLink, isActive && s.sideLinkActive)}
               title={n.label}
             >
               <n.icon aria-hidden />

@@ -363,8 +363,8 @@
   gap: var(--s-1);
   overflow-x: auto;
   scrollbar-width: none;
-  margin: 0 calc(var(--gutter) * -1);
-  padding: 0 var(--gutter);
+  margin: -4px calc(var(--gutter) * -1) -10px;
+  padding: 4px var(--gutter) 16px;
 }
 
 .tabs::-webkit-scrollbar {
@@ -383,11 +383,22 @@
   font-size: var(--fs-sm);
   color: var(--text-2);
   white-space: nowrap;
+  background: var(--fg-fill);
+  -webkit-backdrop-filter: var(--fg-blur);
+  backdrop-filter: var(--fg-blur);
+  box-shadow: var(--fg-rim), var(--fg-shadow-sm);
+  -webkit-tap-highlight-color: transparent;
 }
 
+/* Активная вкладка — то же стекло, но тёмное: перламутр с глубоким синим */
 .tabActive {
-  background: var(--ink-900);
+  background: linear-gradient(180deg, #2a5688 0%, #123759 55%, #0b2a4a 100%);
   color: var(--white);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1.5px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -10px 14px -10px rgba(120, 175, 235, 0.45),
+    0 8px 16px -10px rgba(7, 29, 52, 0.7);
 }
 
 .tabCount {
@@ -398,7 +409,7 @@
 
 @media (hover: hover) {
   .tab:not(.tabActive):hover {
-    background: rgba(255, 255, 255, 0.7);
     color: var(--text);
+    filter: brightness(1.03);
   }
 }
