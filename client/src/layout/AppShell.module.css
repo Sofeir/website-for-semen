@@ -78,9 +78,7 @@
   .sideBrand .brandMark {
     width: 60px;
     height: 60px;
-    box-shadow:
-      0 0 0 3px rgba(255, 255, 255, 0.7),
-      0 10px 24px -10px rgba(27, 58, 107, 0.7);
+    box-shadow: 0 10px 24px -10px rgba(27, 58, 107, 0.7);
   }
 
   .sideBrand .brandText {
@@ -111,6 +109,9 @@
     font-size: 0.6875rem;
     font-weight: 600;
     text-align: center;
+    /* Frosted Glass: плотная матовая плашка */
+    background: var(--fg-fill);
+    box-shadow: var(--fg-rim), var(--fg-shadow-sm);
     transition:
       background-color var(--dur-fast) var(--ease-out),
       color var(--dur-fast) var(--ease-out),
@@ -164,7 +165,7 @@
 
 @media (hover: hover) and (min-width: 768px) {
   .sideLink:not(.sideLinkActive):hover {
-    background: linear-gradient(150deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.4) 100%);
+    background: var(--fg-fill-active);
     color: var(--ink-900);
   }
 
