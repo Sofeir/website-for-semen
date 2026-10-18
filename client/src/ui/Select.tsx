@@ -101,6 +101,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
   const [fieldLabel, setFieldLabel] = useState('');
   const [pos, setPos] = useState<Pos | null>(null);
   const [active, setActive] = useState(-1);
+  const byKey = useRef(false);
 
   const groups: Group[] = [];
   collect(children, groups, null);
@@ -145,13 +146,13 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
     const below = window.innerHeight - r.bottom - 14;
     const above = r.top - 14;
     const up = below < 220 && above > below;
-    const width = Math.max(r.width, 200);
+    const width = Math.max(r.width, 240);
     setPos({
       left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
-      width,
+      width: r.width,
       top: up ? undefined : r.bottom + 6,
       bottom: up ? window.innerHeight - r.top + 6 : undefined,
-      maxHeight: Math.min(440, Math.max(160, up ? above : below)),
+      maxHeight: Math.min(520, Math.max(160, up ? above : below)),
     });
   }, []);
 
@@ -204,8 +205,17 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
     };
   }, [open, mobile, place]);
 
+  // при открытии показываем выбранный пункт; дальше прокручиваем только при управлении клавишами,
+  // иначе список «ездит» под курсором
   useEffect(() => {
-    if (open) list.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+    if (!open) return;
+    list.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !byKey.current) return;
+    byKey.current = false;
+    list.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [open, active]);
 
   const move = (from: number, step: 1 | -1) => {
@@ -214,6 +224,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
   };
 
   const onListKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    byKey.current = true;
     if (e.key === 'ArrowDown') setActive((a) => move(a, 1));
     else if (e.key === 'ArrowUp') setActive((a) => move(a, -1));
     else if (e.key === 'Home') setActive(move(-1, 1));
@@ -294,7 +305,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
             aria-label={title || undefined}
             aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
             className={cx(s.list, s.pop)}
-            style={pos ? { left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxHeight } : { visibility: 'hidden' }}
+            style={pos ? { left: pos.left, minWidth: pos.width, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxHeight } : { visibility: 'hidden' }}
             onKeyDown={onListKey}
           >
             {body}
