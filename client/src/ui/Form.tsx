@@ -3,14 +3,13 @@ import {
   useId,
   type InputHTMLAttributes,
   type ReactNode,
-  type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
   cloneElement,
   isValidElement,
   type ReactElement,
 } from 'react';
 import { motion } from 'motion/react';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { cx } from './Button';
 import s from './Form.module.css';
 
@@ -93,19 +92,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
   return <textarea ref={ref} rows={rows} className={cx(s.control, className)} {...rest} />;
 });
 
-export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(function Select(
-  { className, children, ...rest },
-  ref,
-) {
-  return (
-    <div className={s.selectWrap}>
-      <select ref={ref} className={cx(s.control, className)} {...rest}>
-        {children}
-      </select>
-      <ChevronDown aria-hidden />
-    </div>
-  );
-});
+export { Select } from './Select';
 
 export const Checkbox = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { label: ReactNode }>(
   function Checkbox({ label, className, ...rest }, ref) {
