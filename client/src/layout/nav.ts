@@ -6,6 +6,7 @@ import {
   PlusCircle,
   Settings2,
   Sun,
+  UserCheck,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -27,6 +28,7 @@ export const NAV: NavItem[] = [
   { to: '/tasks', label: 'Задачи', icon: ListChecks },
   { to: '/calendar', label: 'Календарь', icon: CalendarDays },
   { to: '/clients', label: 'Клиенты', icon: Users },
+  { to: '/customers', label: 'Заказчики', icon: UserCheck, permission: 'customers.manage' },
   { to: '/acts', label: 'Акты', icon: FileText },
   { to: '/settings', label: 'Настройки', icon: Settings2, permission: 'dictionaries.edit' },
 ];

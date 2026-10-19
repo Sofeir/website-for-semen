@@ -23,7 +23,7 @@ interface TaskRow {
 
 export async function assertActiveUser(db: Db, userId: number) {
   const u = await one<{ id: number; full_name: string }>(
-    'SELECT id, full_name FROM users WHERE id = $1 AND is_active',
+    `SELECT id, full_name FROM users WHERE id = $1 AND is_active AND role <> 'customer'`,
     [userId],
     db,
   );

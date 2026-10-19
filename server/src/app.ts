@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { config } from './config';
 import { errorHandler, HttpError } from './lib/http';
-import { csrfProtection, loadSession, requireAuth } from './auth/session';
+import { csrfProtection, denyCustomer, loadSession, requireAuth } from './auth/session';
 import { authRouter } from './routes/auth';
 import { dictionariesRouter } from './routes/dictionaries';
 import { usersRouter } from './routes/users';
@@ -17,6 +17,8 @@ import { actsRouter } from './routes/acts';
 import { documentsRouter } from './routes/documents';
 import { filesRouter } from './routes/files';
 import { importRouter } from './routes/import';
+import { customerRouter } from './routes/customer';
+import { customersRouter } from './routes/customers';
 
 export function createApp() {
   const app = express();
@@ -48,6 +50,9 @@ export function createApp() {
   api.get('/health', (_req, res) => res.json({ ok: true }));
   api.use('/auth', authRouter);
   api.use(requireAuth);
+  api.use(customerRouter); // кабинет заказчика — единственное, что ему открыто, кроме уведомлений
+  api.use(denyCustomer);
+  api.use(customersRouter);
   api.use(dictionariesRouter);
   api.use(usersRouter);
   api.use(clientsRouter);

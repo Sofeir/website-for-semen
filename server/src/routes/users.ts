@@ -14,7 +14,7 @@ usersRouter.get(
     const admin = can(req.user!.role, 'users.manage');
     const rows = await many(
       `SELECT id, full_name AS "fullName", role, is_active AS "isActive"${admin ? ', login, phone' : ''}
-         FROM users ${admin ? '' : 'WHERE is_active'} ORDER BY is_active DESC, full_name`,
+         FROM users WHERE role <> 'customer'${admin ? '' : ' AND is_active'} ORDER BY is_active DESC, full_name`,
     );
     res.json(rows);
   }),
@@ -56,7 +56,7 @@ usersRouter.put(
     if (u.isActive !== undefined) add('is_active', u.isActive);
     if (u.password) add('password_hash', await bcrypt.hash(u.password, 10));
     if (!sets.length) return res.json({ ok: true });
-    const r = await pool.query(`UPDATE users SET ${sets.join(', ')} WHERE id = $1`, vals);
+    const r = await pool.query(`UPDATE users SET ${sets.join(', ')} WHERE id = $1 AND role <> 'customer'`, vals);
     if (!r.rowCount) throw new HttpError(404, 'Сотрудник не найден');
     if (u.isActive === false || u.password) await pool.query('DELETE FROM sessions WHERE user_id = $1', [id]);
     res.json({ ok: true });

@@ -1,11 +1,15 @@
-export const ROLES = ['admin', 'manager', 'diagnostician', 'master'] as const;
+/** Сотрудники сервис-центра. Заказчик (`customer`) — внешний пользователь, у него свой урезанный кабинет. */
+export const STAFF_ROLES = ['admin', 'manager', 'diagnostician', 'master'] as const;
+export const ROLES = [...STAFF_ROLES, 'customer'] as const;
 export type Role = (typeof ROLES)[number];
+export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Администратор',
   manager: 'Руководитель / приёмщик',
   diagnostician: 'Диагност',
   master: 'Мастер',
+  customer: 'Заказчик',
 };
 
 /**
@@ -28,6 +32,8 @@ export const PERMISSIONS = {
   'users.manage': ['admin'],
   'settings.edit': ['admin'],
   'import.run': ['admin'],
+  /** Подтверждать регистрации заказчиков и управлять их доступом. */
+  'customers.manage': ['admin', 'manager'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;

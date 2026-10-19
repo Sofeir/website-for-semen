@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
@@ -59,7 +59,7 @@ export default function LoginPage() {
       <section className={s.formSide}>
         <div className={s.card}>
           <Brand name={appName} className={s.brand} />
-          <h1 className={s.title}>Вход для сотрудников</h1>
+          <h1 className={s.title}>Вход</h1>
           <form onSubmit={onSubmit} className={s.form} noValidate>
             {error && <ErrorBox>{error}</ErrorBox>}
             <Field label="Логин" error={form.formState.errors.login?.message}>
@@ -95,6 +95,9 @@ export default function LoginPage() {
               Войти
             </Button>
           </form>
+          <p className={s.help}>
+            Вы заказчик и ещё не зарегистрированы? <Link to="/register">Зарегистрироваться</Link>
+          </p>
           {import.meta.env.VITE_DEMO ? (
             <DemoPanel
               onPick={(login, password) => {

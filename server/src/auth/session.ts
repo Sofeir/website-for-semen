@@ -10,6 +10,8 @@ export const SESSION_COOKIE = 'sd_session';
 
 export interface SessionUser extends Actor {
   login: string;
+  /** Для заказчика — его карточка клиента. */
+  clientId: number | null;
   sessionId: string;
   csrfToken: string;
 }
@@ -65,9 +67,10 @@ export async function loadSession(req: Request, _res: Response, next: NextFuncti
       login: string;
       full_name: string;
       role: Role;
+      client_id: number | null;
       last_seen_at: Date;
     }>(
-      `SELECT s.user_id, s.csrf_token, s.remember, s.last_seen_at, u.login, u.full_name, u.role
+      `SELECT s.user_id, s.csrf_token, s.remember, s.last_seen_at, u.login, u.full_name, u.role, u.client_id
          FROM sessions s JOIN users u ON u.id = s.user_id
         WHERE s.id = $1 AND s.expires_at > now() AND u.is_active`,
       [id],
@@ -78,6 +81,7 @@ export async function loadSession(req: Request, _res: Response, next: NextFuncti
         login: row.login,
         fullName: row.full_name,
         role: row.role,
+        clientId: row.client_id,
         sessionId: id,
         csrfToken: row.csrf_token,
       };
@@ -97,6 +101,21 @@ export async function loadSession(req: Request, _res: Response, next: NextFuncti
 
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   if (!req.user) return next(new HttpError(401, 'Войдите в систему'));
+  next();
+}
+
+/** Всё, что не про заказчика, ему закрыто: сотрудники, клиенты, заявки, акты, файлы, настройки. */
+const CUSTOMER_OPEN = ['/notifications', '/events'];
+
+export function denyCustomer(req: Request, _res: Response, next: NextFunction) {
+  if (req.user?.role !== 'customer') return next();
+  if (CUSTOMER_OPEN.some((p) => req.path === p || req.path.startsWith(`${p}/`))) return next();
+  next(forbidden());
+}
+
+export function requireCustomer(req: Request, _res: Response, next: NextFunction) {
+  if (!req.user) return next(new HttpError(401, 'Войдите в систему'));
+  if (req.user.role !== 'customer') return next(forbidden());
   next();
 }
 

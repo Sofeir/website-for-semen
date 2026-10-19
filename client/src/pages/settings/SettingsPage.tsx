@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { KeyRound, Save, UserPlus } from 'lucide-react';
 import {
   ROLE_LABELS,
-  ROLES,
+  STAFF_ROLES,
   companySettingsSchema,
   userCreateSchema,
   workSettingsSchema,
@@ -141,7 +141,7 @@ function Users() {
               onChange={(e) => update(u, { role: e.target.value })}
               className={s.roleSelect}
             >
-              {ROLES.map((r) => (
+              {STAFF_ROLES.map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABELS[r]}
                 </option>
@@ -250,7 +250,7 @@ function UserCreateSheet({ open, onClose }: { open: boolean; onClose: () => void
         </Field>
         <Field label="Роль">
           <Select {...form.register('role')}>
-            {ROLES.map((r) => (
+            {STAFF_ROLES.map((r) => (
               <option key={r} value={r}>
                 {ROLE_LABELS[r]}
               </option>
