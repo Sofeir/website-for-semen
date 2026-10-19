@@ -6,7 +6,7 @@ import { createUsers, seedCustomers, seedDemo, seedReference } from '../../../se
 import { migrate } from '../../../server/src/db/migrate';
 import { one, tx } from '../../../server/src/db/pool';
 import { errorHandler } from '../../../server/src/lib/http';
-import { csrfProtection, denyCustomer, loadSession, requireAuth } from '../../../server/src/auth/session';
+import { csrfProtection, denyCustomer, limitAssistant, loadSession, requireAuth } from '../../../server/src/auth/session';
 import { authRouter } from '../../../server/src/routes/auth';
 import { dictionariesRouter } from '../../../server/src/routes/dictionaries';
 import { usersRouter } from '../../../server/src/routes/users';
@@ -32,6 +32,7 @@ api.use('/auth', authRouter);
 api.use(requireAuth);
 api.use(customerRouter);
 api.use(denyCustomer);
+api.use(limitAssistant);
 for (const r of [
   customersRouter,
   dictionariesRouter,

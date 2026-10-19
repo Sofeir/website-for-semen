@@ -207,8 +207,24 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                     ['Начало', fmtWhen(task.startAt)],
                     ['Срок', <span className={task.overdue ? s.late : undefined}>{fmtWhen(task.dueAt)}</span>],
                     ['Крайний срок', task.deadlineAt && fmtWhen(task.deadlineAt)],
-                    ['Заявка', task.orderId && <Link to={`/orders/${task.orderId}`}>№{task.orderNumber}</Link>],
-                    ['Клиент', task.clientId && <Link to={`/clients/${task.clientId}`}>{task.clientName}</Link>],
+                    [
+                      'Заявка',
+                      task.orderId &&
+                        (can('workspace.view') ? (
+                          <Link to={`/orders/${task.orderId}`}>№{task.orderNumber}</Link>
+                        ) : (
+                          `№${task.orderNumber}`
+                        )),
+                    ],
+                    [
+                      'Клиент',
+                      task.clientId &&
+                        (can('workspace.view') ? (
+                          <Link to={`/clients/${task.clientId}`}>{task.clientName}</Link>
+                        ) : (
+                          task.clientName
+                        )),
+                    ],
                     ['Закрыта', task.closedAt && `${fmtWhen(task.closedAt)}, ${task.closedByName ?? ''}`],
                     ['Комментарий', task.closeComment],
                   ]}

@@ -2,9 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pool } from '../src/db/pool';
 import { dict, inDays, intakeLaptop, loginAs, resetDb } from './helpers';
 
+afterAll(() => pool.end());
+
 describe('мастер и диагност видят только своё', () => {
   beforeAll(resetDb);
-  afterAll(() => pool.end());
 
   it('чужая заявка не видна ни в списке, ни по ссылке, ни на главной, ни в карточке клиента', async () => {
     const semen = await loginAs('semen');
@@ -42,7 +43,12 @@ describe('мастер и диагност видят только своё', ()
     const lenya = await loginAs('lenya');
     const olga = await loginAs('olga');
     const { users } = await dict();
-    const t = await semen.post('/api/tasks', { title: 'Только для Ольги', assigneeId: users.olga, startAt: new Date().toISOString(), dueAt: inDays(1) });
+    const t = await semen.post('/api/tasks', {
+      title: 'Только для Ольги',
+      assigneeId: users.olga,
+      startAt: new Date().toISOString(),
+      dueAt: inDays(1),
+    });
     expect((await olga.get(`/api/tasks/${t.body.id}`)).status).toBe(200);
     expect((await lenya.get(`/api/tasks/${t.body.id}`)).status).toBe(403);
     expect((await semen.get(`/api/tasks/${t.body.id}`)).status).toBe(200);
@@ -50,5 +56,43 @@ describe('мастер и диагност видят только своё', ()
     await olga.post(`/api/tasks/${t.body.id}/transfer`, { assigneeId: users.lenya, dueAt: inDays(2), comment: null });
     expect((await lenya.get(`/api/tasks/${t.body.id}`)).status).toBe(200);
     expect((await olga.get(`/api/tasks/${t.body.id}`)).status).toBe(200);
+  });
+});
+
+describe('сотрудник «только задачи»', () => {
+  beforeAll(resetDb);
+
+  it('видит свои задачи и «Сегодня», ставит задачи, но заявки, клиенты и акты закрыты', async () => {
+    const semen = await loginAs('semen');
+    const vanya = await loginAs('vanya');
+    const { users } = await dict();
+    const orderId = await intakeLaptop(semen, users.lenya, '+7 900 222-00-01');
+
+    const t = await semen.post('/api/tasks', {
+      title: 'Обновить 1С',
+      assigneeId: users.vanya,
+      startAt: new Date().toISOString(),
+      dueAt: inDays(1),
+    });
+    expect((await vanya.get(`/api/tasks/${t.body.id}`)).status).toBe(200);
+    expect((await vanya.get('/api/tasks')).status).toBe(200);
+    expect((await vanya.get('/api/users')).status).toBe(200);
+    const mine = await vanya.post('/api/tasks', {
+      title: 'Лёне: проверить принтер',
+      assigneeId: users.lenya,
+      startAt: new Date().toISOString(),
+      dueAt: inDays(1),
+    });
+    expect(mine.status).toBe(201);
+
+    const dash = await vanya.get('/api/dashboard');
+    expect(dash.status).toBe(200);
+    expect(dash.body.newOrders).toEqual([]);
+    expect(Number(dash.body.counts.inWork)).toBe(0);
+
+    for (const url of ['/api/orders', `/api/orders/${orderId}`, '/api/clients', '/api/acts']) {
+      expect((await vanya.get(url)).status, url).toBe(403);
+    }
+    expect((await vanya.put(`/api/users/${users.vanya}`, { role: 'admin' })).status).toBe(403);
   });
 });

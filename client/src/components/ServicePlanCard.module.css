@@ -1,0 +1,35 @@
+.next {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-bottom: var(--s-4);
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--fg-fill);
+  box-shadow: var(--fg-rim), var(--fg-shadow-sm);
+  font-size: var(--fs-sm);
+}
+
+.next svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: var(--primary-text);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-left: auto;
+}

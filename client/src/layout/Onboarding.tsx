@@ -13,7 +13,7 @@ interface Step {
   text: string;
 }
 
-function stepsFor(canIntake: boolean, manager: boolean): Step[] {
+function stepsFor(canIntake: boolean, manager: boolean, workspace: boolean): Step[] {
   const steps: Step[] = [];
   if (canIntake) {
     steps.push({
@@ -21,11 +21,13 @@ function stepsFor(canIntake: boolean, manager: boolean): Step[] {
       text: 'Кнопка «Принять технику». Найдите клиента по телефону или создайте нового прямо в форме, отметьте внешний вид и комплектность чипами. После сохранения квитанция PDF и задача «Диагностика» появятся сами.',
     });
   }
-  steps.push(
-    {
+  if (workspace) {
+    steps.push({
       title: 'Заявка идёт по этапам',
       text: 'Приём, диагностика, согласование, ремонт, готово, выдача. Перескочить этап нельзя: заявку двигает дальше ответственный или руководитель. Технику можно передать коллеге, например мастеру.',
-    },
+    });
+  }
+  steps.push(
     {
       title: 'Задачи и уведомления',
       text: 'Колокольчик сверху показывает новые задачи и передачи. Отметьте несколько задач галочками и закройте разом. В профиле можно включить Telegram или Max.',
@@ -44,7 +46,7 @@ export function Onboarding({ open, onClose }: { open: boolean; onClose: () => vo
   const me = useMe();
   const { can } = useAuth();
   const qc = useQueryClient();
-  const steps = stepsFor(can('intake.create'), can('tasks.manageAll'));
+  const steps = stepsFor(can('intake.create'), can('tasks.manageAll'), can('workspace.view'));
   const [i, setI] = useState(0);
   const last = i === steps.length - 1;
 

@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { KeyRound, Save, UserPlus } from 'lucide-react';
 import {
   ROLE_LABELS,
+  ROLE_RIGHTS,
   STAFF_ROLES,
   companySettingsSchema,
   userCreateSchema,
@@ -124,6 +125,17 @@ function Users() {
           Добавить сотрудника
         </Button>
       </div>
+      <details className={s.rights}>
+        <summary>Что может каждая роль</summary>
+        <dl>
+          {STAFF_ROLES.map((r) => (
+            <div key={r}>
+              <dt>{ROLE_LABELS[r]}</dt>
+              <dd>{ROLE_RIGHTS[r]}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
       <ul className={s.users}>
         {users.data.map((u) => (
           <li key={u.id} className={s.user} data-inactive={u.isActive === false}>

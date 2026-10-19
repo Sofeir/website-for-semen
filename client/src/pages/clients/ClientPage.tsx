@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Building2,
@@ -25,6 +25,7 @@ import { ChecklistEditor } from '@/components/ChecklistEditor';
 import { ClientFormSheet } from '@/components/ClientFormSheet';
 import { FleetEditor, emptyFleetRow, fleetTotals } from '@/components/FleetEditor';
 import { OrderRow } from '@/components/OrderRow';
+import { ServicePlanCard } from '@/components/ServicePlanCard';
 import { TaskFormSheet } from '@/components/TaskFormSheet';
 import { TaskRow } from '@/components/TaskRow';
 import { TaskSheet } from '@/components/TaskSheet';
@@ -43,7 +44,8 @@ export default function ClientPage() {
   const inv = useInvalidate();
   const toast = useToast();
   const [editing, setEditing] = useState(false);
-  const [tab, setTab] = useState<Tab>('orders');
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState<Tab>(params.get('tab') === 'service' ? 'service' : 'orders');
   const [taskId, setTaskId] = useState<number | null>(null);
   const [fleet, setFleet] = useState<FleetRowDto[]>([]);
   const [savingFleet, setSavingFleet] = useState(false);
@@ -308,6 +310,11 @@ export default function ClientPage() {
           </p>
           <ChecklistEditor items={works} onChange={setWorks} disabled={!can('clients.edit')} />
         </Card>
+      )}
+      {tab === 'service' && (
+        <div style={{ marginTop: 'var(--s-4)' }}>
+          <ServicePlanCard clientId={c.id} />
+        </div>
       )}
 
       <TaskFormSheet

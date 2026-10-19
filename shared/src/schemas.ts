@@ -185,6 +185,21 @@ export const serviceChecklistSchema = z.object({
   items: z.array(z.string().trim().max(300)).max(60),
 });
 
+/** График регулярных выездов к клиенту. */
+export const servicePlanSchema = z.object({
+  everyN: z.coerce.number().int().min(1, 'Хотя бы раз').max(52, 'Не больше 52'),
+  unit: z.enum(['week', 'month']),
+  nextDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Выберите дату'),
+  visitTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .nullable()
+    .optional(),
+  assigneeId: id,
+  isActive: z.boolean().default(true),
+});
+export type ServicePlanInput = z.infer<typeof servicePlanSchema>;
+
 export const closeTasksSchema = z.object({
   ids: z.array(id).min(1, 'Отметьте задачи').max(200),
   comment: optionalText(2000),

@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Building2, Search, UserPlus, UserRound, Users } from 'lucide-react';
 import { formatPhone } from '@sd/shared';
 import { useAuth } from '@/app/auth';
-import { useClients } from '@/api/queries';
+import { useClients, useServicePlans } from '@/api/queries';
+import { VisitsList } from './VisitsList';
 import { useDebounced, useDocumentTitle, useIsDesktop } from '@/lib/hooks';
 import { ClientFormSheet } from '@/components/ClientFormSheet';
 import { ArrowLink, Button } from '@/ui/Button';
@@ -11,7 +12,7 @@ import { Card, EmptyState, ErrorBox, PageHeader, Pill, Spinner, Tabs } from '@/u
 import { Input } from '@/ui/Form';
 import s from './Clients.module.css';
 
-type KindTab = 'all' | 'person' | 'legal';
+type KindTab = 'all' | 'person' | 'legal' | 'visits';
 const PAGE = 50;
 
 export default function ClientsPage() {
@@ -24,7 +25,8 @@ export default function ClientsPage() {
   const [limit, setLimit] = useState(PAGE);
   const [creating, setCreating] = useState(false);
   const dq = useDebounced(q.trim(), 250);
-  const clients = useClients({ q: dq, kind: tab === 'all' ? undefined : tab, limit });
+  const clients = useClients({ q: dq, kind: tab === 'all' || tab === 'visits' ? undefined : tab, limit });
+  const plans = useServicePlans();
   const items = clients.data?.items ?? [];
 
   return (
@@ -52,23 +54,28 @@ export default function ClientsPage() {
             { value: 'all', label: 'Все' },
             { value: 'person', label: 'Физлица' },
             { value: 'legal', label: 'Юрлица' },
+            { value: 'visits', label: 'Выезды', count: plans.data?.length || undefined },
           ]}
         />
-        <Input
-          icon={<Search aria-hidden />}
-          type="search"
-          placeholder="Имя, телефон, ИНН, почта"
-          aria-label="Поиск клиентов"
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setLimit(PAGE);
-          }}
-          className={s.search}
-        />
+        {tab !== 'visits' && (
+          <Input
+            icon={<Search aria-hidden />}
+            type="search"
+            placeholder="Имя, телефон, ИНН, почта"
+            aria-label="Поиск клиентов"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setLimit(PAGE);
+            }}
+            className={s.search}
+          />
+        )}
       </div>
 
-      {clients.isError ? (
+      {tab === 'visits' ? (
+        <VisitsList plans={plans.data} error={plans.error} />
+      ) : clients.isError ? (
         <ErrorBox error={clients.error} />
       ) : !clients.data ? (
         <Spinner />

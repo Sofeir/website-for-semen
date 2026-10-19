@@ -400,3 +400,19 @@ export interface CustomerCompany {
   address: string;
   workHours: string;
 }
+
+/** График регулярных выездов к клиенту. */
+export interface ServicePlan {
+  id: number;
+  clientId: number;
+  clientName: string;
+  everyN: number;
+  unit: 'week' | 'month';
+  /** Дата следующего выезда, YYYY-MM-DD. */
+  nextDate: string;
+  visitTime: string | null;
+  assigneeId: number;
+  assigneeName: string;
+  isActive: boolean;
+  lastTaskId: number | null;
+}

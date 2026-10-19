@@ -6,6 +6,7 @@ const ACCOUNTS = [
   { login: 'semen', label: 'Руководитель', who: 'Семён' },
   { login: 'stas', label: 'Диагност', who: 'Стас' },
   { login: 'lenya', label: 'Мастер', who: 'Лёня' },
+  { login: 'vanya', label: 'Только задачи', who: 'Ваня' },
   { login: 'admin', label: 'Администратор', who: 'admin' },
   { login: 'maria', label: 'Заказчик', who: 'Мария' },
 ];

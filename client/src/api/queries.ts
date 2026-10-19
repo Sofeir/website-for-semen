@@ -26,6 +26,7 @@ import type {
   TaskDetail,
   TaskListItem,
   TransferTaskInput,
+  ServicePlan,
   UserBrief,
   WorkSettings,
 } from '@sd/shared';
@@ -59,7 +60,7 @@ export const SCOPE_KEYS: Record<string, string[]> = {
   orders: ['orders', 'order', 'dashboard', 'customerOrders', 'customerOrder'],
   tasks: ['tasks', 'task', 'dashboard', 'order', 'customerTasks'],
   customers: ['customers'],
-  clients: ['clients', 'client', 'clientDevices', 'serviceChecklist'],
+  clients: ['clients', 'client', 'clientDevices', 'serviceChecklist', 'servicePlan', 'servicePlans'],
   dashboard: ['dashboard'],
   dictionaries: ['dictionaries'],
   acts: ['acts', 'act', 'order'],
@@ -162,8 +163,7 @@ export const useActs = (f: { order?: number } = {}) =>
 export const useAct = (id: number) =>
   useQuery({ queryKey: keys.act(id), queryFn: () => api.get<Act>(`/acts/${id}`), enabled: id > 0 });
 
-export const useCustomers = () =>
-  useQuery({ queryKey: keys.customers, queryFn: () => api.get<CustomerAccount[]>('/customers') });
+export const useCustomers = () => useQuery({ queryKey: keys.customers, queryFn: () => api.get<CustomerAccount[]>('/customers') });
 
 export const useCustomerTasks = () =>
   useQuery({ queryKey: keys.customerTasks, queryFn: () => api.get<CustomerTask[]>('/customer/tasks') });
@@ -191,6 +191,16 @@ export const useServiceChecklist = (clientId: number) =>
     queryFn: () => api.get<{ items: string[] }>(`/clients/${clientId}/service-checklist`),
     enabled: clientId > 0,
   });
+
+export const useServicePlan = (clientId: number) =>
+  useQuery({
+    queryKey: ['servicePlan', clientId],
+    queryFn: () => api.get<{ plan: ServicePlan | null }>(`/clients/${clientId}/service-plan`),
+    enabled: clientId > 0,
+  });
+
+export const useServicePlans = (enabled = true) =>
+  useQuery({ queryKey: ['servicePlans'], queryFn: () => api.get<ServicePlan[]>('/service-plans'), enabled });
 
 /** Инвалидация после изменений, чтобы списки и карточки обновились сразу. */
 export function useInvalidate() {

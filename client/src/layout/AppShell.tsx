@@ -51,7 +51,7 @@ export function AppShell() {
   }, [location.pathname]);
 
   const items = NAV.filter((n) => !n.permission || can(n.permission));
-  const bottomPaths = bottomNav(can('intake.create'));
+  const bottomPaths = bottomNav(can('intake.create'), can('workspace.view'));
   const bottomItems = bottomPaths.map((p) => items.find((i) => i.to === p)!).filter(Boolean);
   const moreItems = items.filter((i) => !bottomPaths.includes(i.to));
 
@@ -90,9 +90,11 @@ export function AppShell() {
             <Brand compact />
           </span>
           <span className={s.headerTitle}>{title}</span>
-          <div className={cx(s.headerSearch, 'lg')} data-tour="search">
-            <QuickSearch />
-          </div>
+          {can('workspace.view') && (
+            <div className={cx(s.headerSearch, 'lg')} data-tour="search">
+              <QuickSearch />
+            </div>
+          )}
           <div className={s.headerSpacer} />
           <div className={cx(s.headerActions, 'lg')}>
             {can('intake.create') && (
@@ -100,9 +102,11 @@ export function AppShell() {
                 Принять технику
               </ButtonLink>
             )}
-            <IconButton label="Поиск" className={s.mobileOnly} onClick={() => setSearchOpen(true)}>
-              <Search />
-            </IconButton>
+            {can('workspace.view') && (
+              <IconButton label="Поиск" className={s.mobileOnly} onClick={() => setSearchOpen(true)}>
+                <Search />
+              </IconButton>
+            )}
             <div className={s.bellWrap} data-tour="bell">
               <IconButton
                 label={unread ? `Уведомления, непрочитанных: ${unread}` : 'Уведомления'}
@@ -128,7 +132,11 @@ export function AppShell() {
         </main>
       </div>
 
-      <nav className={cx(s.bottomNav, 'lg')} aria-label="Главные разделы">
+      <nav
+        className={cx(s.bottomNav, 'lg')}
+        style={{ gridTemplateColumns: `repeat(${bottomItems.length + 1}, 1fr)` }}
+        aria-label="Главные разделы"
+      >
         {bottomItems.map((n) => (
           <NavLink
             key={n.to}

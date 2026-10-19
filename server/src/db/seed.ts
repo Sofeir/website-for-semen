@@ -106,6 +106,10 @@ export const DEMO_USERS: { login: string; fullName: string; role: Role; phone?: 
   { login: 'stas', fullName: 'Стас', role: 'diagnostician' },
   { login: 'olga', fullName: 'Ольга', role: 'diagnostician' },
   { login: 'lenya', fullName: 'Лёня', role: 'master' },
+  { login: 'artem', fullName: 'Артём', role: 'master' },
+  { login: 'matvey', fullName: 'Матвей', role: 'admin' },
+  { login: 'masha', fullName: 'Маша', role: 'assistant' },
+  { login: 'vanya', fullName: 'Ваня', role: 'assistant' },
 ];
 
 export async function createUsers(password: string, db: Db = pool) {
@@ -116,8 +120,9 @@ export async function createUsers(password: string, db: Db = pool) {
       [u.login, hash, u.fullName, u.role, u.phone ?? null],
     );
   }
-  // роли этих сотрудников взяты из примеров в ТЗ — помечаем, что их нужно уточнить
-  await db.query(`UPDATE users SET role_confirmed = false WHERE login IN ('stas', 'olga', 'lenya')`);
+  // роли этих сотрудников — наше предположение по встречам, руководитель их уточнит.
+  // Ване роль «только задачи» назначили на встрече, она подтверждена.
+  await db.query(`UPDATE users SET role_confirmed = false WHERE login IN ('stas', 'olga', 'lenya', 'artem', 'matvey', 'masha')`);
 }
 
 async function actor(login: string): Promise<Actor> {
@@ -179,6 +184,15 @@ export async function seedCustomers() {
         (i + 1) * 10,
       ]);
     }
+  }
+  // График: раз в месяц, следующий выезд через неделю, едет Лёня
+  const hasPlan = rbe && (await one('SELECT 1 FROM service_plans WHERE client_id = $1', [rbe.id]));
+  if (rbe && !hasPlan) {
+    await pool.query(
+      `INSERT INTO service_plans (client_id, every_n, unit, next_date, visit_time, assignee_id, created_by)
+       SELECT $1, 1, 'month', current_date + 7, '11:00', (SELECT id FROM users WHERE login = 'lenya'), (SELECT id FROM users WHERE login = 'semen')`,
+      [rbe.id],
+    );
   }
 }
 

@@ -67,6 +67,11 @@ function RequirePermission({ permission, children }: { permission: Permission; c
   return <>{children}</>;
 }
 
+/** Заявки, клиенты и акты — не для сотрудника «только задачи». */
+const Workspace = ({ children }: { children: ReactNode }) => (
+  <RequirePermission permission="workspace.view">{children}</RequirePermission>
+);
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -87,8 +92,22 @@ export function App() {
                       }
                     >
                       <Route index element={<DashboardPage />} />
-                      <Route path="orders" element={<OrdersPage />} />
-                      <Route path="orders/:id" element={<OrderPage />} />
+                      <Route
+                        path="orders"
+                        element={
+                          <Workspace>
+                            <OrdersPage />
+                          </Workspace>
+                        }
+                      />
+                      <Route
+                        path="orders/:id"
+                        element={
+                          <Workspace>
+                            <OrderPage />
+                          </Workspace>
+                        }
+                      />
                       <Route
                         path="intake"
                         element={
@@ -97,8 +116,22 @@ export function App() {
                           </RequirePermission>
                         }
                       />
-                      <Route path="clients" element={<ClientsPage />} />
-                      <Route path="clients/:id" element={<ClientPage />} />
+                      <Route
+                        path="clients"
+                        element={
+                          <Workspace>
+                            <ClientsPage />
+                          </Workspace>
+                        }
+                      />
+                      <Route
+                        path="clients/:id"
+                        element={
+                          <Workspace>
+                            <ClientPage />
+                          </Workspace>
+                        }
+                      />
                       <Route
                         path="customers"
                         element={
@@ -109,9 +142,30 @@ export function App() {
                       />
                       <Route path="tasks" element={<TasksPage />} />
                       <Route path="calendar" element={<CalendarPage />} />
-                      <Route path="acts" element={<ActsPage />} />
-                      <Route path="acts/new" element={<ActPage />} />
-                      <Route path="acts/:id" element={<ActPage />} />
+                      <Route
+                        path="acts"
+                        element={
+                          <Workspace>
+                            <ActsPage />
+                          </Workspace>
+                        }
+                      />
+                      <Route
+                        path="acts/new"
+                        element={
+                          <Workspace>
+                            <ActPage />
+                          </Workspace>
+                        }
+                      />
+                      <Route
+                        path="acts/:id"
+                        element={
+                          <Workspace>
+                            <ActPage />
+                          </Workspace>
+                        }
+                      />
                       <Route
                         path="settings/*"
                         element={

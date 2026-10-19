@@ -9,7 +9,7 @@ import { OrderRow } from '@/components/OrderRow';
 import { TaskRow } from '@/components/TaskRow';
 import { TaskSheet } from '@/components/TaskSheet';
 import { TaskFormSheet } from '@/components/TaskFormSheet';
-import { Button, ButtonLink } from '@/ui/Button';
+import { Button, ButtonLink, cx } from '@/ui/Button';
 import { Card, CardHead, EmptyState, ErrorBox, PageHeader, Plate, Skeleton } from '@/ui/Display';
 import { useToast } from '@/ui/Toast';
 import { ApiError } from '@/api/http';
@@ -19,6 +19,8 @@ export default function DashboardPage() {
   useDocumentTitle('Сегодня');
   const me = useMe();
   const { can } = useAuth();
+  // у сотрудника «только задачи» нет заявок — на главной только его задачи
+  const workspace = can('workspace.view');
   const q = useDashboard();
   const settings = useSettings();
   const closeTasks = useCloseTasks();
@@ -46,8 +48,12 @@ export default function DashboardPage() {
           to: '/tasks?overdue=1',
           alert: d.counts.overdue > 0,
         },
-        { label: 'Техника в работе', value: d.counts.inWork, to: '/orders' },
-        { label: 'Готово к выдаче', value: d.counts.ready, to: '/orders?view=list&stage=ready', ok: true },
+        ...(workspace
+          ? [
+              { label: 'Техника в работе', value: d.counts.inWork, to: '/orders' },
+              { label: 'Готово к выдаче', value: d.counts.ready, to: '/orders?view=list&stage=ready', ok: true },
+            ]
+          : []),
       ]
     : [];
 
@@ -69,8 +75,8 @@ export default function DashboardPage() {
         <p className={s.greeting}>
           {greeting(now)}, {me.fullName.split(' ')[0]}
         </p>
-        <div className={s.stats}>
-          {(d ? stats : Array.from({ length: 4 }, () => null)).map((st, i) =>
+        <div className={cx(s.stats, !workspace && s.statsTwo)}>
+          {(d ? stats : Array.from({ length: workspace ? 4 : 2 }, () => null)).map((st, i) =>
             st ? (
               <Link key={st.label} to={st.to} className={s.stat}>
                 <span className={`${s.statValue} ${st.alert ? s.statAlert : ''} ${st.ok && st.value ? s.statOk : ''}`}>
@@ -115,22 +121,24 @@ export default function DashboardPage() {
               </EmptyState>
             )}
           </Card>
-          <Card>
-            <CardHead title="Готово к выдаче" count={d?.readyOrders.length} />
-            {!d ? (
-              <ListSkeleton />
-            ) : d.readyOrders.length ? (
-              <div className={s.list}>
-                {d.readyOrders.map((o) => (
-                  <OrderRow key={o.id} order={o} showStage={false} />
-                ))}
-              </div>
-            ) : (
-              <EmptyState icon={<PackageCheck />} title="Пока нечего выдавать">
-                Когда мастер переведёт заявку в «Готово», она появится здесь.
-              </EmptyState>
-            )}
-          </Card>
+          {workspace && (
+            <Card>
+              <CardHead title="Готово к выдаче" count={d?.readyOrders.length} />
+              {!d ? (
+                <ListSkeleton />
+              ) : d.readyOrders.length ? (
+                <div className={s.list}>
+                  {d.readyOrders.map((o) => (
+                    <OrderRow key={o.id} order={o} showStage={false} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon={<PackageCheck />} title="Пока нечего выдавать">
+                  Когда мастер переведёт заявку в «Готово», она появится здесь.
+                </EmptyState>
+              )}
+            </Card>
+          )}
         </div>
         <div className={s.col}>
           <Card>
@@ -149,34 +157,36 @@ export default function DashboardPage() {
               </EmptyState>
             )}
           </Card>
-          <Card>
-            <CardHead title="Новые заявки" count={d?.newOrders.length}>
-              <Link to="/orders" className={s.more}>
-                Все заявки
-              </Link>
-            </CardHead>
-            {!d ? (
-              <ListSkeleton />
-            ) : d.newOrders.length ? (
-              <div className={s.list}>
-                {d.newOrders.map((o) => (
-                  <OrderRow key={o.id} order={o} />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                icon={<Inbox />}
-                title="За два дня новых заявок нет"
-                action={
-                  can('intake.create') ? (
-                    <ButtonLink to="/intake" icon={<ClipboardList size={18} aria-hidden />}>
-                      Принять технику
-                    </ButtonLink>
-                  ) : undefined
-                }
-              />
-            )}
-          </Card>
+          {workspace && (
+            <Card>
+              <CardHead title="Новые заявки" count={d?.newOrders.length}>
+                <Link to="/orders" className={s.more}>
+                  Все заявки
+                </Link>
+              </CardHead>
+              {!d ? (
+                <ListSkeleton />
+              ) : d.newOrders.length ? (
+                <div className={s.list}>
+                  {d.newOrders.map((o) => (
+                    <OrderRow key={o.id} order={o} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  icon={<Inbox />}
+                  title="За два дня новых заявок нет"
+                  action={
+                    can('intake.create') ? (
+                      <ButtonLink to="/intake" icon={<ClipboardList size={18} aria-hidden />}>
+                        Принять технику
+                      </ButtonLink>
+                    ) : undefined
+                  }
+                />
+              )}
+            </Card>
+          )}
         </div>
       </div>
 
