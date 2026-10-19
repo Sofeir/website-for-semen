@@ -99,12 +99,14 @@ export default function OrdersPage() {
           Фильтры{activeFilters ? ` (${activeFilters})` : ''}
         </button>
         <div className={s.filters} data-open={showFilters} ref={filtersRef}>
-          <UserSelect
-            aria-label="Ответственный"
-            placeholder="Все сотрудники"
-            value={params.get('responsible') ?? ''}
-            onChange={(e) => set('responsible', e.target.value || null)}
-          />
+          {can('orders.viewAll') && (
+            <UserSelect
+              aria-label="Ответственный"
+              placeholder="Все сотрудники"
+              value={params.get('responsible') ?? ''}
+              onChange={(e) => set('responsible', e.target.value || null)}
+            />
+          )}
           <Select aria-label="Тип клиента" value={filters.kind} onChange={(e) => set('kind', e.target.value || null)}>
             <option value="">Физ- и юрлица</option>
             <option value="person">Только физлица</option>
@@ -137,11 +139,13 @@ export default function OrdersPage() {
               checked={filters.overdue}
               onChange={(e) => set('overdue', e.target.checked ? '1' : null)}
             />
-            <Checkbox
-              label="Мои"
-              checked={params.get('responsible') === String(me.id)}
-              onChange={(e) => set('responsible', e.target.checked ? String(me.id) : null)}
-            />
+            {can('orders.viewAll') && (
+              <Checkbox
+                label="Мои"
+                checked={params.get('responsible') === String(me.id)}
+                onChange={(e) => set('responsible', e.target.checked ? String(me.id) : null)}
+              />
+            )}
             {view === 'list' && (
               <Checkbox
                 label="С выданными"

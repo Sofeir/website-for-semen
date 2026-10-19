@@ -7,6 +7,7 @@ import { Outbox } from '../notify/notify';
 import { canTouchTask, closeTasks, createTask, normalizeDue, reopenTask, transferTask } from '../services/tasks';
 import { reassignOrder } from '../services/orders';
 import { likeEscape, TASK_SELECT } from '../services/sql';
+import { assertTaskVisible } from '../services/access';
 
 export const tasksRouter = Router();
 
@@ -61,6 +62,7 @@ tasksRouter.get(
     const id = intParam(req.params.id);
     const t = await one(`${TASK_SELECT} WHERE t.id = $1`, [id]);
     if (!t) throw new HttpError(404, 'Задача не найдена');
+    await assertTaskVisible(req.user!, id);
     const steps = await many(
       `SELECT st.id, st.assignee_id AS "assigneeId", ua.full_name AS "assigneeName", uf.full_name AS "fromUserName",
               st.assigned_at AS "assignedAt", st.due_at AS "dueAt", st.done_at AS "doneAt", st.comment

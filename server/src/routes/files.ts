@@ -8,6 +8,7 @@ import { can } from '@sd/shared';
 import { config } from '../config';
 import { one, pool } from '../db/pool';
 import { forbidden, h, HttpError, intParam } from '../lib/http';
+import { assertOrderVisible } from '../services/access';
 
 export const filesRouter = Router();
 
@@ -113,6 +114,7 @@ filesRouter.get(
   h(async (req, res) => {
     const a = await one('SELECT * FROM attachments WHERE id = $1', [intParam(req.params.id)]);
     if (!a) throw new HttpError(404, 'Файл не найден');
+    if (a.order_id) await assertOrderVisible(req.user!, a.order_id);
     const full = path.join(config.uploadDir, path.basename(a.stored_name));
     if (!fs.existsSync(full)) throw new HttpError(404, 'Файл пропал с диска');
     const inline = /^image\/(jpeg|png|webp)$/.test(a.mime) || a.mime === 'application/pdf';

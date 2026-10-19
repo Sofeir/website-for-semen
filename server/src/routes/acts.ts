@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import { actSchema, actTotal, formatOrderNumber, type Act, type ActInput } from '@sd/shared';
+import { actSchema, actTotal, can, formatOrderNumber, type Act, type ActInput } from '@sd/shared';
 import { many, one, pool, tx, type Db } from '../db/pool';
 import { h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { broadcast } from '../notify/hub';
-import { DEVICE_TITLE } from '../services/sql';
+import { DEVICE_TITLE, orderAccess } from '../services/sql';
+import { assertOrderVisible } from '../services/access';
 
 export const actsRouter = Router();
 
@@ -54,11 +55,17 @@ actsRouter.get(
   '/acts',
   h(async (req, res) => {
     const params: unknown[] = [];
-    let where = '';
+    const conds: string[] = [];
     if (req.query.order) {
       params.push(Number(req.query.order));
-      where = 'WHERE a.order_id = $1';
+      conds.push(`a.order_id = $${params.length}`);
     }
+    // мастер и диагност видят акты только по своим заявкам
+    if (!can(req.user!.role, 'orders.viewAll')) {
+      params.push(req.user!.id);
+      conds.push(orderAccess('o', `$${params.length}`));
+    }
+    const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
     const rows = await many(
       `SELECT a.id, a.number, a.created_at AS "createdAt", a.updated_at AS "updatedAt", a.order_id AS "orderId",
               o.number AS "orderNumber", c.name AS "clientName", ${DEVICE_TITLE} AS "deviceTitle",
@@ -82,6 +89,7 @@ actsRouter.get(
   h(async (req, res) => {
     const act = await loadAct(intParam(req.params.id));
     if (!act) throw new HttpError(404, 'Акт не найден');
+    await assertOrderVisible(req.user!, act.orderId);
     res.json(act);
   }),
 );
@@ -91,6 +99,7 @@ actsRouter.post(
   requirePermission('acts.edit'),
   h(async (req, res) => {
     const input = parse(actSchema, req.body);
+    await assertOrderVisible(req.user!, input.orderId);
     const id = await tx(async (db) => {
       const order = await one('SELECT id FROM orders WHERE id = $1', [input.orderId], db);
       if (!order) throw new HttpError(400, 'Заявка не найдена');
@@ -116,6 +125,8 @@ actsRouter.put(
   h(async (req, res) => {
     const id = intParam(req.params.id);
     const input = parse(actSchema, req.body);
+    const existing = await loadAct(id);
+    if (existing) await assertOrderVisible(req.user!, existing.orderId);
     await tx(async (db) => {
       const r = await db.query(
         `UPDATE acts SET warranty_months = $2, print_repeat_discount = $3, note = $4, updated_by = $5, updated_at = now()

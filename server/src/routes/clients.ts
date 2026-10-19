@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { clientSchema, fleetSchema, serviceChecklistSchema, type ClientDetail } from '@sd/shared';
+import { can, clientSchema, fleetSchema, serviceChecklistSchema, type ClientDetail } from '@sd/shared';
 import { many, one, tx } from '../db/pool';
 import { h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { createClient, replaceFleet, updateClient } from '../services/clients';
-import { CLIENT_FIELDS, DEVICE_SELECT, likeEscape, ORDER_SELECT, TASK_SELECT } from '../services/sql';
+import { CLIENT_FIELDS, DEVICE_SELECT, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT, taskAccess } from '../services/sql';
 import { broadcast } from '../notify/hub';
 
 export const clientsRouter = Router();
@@ -58,23 +58,31 @@ clientsRouter.get(
     const id = intParam(req.params.id);
     const client = await one(`SELECT ${CLIENT_FIELDS} FROM clients c WHERE c.id = $1`, [id]);
     if (!client) throw new HttpError(404, 'Клиент не найден');
+    const seeAll = can(req.user!.role, 'orders.viewAll');
+    const seeAllTasks = can(req.user!.role, 'tasks.manageAll');
+    const mine = seeAll ? '' : `AND ${orderAccess('o', '$2')}`;
+    const args = seeAll ? [id] : [id, req.user!.id];
     const [devices, orders, tasks, receipts, acts, attachments, fleet] = await Promise.all([
       many(`${DEVICE_SELECT} WHERE d.client_id = $1 ORDER BY d.created_at DESC`, [id]),
-      many(`${ORDER_SELECT} WHERE o.client_id = $1 ORDER BY o.created_at DESC`, [id]),
       many(
-        `${TASK_SELECT} WHERE coalesce(t.client_id, o.client_id) = $1 ORDER BY (t.status = 'open') DESC, t.due_at DESC LIMIT 100`,
-        [id],
+        `${ORDER_SELECT} WHERE o.client_id = $1 ${seeAll ? '' : `AND ${orderAccess('o', '$2')}`} ORDER BY o.created_at DESC`,
+        seeAll ? [id] : [id, req.user!.id],
+      ),
+      many(
+        `${TASK_SELECT} WHERE coalesce(t.client_id, o.client_id) = $1 ${seeAllTasks ? '' : `AND ${taskAccess('t', '$2')}`}
+          ORDER BY (t.status = 'open') DESC, t.due_at DESC LIMIT 100`,
+        seeAllTasks ? [id] : [id, req.user!.id],
       ),
       many(
         `SELECT b.id, b.created_at AS "createdAt", string_agg(o.number, ', ' ORDER BY o.number) AS "orderNumber"
            FROM intake_batches b JOIN orders o ON o.batch_id = b.id
-          WHERE b.client_id = $1 GROUP BY b.id ORDER BY b.created_at DESC`,
-        [id],
+          WHERE b.client_id = $1 ${mine} GROUP BY b.id ORDER BY b.created_at DESC`,
+        args,
       ),
       many(
         `SELECT a.id, a.number, a.created_at AS "createdAt", o.number AS "orderNumber"
-           FROM acts a JOIN orders o ON o.id = a.order_id WHERE o.client_id = $1 ORDER BY a.created_at DESC`,
-        [id],
+           FROM acts a JOIN orders o ON o.id = a.order_id WHERE o.client_id = $1 ${mine} ORDER BY a.created_at DESC`,
+        args,
       ),
       many(
         `SELECT a.id, a.file_name AS "fileName", a.mime, a.size, a.created_at AS "createdAt", u.full_name AS "uploadedBy",
