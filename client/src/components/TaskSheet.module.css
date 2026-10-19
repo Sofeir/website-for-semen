@@ -84,3 +84,28 @@
   color: var(--text-2);
   white-space: pre-line;
 }
+
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 var(--s-4);
+  padding: 0;
+  list-style: none;
+}
+
+.checklist li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--s-3);
+}
+
+.checkMeta {
+  margin-left: calc(22px + var(--s-3));
+  margin-top: -8px;
+  padding-bottom: var(--s-1);
+  width: 100%;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}

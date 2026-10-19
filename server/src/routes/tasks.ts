@@ -4,7 +4,7 @@ import { many, one, pool, tx } from '../db/pool';
 import { forbidden, h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { Outbox } from '../notify/notify';
-import { closeTasks, createTask, normalizeDue, reopenTask, transferTask } from '../services/tasks';
+import { canTouchTask, closeTasks, createTask, normalizeDue, reopenTask, transferTask } from '../services/tasks';
 import { reassignOrder } from '../services/orders';
 import { likeEscape, TASK_SELECT } from '../services/sql';
 
@@ -68,7 +68,13 @@ tasksRouter.get(
         WHERE st.task_id = $1 ORDER BY st.assigned_at, st.id`,
       [id],
     );
-    const detail: TaskDetail = { ...t, steps };
+    const checklist = await many(
+      `SELECT ci.id, ci.title, ci.done, ci.done_at AS "doneAt", u.full_name AS "doneByName"
+         FROM task_checklist_items ci LEFT JOIN users u ON u.id = ci.done_by
+        WHERE ci.task_id = $1 ORDER BY ci.sort, ci.id`,
+      [id],
+    );
+    const detail: TaskDetail = { ...t, steps, checklist };
     res.json(detail);
   }),
 );
@@ -161,6 +167,38 @@ tasksRouter.post(
         await transferTask(db, req.user!, id, input, outbox);
       }
     });
+    await outbox.flush();
+    res.json({ ok: true });
+  }),
+);
+
+/** Отметка пункта чек-листа — исполнитель, постановщик или руководитель. */
+tasksRouter.post(
+  '/tasks/:id/checklist/:itemId',
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const itemId = intParam(req.params.itemId);
+    if (typeof req.body?.done !== 'boolean') throw new HttpError(400, 'Не указано, отмечен ли пункт');
+    const t = await one<{
+      id: number;
+      title: string;
+      status: string;
+      creator_id: number;
+      assignee_id: number;
+      order_id: number | null;
+      stage_id: number | null;
+    }>('SELECT id, title, status, creator_id, assignee_id, order_id, stage_id FROM tasks WHERE id = $1', [id]);
+    if (!t) throw new HttpError(404, 'Задача не найдена');
+    if (!canTouchTask(req.user!, t)) throw forbidden();
+    if (t.status !== 'open') throw new HttpError(409, 'Задача уже закрыта');
+    const r = await pool.query(
+      `UPDATE task_checklist_items SET done = $3, done_at = CASE WHEN $3 THEN now() END, done_by = CASE WHEN $3 THEN $4::int END
+        WHERE id = $2 AND task_id = $1`,
+      [id, itemId, req.body.done, req.user!.id],
+    );
+    if (!r.rowCount) throw new HttpError(404, 'Пункт не найден');
+    const outbox = new Outbox();
+    outbox.touch('tasks');
     await outbox.flush();
     res.json({ ok: true });
   }),

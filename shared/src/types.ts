@@ -217,11 +217,23 @@ export interface TaskListItem {
   isStageTask: boolean;
   /** Задачу поставил заказчик из своего кабинета. */
   fromCustomer: boolean;
+  /** Пункты чек-листа: всего и отмечено. */
+  checklistTotal: number;
+  checklistDone: number;
   overdue: boolean;
+}
+
+export interface TaskChecklistItem {
+  id: number;
+  title: string;
+  done: boolean;
+  doneAt: string | null;
+  doneByName: string | null;
 }
 
 export interface TaskDetail extends TaskListItem {
   steps: TaskStep[];
+  checklist: TaskChecklistItem[];
 }
 
 export interface NotificationItem {
