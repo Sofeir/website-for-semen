@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { clientSchema, fleetSchema, type ClientDetail } from '@sd/shared';
+import { clientSchema, fleetSchema, serviceChecklistSchema, type ClientDetail } from '@sd/shared';
 import { many, one, tx } from '../db/pool';
 import { h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
@@ -153,6 +153,41 @@ clientsRouter.put(
     if (!c) throw new HttpError(404, 'Клиент не найден');
     if (c.kind !== 'legal') throw new HttpError(400, 'Чек-лист парка ведём только для юрлиц');
     await tx((db) => replaceFleet(db, id, rows));
+    broadcast('changed', { scopes: ['clients'] });
+    res.json({ ok: true });
+  }),
+);
+
+/** Список работ на точке клиента: из него собирается чек-лист выезда. */
+clientsRouter.get(
+  '/clients/:id/service-checklist',
+  h(async (req, res) => {
+    const rows = await many<{ title: string }>(
+      'SELECT title FROM service_checklist_items WHERE client_id = $1 ORDER BY sort, id',
+      [intParam(req.params.id)],
+    );
+    res.json({ items: rows.map((r) => r.title) });
+  }),
+);
+
+clientsRouter.put(
+  '/clients/:id/service-checklist',
+  requirePermission('clients.edit'),
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const { items } = parse(serviceChecklistSchema, req.body);
+    await tx(async (db) => {
+      const c = await one('SELECT 1 FROM clients WHERE id = $1', [id], db);
+      if (!c) throw new HttpError(404, 'Клиент не найден');
+      await db.query('DELETE FROM service_checklist_items WHERE client_id = $1', [id]);
+      for (const [i, title] of items.filter(Boolean).entries()) {
+        await db.query('INSERT INTO service_checklist_items (client_id, title, sort) VALUES ($1, $2, $3)', [
+          id,
+          title,
+          (i + 1) * 10,
+        ]);
+      }
+    });
     broadcast('changed', { scopes: ['clients'] });
     res.json({ ok: true });
   }),

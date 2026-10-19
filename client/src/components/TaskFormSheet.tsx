@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { taskSchema, type TaskDetail, type TaskInput } from '@sd/shared';
@@ -12,6 +12,7 @@ import { Field, Input, Textarea, formStyles } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import { DueInput, UserSelect } from './Pickers';
+import { ChecklistEditor } from './ChecklistEditor';
 
 interface Props {
   open: boolean;
@@ -20,10 +21,13 @@ interface Props {
   orderId?: number;
   clientId?: number;
   presetTitle?: string;
+  /** Чек-лист работ, например для выезда к клиенту. */
+  presetChecklist?: string[];
 }
 
 /** Создание и правка задачи. Рабочее время ограничено настройкой (по умолчанию до 19:00). */
-export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTitle }: Props) {
+export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTitle, presetChecklist }: Props) {
+  const [checklist, setChecklist] = useState<string[]>([]);
   const me = useMe();
   const settings = useSettings();
   const inv = useInvalidate();
@@ -32,6 +36,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
 
   useEffect(() => {
     if (!open) return;
+    setChecklist(task ? [] : (presetChecklist ?? []));
     form.reset(
       task
         ? {
@@ -64,7 +69,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
   const submit = form.handleSubmit(async (values) => {
     try {
       if (task) await api.put(`/tasks/${task.id}`, values as any);
-      else await api.post('/tasks', values as any);
+      else await api.post('/tasks', { ...values, checklist: checklist.map((x) => x.trim()).filter(Boolean) } as any);
       inv('tasks', 'task', 'dashboard', 'order', 'client');
       toast.success(task ? 'Задача сохранена' : 'Задача поставлена');
       onClose();
@@ -153,6 +158,11 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
         <Field label="Подробности" optional error={errors.description?.message}>
           <Textarea {...form.register('description')} rows={4} />
         </Field>
+        {!task && (
+          <Field label="Чек-лист" optional group hint="Пункты, которые исполнитель отметит по ходу работы">
+            <ChecklistEditor items={checklist} onChange={setChecklist} />
+          </Field>
+        )}
       </form>
     </Sheet>
   );

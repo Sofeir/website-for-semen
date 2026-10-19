@@ -59,7 +59,7 @@ export const SCOPE_KEYS: Record<string, string[]> = {
   orders: ['orders', 'order', 'dashboard', 'customerOrders', 'customerOrder'],
   tasks: ['tasks', 'task', 'dashboard', 'order', 'customerTasks'],
   customers: ['customers'],
-  clients: ['clients', 'client', 'clientDevices'],
+  clients: ['clients', 'client', 'clientDevices', 'serviceChecklist'],
   dashboard: ['dashboard'],
   dictionaries: ['dictionaries'],
   acts: ['acts', 'act', 'order'],
@@ -183,6 +183,13 @@ export const useCustomerCompany = () =>
     queryKey: keys.customerCompany,
     queryFn: () => api.get<CustomerCompany>('/customer/company'),
     staleTime: 10 * 60_000,
+  });
+
+export const useServiceChecklist = (clientId: number) =>
+  useQuery({
+    queryKey: ['serviceChecklist', clientId],
+    queryFn: () => api.get<{ items: string[] }>(`/clients/${clientId}/service-checklist`),
+    enabled: clientId > 0,
   });
 
 /** Инвалидация после изменений, чтобы списки и карточки обновились сразу. */

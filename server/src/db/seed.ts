@@ -160,6 +160,26 @@ export async function seedCustomers() {
   }
   // ИП Соколов был тестовой регистрацией — убираем его и из уже созданных демо-баз
   await pool.query(`DELETE FROM users WHERE login = 'sokolov' AND role = 'customer' AND pending`);
+
+  // Работы на выезде у юрлица — для чек-листа обслуживания
+  const rbe = await one<{ id: number }>(`SELECT id FROM clients WHERE name = 'ООО «РБЕ Урал»' LIMIT 1`);
+  const hasWorks = rbe && (await one('SELECT 1 FROM service_checklist_items WHERE client_id = $1', [rbe.id]));
+  if (rbe && !hasWorks) {
+    const works = [
+      'Проверить резервное копирование',
+      'Проверить SSD (SMART) на рабочих ПК',
+      'Почистить системные блоки от пыли',
+      'Проверить МФУ: печать и сканирование',
+      'Обновить антивирус и проверить лицензии',
+    ];
+    for (const [i, title] of works.entries()) {
+      await pool.query('INSERT INTO service_checklist_items (client_id, title, sort) VALUES ($1, $2, $3)', [
+        rbe.id,
+        title,
+        (i + 1) * 10,
+      ]);
+    }
+  }
 }
 
 /** Живые демо-данные: клиенты, заявки на разных этапах, задачи, акт, чек-лист юрлица. */

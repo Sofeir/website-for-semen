@@ -7,7 +7,7 @@ import { useCloseTasks, useInvalidate, useSettings, useTask, useTransferTask } f
 import { defaultDueDate, fmtWhen } from '@/lib/dates';
 import { Button } from '@/ui/Button';
 import { DescList, ErrorBox, Pill, Spinner } from '@/ui/Display';
-import { Field, Textarea } from '@/ui/Form';
+import { Checkbox, Field, Textarea } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import { DueInput, UserSelect } from './Pickers';
@@ -32,6 +32,22 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   const [due, setDue] = useState('');
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
+  const [toggling, setToggling] = useState<number | null>(null);
+  const canCheck = Boolean(
+    task && task.status === 'open' && (task.assigneeId === me.id || task.creatorId === me.id || can('tasks.manageAll')),
+  );
+  const toggleItem = async (itemId: number, done: boolean) => {
+    if (!task) return;
+    setToggling(itemId);
+    try {
+      await api.post(`/tasks/${task.id}/checklist/${itemId}`, { done });
+      inv('task', 'tasks');
+    } catch (e) {
+      toast.error('Не получилось отметить', (e as ApiError).message);
+    } finally {
+      setToggling(null);
+    }
+  };
 
   useEffect(() => {
     setMode('view');
@@ -197,6 +213,30 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                     ['Комментарий', task.closeComment],
                   ]}
                 />
+                {task.checklist.length > 0 && (
+                  <section>
+                    <h3 className={s.chainTitle}>
+                      Чек-лист · {task.checklist.filter((x) => x.done).length} из {task.checklist.length}
+                    </h3>
+                    <ul className={s.checklist}>
+                      {task.checklist.map((it) => (
+                        <li key={it.id}>
+                          <Checkbox
+                            label={it.title}
+                            checked={it.done}
+                            disabled={!canCheck || toggling === it.id}
+                            onChange={(e) => toggleItem(it.id, e.target.checked)}
+                          />
+                          {it.done && it.doneAt && (
+                            <span className={s.checkMeta}>
+                              {it.doneByName}, {fmtWhen(it.doneAt)}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
                 {task.steps.length > 0 && (
                   <section>
                     <h3 className={s.chainTitle}>Цепочка передачи</h3>

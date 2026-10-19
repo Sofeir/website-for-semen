@@ -167,6 +167,8 @@ export const taskSchema = z
     startAt: isoDate,
     dueAt: isoDate,
     deadlineAt: isoDate.optional().nullable(),
+    /** Чек-лист работ (например, на выезде у клиента). Пустые строки отбрасываются. */
+    checklist: z.array(z.string().trim().max(300)).max(60).optional(),
   })
   .superRefine((v, ctx) => {
     if (new Date(v.dueAt) < new Date(v.startAt)) {
@@ -177,6 +179,11 @@ export const taskSchema = z
     }
   });
 export type TaskInput = z.infer<typeof taskSchema>;
+
+/** Список работ на точке клиента — из него собирается чек-лист выезда. */
+export const serviceChecklistSchema = z.object({
+  items: z.array(z.string().trim().max(300)).max(60),
+});
 
 export const closeTasksSchema = z.object({
   ids: z.array(id).min(1, 'Отметьте задачи').max(200),

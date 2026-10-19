@@ -1,16 +1,31 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Building2, FileText, Mail, MapPin, Pencil, Phone, Plus, Printer, Save, UserRound } from 'lucide-react';
+import {
+  ArrowLeft,
+  Building2,
+  CalendarCheck,
+  FileText,
+  Mail,
+  MapPin,
+  Pencil,
+  Phone,
+  Plus,
+  Printer,
+  Save,
+  UserRound,
+} from 'lucide-react';
 import { formatPhone, type FleetRowDto } from '@sd/shared';
 import { useAuth } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
-import { useClient, useInvalidate } from '@/api/queries';
+import { useClient, useInvalidate, useServiceChecklist } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
 import { useDocumentTitle } from '@/lib/hooks';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
+import { ChecklistEditor } from '@/components/ChecklistEditor';
 import { ClientFormSheet } from '@/components/ClientFormSheet';
 import { FleetEditor, emptyFleetRow, fleetTotals } from '@/components/FleetEditor';
 import { OrderRow } from '@/components/OrderRow';
+import { TaskFormSheet } from '@/components/TaskFormSheet';
 import { TaskRow } from '@/components/TaskRow';
 import { TaskSheet } from '@/components/TaskSheet';
 import { Button, ButtonLink } from '@/ui/Button';
@@ -18,7 +33,7 @@ import { Card, CardHead, EmptyState, ErrorBox, Pill, Spinner, Tabs } from '@/ui/
 import { useToast } from '@/ui/Toast';
 import s from './ClientPage.module.css';
 
-type Tab = 'orders' | 'devices' | 'docs' | 'tasks' | 'fleet';
+type Tab = 'orders' | 'devices' | 'docs' | 'tasks' | 'fleet' | 'service';
 
 export default function ClientPage() {
   const id = Number(useParams().id);
@@ -32,6 +47,13 @@ export default function ClientPage() {
   const [taskId, setTaskId] = useState<number | null>(null);
   const [fleet, setFleet] = useState<FleetRowDto[]>([]);
   const [savingFleet, setSavingFleet] = useState(false);
+  const service = useServiceChecklist(id);
+  const [works, setWorks] = useState<string[]>([]);
+  const [savingWorks, setSavingWorks] = useState(false);
+  const [visit, setVisit] = useState(false);
+  useEffect(() => {
+    if (service.data) setWorks(service.data.items);
+  }, [service.data]);
   useDocumentTitle(c?.name ?? 'Клиент');
 
   useEffect(() => {
@@ -58,6 +80,19 @@ export default function ClientPage() {
     }
   };
 
+  const saveWorks = async () => {
+    setSavingWorks(true);
+    try {
+      await api.put(`/clients/${c.id}/service-checklist`, { items: works.map((x) => x.trim()).filter(Boolean) });
+      toast.success('Список работ сохранён');
+      inv('serviceChecklist');
+    } catch (e) {
+      toast.error('Не сохранилось', (e as ApiError).message);
+    } finally {
+      setSavingWorks(false);
+    }
+  };
+
   const tabs: { value: Tab; label: string; count?: number }[] = [
     { value: 'orders', label: 'Заявки', count: c.orders.length },
     { value: 'devices', label: 'Техника', count: c.devices.length },
@@ -65,6 +100,7 @@ export default function ClientPage() {
     { value: 'tasks', label: 'Задачи', count: c.tasks.filter((t) => t.status === 'open').length },
   ];
   if (legal) tabs.push({ value: 'fleet', label: 'Парк техники', count: totals.pc + totals.mfu });
+  tabs.push({ value: 'service', label: 'Выезд', count: service.data?.items.length });
 
   return (
     <div>
@@ -244,6 +280,43 @@ export default function ClientPage() {
         </Card>
       )}
 
+      {tab === 'service' && (
+        <Card>
+          <CardHead title="Работы на выезде">
+            <div className="row wrap">
+              {can('clients.edit') && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<Save size={16} aria-hidden />}
+                  loading={savingWorks}
+                  onClick={saveWorks}
+                >
+                  Сохранить список
+                </Button>
+              )}
+              {can('tasks.create') && (
+                <Button size="sm" icon={<CalendarCheck size={16} aria-hidden />} onClick={() => setVisit(true)}>
+                  Назначить выезд
+                </Button>
+              )}
+            </div>
+          </CardHead>
+          <p className="muted" style={{ marginBottom: 'var(--s-4)' }}>
+            Что специалист делает у клиента на каждом обслуживании. При назначении выезда этот список становится чек-листом в
+            задаче, и специалист отмечает пункты на месте.
+          </p>
+          <ChecklistEditor items={works} onChange={setWorks} disabled={!can('clients.edit')} />
+        </Card>
+      )}
+
+      <TaskFormSheet
+        open={visit}
+        onClose={() => setVisit(false)}
+        clientId={c.id}
+        presetTitle={`Выезд: ${c.name}`}
+        presetChecklist={works.map((x) => x.trim()).filter(Boolean)}
+      />
       <ClientFormSheet open={editing} onClose={() => setEditing(false)} client={c} />
       <TaskSheet taskId={taskId} onClose={() => setTaskId(null)} />
     </div>

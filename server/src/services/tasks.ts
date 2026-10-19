@@ -68,6 +68,10 @@ export async function createTask(
     actor.id,
     due,
   ]);
+  const checklist = (input.checklist ?? []).filter(Boolean);
+  for (const [i, title] of checklist.entries()) {
+    await db.query('INSERT INTO task_checklist_items (task_id, title, sort) VALUES ($1, $2, $3)', [row!.id, title, (i + 1) * 10]);
+  }
   if (input.assigneeId !== actor.id) {
     outbox.add({
       userId: input.assigneeId,
@@ -81,7 +85,7 @@ export async function createTask(
   return row!.id;
 }
 
-function canTouchTask(actor: Actor, t: TaskRow) {
+export function canTouchTask(actor: Actor, t: TaskRow) {
   return t.assignee_id === actor.id || t.creator_id === actor.id || can(actor.role, 'tasks.manageAll');
 }
 

@@ -32,6 +32,8 @@ export const TASK_SELECT = `
          t.start_at AS "startAt", t.due_at AS "dueAt", t.deadline_at AS "deadlineAt",
          t.closed_at AS "closedAt", ucl.full_name AS "closedByName", t.close_comment AS "closeComment",
          (t.stage_id IS NOT NULL) AS "isStageTask", (uc.role = 'customer') AS "fromCustomer",
+         (SELECT count(*)::int FROM task_checklist_items ci WHERE ci.task_id = t.id) AS "checklistTotal",
+         (SELECT count(*)::int FROM task_checklist_items ci WHERE ci.task_id = t.id AND ci.done) AS "checklistDone",
          (t.status = 'open' AND t.due_at < now()) AS overdue
     FROM tasks t
     JOIN users ua ON ua.id = t.assignee_id
