@@ -61,6 +61,9 @@ export function bootDemo() {
     if (!users?.n) {
       await createUsers(DEMO_PASSWORD);
       await seedDemo();
+    } else {
+      // демо-базы, созданные раньше, получают новых сотрудников (существующих не трогаем)
+      await createUsers(DEMO_PASSWORD);
     }
     // демо-базы, созданные до появления заказчиков, тоже получают демо-заказчиков
     await seedCustomers();

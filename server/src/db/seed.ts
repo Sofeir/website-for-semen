@@ -100,29 +100,33 @@ export async function seedReference(db: Db = pool) {
   return true;
 }
 
-export const DEMO_USERS: { login: string; fullName: string; role: Role; phone?: string }[] = [
+/** Сотрудники со встречи. roleConfirmed: false — роль наше предположение, руководитель её уточнит. */
+export const DEMO_USERS: { login: string; fullName: string; role: Role; phone?: string; roleConfirmed?: boolean }[] = [
   { login: 'admin', fullName: 'Администратор', role: 'admin' },
   { login: 'semen', fullName: 'Семён', role: 'manager' },
-  { login: 'stas', fullName: 'Стас', role: 'diagnostician' },
-  { login: 'olga', fullName: 'Ольга', role: 'diagnostician' },
-  { login: 'lenya', fullName: 'Лёня', role: 'master' },
-  { login: 'artem', fullName: 'Артём', role: 'master' },
-  { login: 'matvey', fullName: 'Матвей', role: 'admin' },
-  { login: 'masha', fullName: 'Маша', role: 'assistant' },
+  { login: 'stas', fullName: 'Стас', role: 'diagnostician', roleConfirmed: false },
+  { login: 'olga', fullName: 'Ольга', role: 'diagnostician', roleConfirmed: false },
+  { login: 'lenya', fullName: 'Лёня', role: 'master', roleConfirmed: false },
+  { login: 'artem', fullName: 'Артём', role: 'master', roleConfirmed: false },
+  { login: 'matvey', fullName: 'Матвей', role: 'admin', roleConfirmed: false },
+  { login: 'masha', fullName: 'Маша', role: 'assistant', roleConfirmed: false },
+  // Ване роль «только задачи» назначили на встрече
   { login: 'vanya', fullName: 'Ваня', role: 'assistant' },
 ];
 
+/** Заводит недостающих сотрудников. Уже существующих не трогает — их роли и пароли могли поменять. */
 export async function createUsers(password: string, db: Db = pool) {
+  const have = new Set((await db.query('SELECT login FROM users')).rows.map((r) => r.login as string));
+  const missing = DEMO_USERS.filter((u) => !have.has(u.login));
+  if (!missing.length) return;
   const hash = await bcrypt.hash(password, 10);
-  for (const u of DEMO_USERS) {
+  for (const u of missing) {
     await db.query(
-      `INSERT INTO users (login, password_hash, full_name, role, phone) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (login) DO NOTHING`,
-      [u.login, hash, u.fullName, u.role, u.phone ?? null],
+      `INSERT INTO users (login, password_hash, full_name, role, phone, role_confirmed) VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (login) DO NOTHING`,
+      [u.login, hash, u.fullName, u.role, u.phone ?? null, u.roleConfirmed ?? true],
     );
   }
-  // роли этих сотрудников — наше предположение по встречам, руководитель их уточнит.
-  // Ване роль «только задачи» назначили на встрече, она подтверждена.
-  await db.query(`UPDATE users SET role_confirmed = false WHERE login IN ('stas', 'olga', 'lenya', 'artem', 'matvey', 'masha')`);
 }
 
 async function actor(login: string): Promise<Actor> {
