@@ -13,6 +13,8 @@ import { usersRouter } from '../../../server/src/routes/users';
 import { clientsRouter } from '../../../server/src/routes/clients';
 import { ordersRouter } from '../../../server/src/routes/orders';
 import { tasksRouter } from '../../../server/src/routes/tasks';
+import { equipmentRouter } from '../../../server/src/routes/equipment';
+import { reportsRouter } from '../../../server/src/routes/reports';
 import { notificationsRouter } from '../../../server/src/routes/notifications';
 import { actsRouter } from '../../../server/src/routes/acts';
 import { documentsRouter } from '../../../server/src/routes/documents';
@@ -40,6 +42,8 @@ for (const r of [
   clientsRouter,
   ordersRouter,
   tasksRouter,
+  equipmentRouter,
+  reportsRouter,
   notificationsRouter,
   actsRouter,
   documentsRouter,

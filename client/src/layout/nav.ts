@@ -3,6 +3,7 @@ import {
   ClipboardList,
   FileText,
   ListChecks,
+  BarChart3,
   PlusCircle,
   Settings2,
   Truck,
@@ -32,6 +33,7 @@ export const NAV: NavItem[] = [
   { to: '/clients', label: 'Клиенты', icon: Users, permission: 'workspace.view' },
   { to: '/customers', label: 'Заказчики', icon: UserCheck, permission: 'customers.manage' },
   { to: '/acts', label: 'Акты', icon: FileText, permission: 'workspace.view' },
+  { to: '/reports', label: 'Отчёты', icon: BarChart3, permission: 'reports.view' },
   { to: '/settings', label: 'Настройки', icon: Settings2, permission: 'dictionaries.edit' },
 ];
 

@@ -576,6 +576,7 @@ export async function seedDemo() {
           dueAt: due(1),
           comment: null,
           estimatedCost: code === 'approval' ? 1000 : null,
+          deviceReturned: code === 'issued' ? true : undefined,
         },
         ob,
       ),
@@ -667,6 +668,23 @@ export async function seedDemo() {
   await pool.query(`UPDATE tasks SET due_at = $2 WHERE order_id = $1 AND status = 'open'`, [o3, daysAgo(1, 18)]);
   await pool.query(`UPDATE orders SET created_at = $2, issued_at = $3 WHERE id = $1`, [o6, daysAgo(12), daysAgo(5)]);
   await pool.query(`UPDATE intake_batches SET created_at = $2 WHERE id = $1`, [r6.batchId, daysAgo(12)]);
+
+  // Учёт техники: номер и место, журнал замен с пробегом и заправки картриджей.
+  const fleetOrder = await one<{ client_id: number; device_id: number }>('SELECT client_id, device_id FROM orders WHERE id = $1', [
+    r5.orderIds[0],
+  ]);
+  if (fleetOrder) {
+    await pool.query(`UPDATE devices SET inventory_no = 'МФУ-014', location = 'Бухгалтерия, каб. 12' WHERE id = $1`, [fleetOrder.device_id]);
+    const work = (deviceId: number | null, kind: string, title: string, qty: number, counter: number | null, doneAt: Date, by: number) =>
+      pool.query(
+        `INSERT INTO device_works (client_id, device_id, kind, title, qty, counter, done_at, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [fleetOrder.client_id, deviceId, kind, title, qty, counter, doneAt, by],
+      );
+    await work(fleetOrder.device_id, 'part', 'Блок фотобарабана', 1, 80000, daysAgo(40), semen.id);
+    await work(null, 'refill', 'Картридж CF259A', 8, null, daysAgo(35), olga.id);
+    await work(null, 'refill', 'Картридж CF259A', 4, null, daysAgo(9), olga.id);
+    await work(null, 'refill', 'Картридж CE505A', 6, null, daysAgo(3), olga.id);
+  }
 
   await seedCustomers();
 

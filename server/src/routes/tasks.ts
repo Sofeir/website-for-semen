@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { can, closeTasksSchema, taskSchema, transferTaskSchema, type TaskDetail } from '@sd/shared';
+import { can, closeTasksSchema, taskKindSchema, taskSchema, transferTaskSchema, type TaskDetail } from '@sd/shared';
 import { many, one, pool, tx } from '../db/pool';
 import { forbidden, h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { Outbox } from '../notify/notify';
+import { broadcast } from '../notify/hub';
 import { canTouchTask, closeTasks, createTask, normalizeDue, reopenTask, transferTask } from '../services/tasks';
 import { reassignOrder } from '../services/orders';
 import { likeEscape, TASK_SELECT } from '../services/sql';
@@ -45,6 +46,7 @@ tasksRouter.get(
       add((p) => `t.due_at < ${p}`, new Date(String(req.query.to)));
     }
     if (req.query.order) add((p) => `t.order_id = ${p}`, Number(req.query.order));
+    if (req.query.kind) add((p) => `t.kind_id = ${p}`, Number(req.query.kind));
     const q = String(req.query.q ?? '').trim();
     if (q) add((p) => `(t.title ILIKE ${p} OR t.description ILIKE ${p} OR o.number ILIKE ${p})`, `%${likeEscape(q)}%`);
     const limit = Math.min(Number(req.query.limit) || 300, 1000);
@@ -55,6 +57,51 @@ tasksRouter.get(
       params,
     );
     res.json(rows);
+  }),
+);
+
+const KIND_SELECT = `SELECT id, code, name, color, sort, is_active AS "isActive" FROM task_kinds`;
+
+tasksRouter.get(
+  '/task-kinds',
+  h(async (_req, res) => {
+    res.json(await many(`${KIND_SELECT} ORDER BY sort, id`));
+  }),
+);
+
+/** Новые виды задач заводят прямо в календаре. */
+tasksRouter.post(
+  '/task-kinds',
+  requirePermission('tasks.create'),
+  h(async (req, res) => {
+    const input = parse(taskKindSchema, req.body);
+    const dup = await one('SELECT 1 FROM task_kinds WHERE lower(name) = lower($1)', [input.name]);
+    if (dup) throw new HttpError(409, 'Такой вид задач уже есть');
+    const max = await one<{ s: number }>('SELECT coalesce(max(sort), 0) AS s FROM task_kinds');
+    const row = await one<{ id: number }>(
+      'INSERT INTO task_kinds (name, color, sort) VALUES ($1, $2, $3) RETURNING id',
+      [input.name, input.color, (max?.s ?? 0) + 10],
+    );
+    broadcast('changed', { scopes: ['tasks'] });
+    res.status(201).json({ id: row!.id });
+  }),
+);
+
+tasksRouter.put(
+  '/task-kinds/:id',
+  requirePermission('tasks.create'),
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const input = parse(taskKindSchema, req.body);
+    const dup = await one('SELECT 1 FROM task_kinds WHERE lower(name) = lower($1) AND id <> $2', [input.name, id]);
+    if (dup) throw new HttpError(409, 'Такой вид задач уже есть');
+    const r = await pool.query(
+      'UPDATE task_kinds SET name = $2, color = $3, is_active = COALESCE($4, is_active) WHERE id = $1',
+      [id, input.name, input.color, input.isActive ?? null],
+    );
+    if (!r.rowCount) throw new HttpError(404, 'Вид задач не найден');
+    broadcast('changed', { scopes: ['tasks'] });
+    res.json({ ok: true });
   }),
 );
 
@@ -112,8 +159,9 @@ tasksRouter.put(
     const due = await normalizeDue(pool, input.dueAt);
     const deadline = input.deadlineAt ? await normalizeDue(pool, input.deadlineAt) : null;
     await pool.query(
-      `UPDATE tasks SET title = $2, description = $3, start_at = $4, due_at = $5, deadline_at = $6, updated_at = now() WHERE id = $1`,
-      [id, input.title, input.description, input.startAt, due, deadline],
+      `UPDATE tasks SET title = $2, description = $3, start_at = $4, due_at = $5, deadline_at = $6,
+              kind_id = COALESCE($7, kind_id), updated_at = now() WHERE id = $1`,
+      [id, input.title, input.description, input.startAt, due, deadline, input.kindId ?? null],
     );
     await pool.query(`UPDATE task_steps SET due_at = $2 WHERE task_id = $1 AND done_at IS NULL`, [id, due]);
     res.json({ ok: true });

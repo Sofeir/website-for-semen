@@ -119,6 +119,9 @@ export const intakeSchema = z
     responsibleId: id,
     dueAt: isoDate,
     comment: optionalText(2000),
+    /** Филиал и сотрудник организации, от которого пришла заявка. */
+    branch: optionalText(200),
+    requesterName: optionalText(200),
     attachmentIds: z.array(id).max(20).default([]),
     fleet: z.array(fleetRowSchema).max(200).optional().nullable(),
   })
@@ -134,6 +137,43 @@ export const intakeSchema = z
   });
 export type IntakeInput = z.infer<typeof intakeSchema>;
 
+// ---------- Учёт техники ----------
+
+export const WORK_KINDS = ['refill', 'part', 'repair', 'service'] as const;
+export type WorkKind = (typeof WORK_KINDS)[number];
+export const WORK_KIND_LABELS: Record<WorkKind, string> = {
+  refill: 'Заправка картриджа',
+  part: 'Замена детали',
+  repair: 'Ремонт',
+  service: 'Обслуживание',
+};
+
+export const deviceInfoSchema = z.object({
+  inventoryNo: optionalText(60),
+  location: optionalText(200),
+  serial: optionalText(100),
+});
+export type DeviceInfoInput = z.infer<typeof deviceInfoSchema>;
+
+export const deviceWorkSchema = z
+  .object({
+    clientId: optionalId,
+    deviceId: optionalId,
+    orderId: optionalId,
+    kind: z.enum(WORK_KINDS),
+    title: text(200).min(2, 'Что сделано?'),
+    qty: z.coerce.number().int().min(1, 'Не меньше 1').max(10000).default(1),
+    counter: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().int().min(0).max(100_000_000).nullable()).optional(),
+    note: optionalText(1000),
+    doneAt: isoDate.optional().nullable(),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.clientId && !v.deviceId && !v.orderId) {
+      ctx.addIssue({ code: 'custom', path: ['clientId'], message: 'Не указан клиент или техника' });
+    }
+  });
+export type DeviceWorkInput = z.infer<typeof deviceWorkSchema>;
+
 // ---------- Заявки ----------
 
 export const advanceOrderSchema = z.object({
@@ -142,17 +182,41 @@ export const advanceOrderSchema = z.object({
   dueAt: isoDate.optional().nullable(),
   comment: optionalText(2000),
   estimatedCost: z.coerce.number().min(0).max(10_000_000).optional().nullable(),
+  /** Согласование → «Готово» без ремонта: заказчик отказался. */
+  declined: z.boolean().optional(),
+  /** Обязательна при выдаче: техника физически возвращена клиенту. */
+  deviceReturned: z.boolean().optional(),
 });
 export type AdvanceOrderInput = z.infer<typeof advanceOrderSchema>;
+
+const reasonText = text(2000).min(3, 'Напишите причину передачи и что уже сделано');
 
 export const reassignOrderSchema = z.object({
   responsibleId: id,
   dueAt: isoDate.optional().nullable(),
-  comment: optionalText(2000),
+  comment: reasonText,
 });
 export type ReassignOrderInput = z.infer<typeof reassignOrderSchema>;
 
+/** Повторное открытие выданной заявки: гарантийный возврат или новая поломка. */
+export const reopenOrderSchema = z.object({
+  reason: z.enum(['warranty', 'new_fault']),
+  responsibleId: id,
+  dueAt: isoDate,
+  comment: optionalText(2000),
+});
+export type ReopenOrderInput = z.infer<typeof reopenOrderSchema>;
+
 // ---------- Задачи ----------
+
+export const TASK_KIND_COLORS = ['blue', 'sky', 'teal', 'amber', 'red', 'violet', 'slate'] as const;
+
+export const taskKindSchema = z.object({
+  name: text(60).min(2, 'Назовите вид задач'),
+  color: z.enum(TASK_KIND_COLORS).default('blue'),
+  isActive: z.boolean().optional(),
+});
+export type TaskKindInput = z.infer<typeof taskKindSchema>;
 
 export const TASK_STATUSES = ['open', 'done', 'cancelled'] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
@@ -171,6 +235,8 @@ export const taskSchema = z
     checklist: z.array(z.string().trim().max(300)).max(60).optional(),
     /** Выезд к клиенту: попадает в раздел «Выезды». */
     visit: z.boolean().optional(),
+    /** Вид задачи. Если не указан, берётся по заявке и выезду: «Техника», «Выезды» или «Общие». */
+    kindId: optionalId,
   })
   .superRefine((v, ctx) => {
     if (new Date(v.dueAt) < new Date(v.startAt)) {
@@ -211,7 +277,7 @@ export type CloseTasksInput = z.infer<typeof closeTasksSchema>;
 export const transferTaskSchema = z.object({
   assigneeId: id,
   dueAt: isoDate,
-  comment: optionalText(2000),
+  comment: reasonText,
 });
 export type TransferTaskInput = z.infer<typeof transferTaskSchema>;
 

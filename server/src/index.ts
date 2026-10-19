@@ -4,6 +4,7 @@ import { migrate } from './db/migrate';
 import { pool } from './db/pool';
 import { channels } from './notify/channels';
 import { runServicePlansSoon } from './services/servicePlans';
+import { notifyOverdueSoon } from './services/overdue';
 
 async function main() {
   await migrate();
@@ -11,6 +12,8 @@ async function main() {
   // плановые выезды: задачи ставятся накануне, проверяем каждые 10 минут
   void runServicePlansSoon();
   setInterval(() => void runServicePlansSoon(), 10 * 60_000).unref();
+  void notifyOverdueSoon();
+  setInterval(() => void notifyOverdueSoon(), 5 * 60_000).unref();
   app.listen(config.port, () => {
     const enabled = channels.filter((c) => c.isEnabled()).map((c) => c.label);
     console.log(`API: http://localhost:${config.port}  (внешние уведомления: ${enabled.join(', ') || 'выключены'})`);

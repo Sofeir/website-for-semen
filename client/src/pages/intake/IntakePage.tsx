@@ -82,6 +82,8 @@ export default function IntakePage() {
       responsibleId: undefined as unknown as number,
       dueAt: '',
       comment: null,
+      branch: null,
+      requesterName: null,
       attachmentIds: [],
       fleet: null,
     },
@@ -235,6 +237,8 @@ export default function IntakePage() {
       newClient: null,
       devices: [emptyDevice()],
       comment: null,
+      branch: null,
+      requesterName: null,
       attachmentIds: [],
       fleet: null,
     });
@@ -434,6 +438,16 @@ export default function IntakePage() {
                   />
                 </Field>
               </div>
+              {kind === 'legal' && (
+                <div className={formStyles.grid2}>
+                  <Field label="Филиал" optional hint="Если у организации несколько филиалов">
+                    <Input {...register('branch')} placeholder="Например: Красноуральск" />
+                  </Field>
+                  <Field label="Кто подал заявку" optional hint="Сотрудник организации">
+                    <Input {...register('requesterName')} placeholder="Например: Жукова Анна, управляющая" />
+                  </Field>
+                </div>
+              )}
               <Field label="Комментарий к приёму" optional>
                 <Textarea {...register('comment')} rows={2} placeholder="Например: клиент просит позвонить до ремонта" />
               </Field>

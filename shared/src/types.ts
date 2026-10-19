@@ -72,6 +72,25 @@ export interface Device {
   model: string | null;
   serial: string | null;
   title: string;
+  /** Своя нумерация предприятия и где стоит (кабинет, отдел). */
+  inventoryNo: string | null;
+  location: string | null;
+}
+
+export interface DeviceWork {
+  id: number;
+  clientId: number;
+  deviceId: number | null;
+  orderId: number | null;
+  orderNumber: string | null;
+  kind: 'refill' | 'part' | 'repair' | 'service';
+  title: string;
+  qty: number;
+  /** Пробег устройства на момент работы, листов. */
+  counter: number | null;
+  note: string | null;
+  doneAt: string;
+  createdByName: string | null;
 }
 
 export interface OrderListItem {
@@ -101,7 +120,7 @@ export interface OrderListItem {
 
 export interface StageHistoryItem {
   id: number;
-  kind: 'stage' | 'transfer';
+  kind: 'stage' | 'transfer' | 'reopen';
   stageId: number;
   stageName: string;
   stageCode: string;
@@ -171,9 +190,17 @@ export interface OrderDetail extends OrderListItem {
   kitNote: string | null;
   devicePassword: string | null;
   department: string | null;
+  /** Филиал и сотрудник организации, от которого пришла заявка. */
+  branch: string | null;
+  requesterName: string | null;
   comment: string | null;
   estimatedCost: number | null;
   acceptedByName: string | null;
+  deviceReturnedAt: string | null;
+  /** repaired — отремонтировано, declined — без ремонта (отказ на согласовании). */
+  outcome: 'repaired' | 'declined' | null;
+  reopenCount: number;
+  canReopen: boolean;
   history: StageHistoryItem[];
   attachments: Attachment[];
   acts: ActBrief[];
@@ -222,7 +249,19 @@ export interface TaskListItem {
   checklistDone: number;
   /** Выезд к клиенту. */
   isVisit: boolean;
+  kindId: number | null;
+  kindName: string | null;
+  kindColor: string | null;
   overdue: boolean;
+}
+
+export interface TaskKind {
+  id: number;
+  code: string | null;
+  name: string;
+  color: string;
+  sort: number;
+  isActive: boolean;
 }
 
 export interface TaskChecklistItem {
@@ -311,6 +350,35 @@ export interface ClientDetail extends Client {
   documents: ClientDocument[];
   attachments: Attachment[];
   fleet: FleetRowDto[];
+}
+
+export interface ReportTotals {
+  /** Заявки, принятые в месяце. */
+  accepted: number;
+  /** Ремонты, доведённые до «Готово». */
+  repaired: number;
+  /** Заявки без ремонта: клиент отказался на согласовании. */
+  declined: number;
+  /** Заправлено картриджей (по количеству). */
+  refills: number;
+  /** Заменено деталей. */
+  parts: number;
+  /** Прочие работы: ремонт и обслуживание в журнале техники. */
+  otherWorks: number;
+}
+
+export interface ReportRow extends ReportTotals {
+  clientId: number;
+  clientName: string;
+  kind: 'person' | 'legal';
+  /** Сколько единиц техники клиента в базе. */
+  devices: number;
+}
+
+export interface MonthlyReport {
+  month: string;
+  rows: ReportRow[];
+  totals: { all: ReportTotals; legal: ReportTotals; person: ReportTotals };
 }
 
 export interface IntakeResult {

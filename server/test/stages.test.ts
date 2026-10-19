@@ -83,6 +83,66 @@ describe('переходы заявки по API', () => {
     expect(note.rows.some((r) => /Нужна матрица/.test(r.body ?? ''))).toBe(true);
   });
 
+  it('выдать без отметки «техника возвращена» нельзя', async () => {
+    const semen = await loginAs('semen');
+    const { stage, users } = await dict();
+    const id = await intakeLaptop(semen, users.stas, '+7 900 000-00-14');
+    for (const code of ['approval', 'repair', 'ready']) {
+      await semen.post(`/api/orders/${id}/advance`, { toStageId: stage[code], responsibleId: users.semen, dueAt: inDays(1) });
+    }
+    const r = await semen.post(`/api/orders/${id}/advance`, { toStageId: stage.issued, responsibleId: users.semen });
+    expect(r.status).toBe(400);
+  });
+
+  it('отказ на согласовании: из согласования сразу в «Готово», итог — без ремонта', async () => {
+    const semen = await loginAs('semen');
+    const { stage, users } = await dict();
+    const id = await intakeLaptop(semen, users.stas, '+7 900 000-00-15');
+    await semen.post(`/api/orders/${id}/advance`, { toStageId: stage.approval, responsibleId: users.semen, dueAt: inDays(1) });
+    const r = await semen.post(`/api/orders/${id}/advance`, {
+      toStageId: stage.ready,
+      responsibleId: users.semen,
+      dueAt: inDays(1),
+      declined: true,
+    });
+    expect(r.status).toBe(200);
+    const order = (await semen.get(`/api/orders/${id}`)).body;
+    expect(order.stageCode).toBe('ready');
+    expect(order.outcome).toBe('declined');
+  });
+
+  it('гарантийный возврат открывает ту же заявку заново', async () => {
+    const semen = await loginAs('semen');
+    const { stage, users } = await dict();
+    const id = await intakeLaptop(semen, users.stas, '+7 900 000-00-16');
+    for (const code of ['approval', 'repair', 'ready', 'issued']) {
+      await semen.post(`/api/orders/${id}/advance`, {
+        toStageId: stage[code],
+        responsibleId: users.semen,
+        dueAt: inDays(1),
+        deviceReturned: code === 'issued' ? true : undefined,
+      });
+    }
+    const r = await semen.post(`/api/orders/${id}/reopen`, { reason: 'warranty', responsibleId: users.stas, dueAt: inDays(1) });
+    expect(r.status).toBe(200);
+    const order = (await semen.get(`/api/orders/${id}`)).body;
+    expect(order.issuedAt).toBeNull();
+    expect(order.reopenCount).toBe(1);
+    expect(order.stageCode).toBe('diagnostics');
+    expect(order.history.some((h: any) => h.kind === 'reopen')).toBe(true);
+    // открытую заявку заново не открыть
+    const again = await semen.post(`/api/orders/${id}/reopen`, { reason: 'warranty', responsibleId: users.stas, dueAt: inDays(1) });
+    expect(again.status).toBe(409);
+  });
+
+  it('передача без причины отклоняется', async () => {
+    const semen = await loginAs('semen');
+    const { users } = await dict();
+    const id = await intakeLaptop(semen, users.stas, '+7 900 000-00-17');
+    const r = await semen.post(`/api/orders/${id}/reassign`, { responsibleId: users.lenya, comment: '' });
+    expect(r.status).toBe(400);
+  });
+
   it('полный путь до выдачи; выданную заявку дальше не двигаем', async () => {
     const semen = await loginAs('semen');
     const { stage, users } = await dict();
@@ -92,11 +152,13 @@ describe('переходы заявки по API', () => {
         toStageId: stage[code],
         responsibleId: users.semen,
         dueAt: inDays(1),
+        deviceReturned: code === 'issued' ? true : undefined,
       });
       expect(r.status, code).toBe(200);
     }
     const order = (await semen.get(`/api/orders/${id}`)).body;
     expect(order.issuedAt).not.toBeNull();
+    expect(order.deviceReturnedAt).not.toBeNull();
     expect(order.canAdvance).toBe(false);
     const again = await semen.post(`/api/orders/${id}/advance`, { toStageId: stage.issued, responsibleId: users.semen });
     expect(again.status).toBe(409);

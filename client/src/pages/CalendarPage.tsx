@@ -1,16 +1,17 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, CalendarCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarCheck, Tags } from 'lucide-react';
 import type { TaskListItem } from '@sd/shared';
 import { useAuth } from '@/app/auth';
-import { useTasks } from '@/api/queries';
+import { useTaskKinds, useTasks } from '@/api/queries';
 import { addDays, fmtDay, fmtWeekday, sameDay, startOfDay } from '@/lib/dates';
 import { useDocumentTitle } from '@/lib/hooks';
+import { KindsSheet } from '@/components/KindsSheet';
 import { UserSelect } from '@/components/Pickers';
 import { TaskRow } from '@/components/TaskRow';
 import { TaskSheet } from '@/components/TaskSheet';
 import { Button, IconButton, cx } from '@/ui/Button';
 import { Card, EmptyState, ErrorBox, PageHeader, Spinner } from '@/ui/Display';
-import { Segmented } from '@/ui/Form';
+import { ChipGroup, Segmented } from '@/ui/Form';
 import s from './CalendarPage.module.css';
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -36,6 +37,10 @@ export default function CalendarPage() {
   const [scope, setScope] = useState<'mine' | 'all'>('mine');
   const [assignee, setAssignee] = useState('');
   const [taskId, setTaskId] = useState<number | null>(null);
+  const [kindNames, setKindNames] = useState<string[]>([]);
+  const [kindsOpen, setKindsOpen] = useState(false);
+  const kinds = useTaskKinds();
+  const kindOptions = (kinds.data ?? []).filter((k) => k.isActive).map((k) => k.name);
   const days = useMemo(() => monthGrid(cursor), [cursor]);
   const from = days[0];
   const to = addDays(days[41], 1);
@@ -50,13 +55,14 @@ export default function CalendarPage() {
   const byDay = useMemo(() => {
     const map = new Map<string, TaskListItem[]>();
     for (const t of tasks.data ?? []) {
+      if (kindNames.length && !kindNames.includes(t.kindName ?? '')) continue;
       const key = startOfDay(new Date(t.dueAt)).toDateString();
       const list = map.get(key) ?? [];
       list.push(t);
       map.set(key, list);
     }
     return map;
-  }, [tasks.data]);
+  }, [tasks.data, kindNames]);
 
   const today = startOfDay();
   const dayTasks = byDay.get(selected.toDateString()) ?? [];
@@ -114,6 +120,12 @@ export default function CalendarPage() {
               />
             </div>
           )}
+          <div className={s.kinds}>
+            <ChipGroup label="Виды задач" options={kindOptions} value={kindNames} onChange={setKindNames} />
+            <Button variant="ghost" size="sm" icon={<Tags size={18} aria-hidden />} onClick={() => setKindsOpen(true)}>
+              Виды
+            </Button>
+          </div>
           {tasks.isError && <ErrorBox error={tasks.error} />}
           <div className={s.grid} role="grid" aria-label={monthFmt.format(cursor)}>
             {WEEKDAYS.map((w) => (
@@ -187,6 +199,7 @@ export default function CalendarPage() {
       </div>
 
       <TaskSheet taskId={taskId} onClose={() => setTaskId(null)} />
+      <KindsSheet open={kindsOpen} onClose={() => setKindsOpen(false)} />
     </>
   );
 }

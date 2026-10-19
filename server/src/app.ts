@@ -12,6 +12,8 @@ import { usersRouter } from './routes/users';
 import { clientsRouter } from './routes/clients';
 import { ordersRouter } from './routes/orders';
 import { tasksRouter } from './routes/tasks';
+import { equipmentRouter } from './routes/equipment';
+import { reportsRouter } from './routes/reports';
 import { notificationsRouter } from './routes/notifications';
 import { actsRouter } from './routes/acts';
 import { documentsRouter } from './routes/documents';
@@ -59,6 +61,8 @@ export function createApp() {
   api.use(clientsRouter);
   api.use(ordersRouter);
   api.use(tasksRouter);
+  api.use(equipmentRouter);
+  api.use(reportsRouter);
   api.use(notificationsRouter);
   api.use(actsRouter);
   api.use(documentsRouter);

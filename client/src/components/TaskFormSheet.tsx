@@ -4,11 +4,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { taskSchema, type TaskDetail, type TaskInput } from '@sd/shared';
 import { useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
-import { useInvalidate, useSettings } from '@/api/queries';
+import { useInvalidate, useSettings, useTaskKinds } from '@/api/queries';
 import { defaultDueDate, startForDue } from '@/lib/dates';
 import { Button } from '@/ui/Button';
 import { ErrorBox } from '@/ui/Display';
-import { Field, Input, Textarea, formStyles } from '@/ui/Form';
+import { Field, Input, Select, Textarea, formStyles } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import { DueInput, UserSelect } from './Pickers';
@@ -34,6 +34,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
   const settings = useSettings();
   const inv = useInvalidate();
   const toast = useToast();
+  const kinds = useTaskKinds();
   const form = useForm<TaskInput>({ resolver: zodResolver(taskSchema) as any });
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
             startAt: task.startAt,
             dueAt: task.dueAt,
             deadlineAt: task.deadlineAt,
+            kindId: task.kindId,
           }
         : {
             title: presetTitle ?? '',
@@ -61,6 +63,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
             startAt: startForDue(settings.data?.work, defaultDueDate(settings.data?.work)).toISOString(),
             dueAt: defaultDueDate(settings.data?.work).toISOString(),
             deadlineAt: null,
+            kindId: null,
           },
     );
   }, [open, task, orderId, clientId, presetTitle, me.id, settings.data?.work, form]);
@@ -107,6 +110,18 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
         {rootError && <ErrorBox>{rootError}</ErrorBox>}
         <Field label="Что сделать" error={errors.title?.message}>
           <Input {...form.register('title')} data-autofocus autoComplete="off" enterKeyHint="next" />
+        </Field>
+        <Field label="Вид задачи" optional hint="Если не выбрать, подберётся сам: техника, выезд или общая">
+          <Select {...form.register('kindId')}>
+            <option value="">Подобрать сам</option>
+            {(kinds.data ?? [])
+              .filter((k) => k.isActive || k.id === task?.kindId)
+              .map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.name}
+                </option>
+              ))}
+          </Select>
         </Field>
         <Field label="Ответственный" error={errors.assigneeId?.message}>
           <UserSelect {...form.register('assigneeId')} disabled={Boolean(task)} />

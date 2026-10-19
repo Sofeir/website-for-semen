@@ -35,10 +35,12 @@ export const TASK_SELECT = `
          (SELECT count(*)::int FROM task_checklist_items ci WHERE ci.task_id = t.id) AS "checklistTotal",
          (SELECT count(*)::int FROM task_checklist_items ci WHERE ci.task_id = t.id AND ci.done) AS "checklistDone",
          t.is_visit AS "isVisit",
+         t.kind_id AS "kindId", tk.name AS "kindName", tk.color AS "kindColor",
          (t.status = 'open' AND t.due_at < now()) AS overdue
     FROM tasks t
     JOIN users ua ON ua.id = t.assignee_id
     JOIN users uc ON uc.id = t.creator_id
+    LEFT JOIN task_kinds tk ON tk.id = t.kind_id
     LEFT JOIN users ucl ON ucl.id = t.closed_by
     LEFT JOIN orders o ON o.id = t.order_id
     LEFT JOIN clients c ON c.id = coalesce(t.client_id, o.client_id)`;
@@ -47,7 +49,7 @@ export const DEVICE_SELECT = `
   SELECT d.id, d.client_id AS "clientId", d.device_type_id AS "deviceTypeId", dt.name AS "deviceType",
          d.brand_id AS "brandId", coalesce(b.name, d.brand_text) AS brand,
          d.model_id AS "modelId", coalesce(m.name, d.model_text) AS model,
-         d.serial, ${DEVICE_TITLE} AS title
+         d.serial, ${DEVICE_TITLE} AS title, d.inventory_no AS "inventoryNo", d.location
     FROM devices d
     JOIN device_types dt ON dt.id = d.device_type_id
     LEFT JOIN brands b ON b.id = d.brand_id

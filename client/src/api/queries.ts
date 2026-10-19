@@ -15,6 +15,8 @@ import type {
   CompanySettings,
   DashboardData,
   Device,
+  DeviceWork,
+  MonthlyReport,
   Dictionaries,
   IntakeResult,
   Me,
@@ -23,7 +25,9 @@ import type {
   OrderListItem,
   Paged,
   ReassignOrderInput,
+  ReopenOrderInput,
   TaskDetail,
+  TaskKind,
   TaskListItem,
   TransferTaskInput,
   ServicePlan,
@@ -58,10 +62,10 @@ export const keys = {
 
 /** Какие запросы сбрасывать, когда сервер сообщил «изменилось X». */
 export const SCOPE_KEYS: Record<string, string[]> = {
-  orders: ['orders', 'order', 'dashboard', 'customerOrders', 'customerOrder'],
-  tasks: ['tasks', 'task', 'dashboard', 'order', 'customerTasks', 'visits'],
+  orders: ['orders', 'order', 'dashboard', 'customerOrders', 'customerOrder', 'deviceWorks', 'clientWorks', 'report'],
+  tasks: ['tasks', 'task', 'dashboard', 'order', 'customerTasks', 'visits', 'taskKinds'],
   customers: ['customers'],
-  clients: ['clients', 'client', 'clientDevices', 'serviceChecklist', 'servicePlan', 'servicePlans', 'visits'],
+  clients: ['clients', 'client', 'deviceWorks', 'clientWorks', 'report', 'clientDevices', 'serviceChecklist', 'servicePlan', 'servicePlans', 'visits'],
   dashboard: ['dashboard'],
   dictionaries: ['dictionaries'],
   acts: ['acts', 'act', 'order'],
@@ -85,6 +89,30 @@ export const useSettings = () =>
 
 export const useUsers = () =>
   useQuery({ queryKey: keys.users, queryFn: () => api.get<UserBrief[]>('/users'), staleTime: 5 * 60_000 });
+
+export const useDeviceWorks = (deviceId: number | null) =>
+  useQuery({
+    queryKey: ['deviceWorks', deviceId],
+    queryFn: () => api.get<DeviceWork[]>(`/devices/${deviceId}/works`),
+    enabled: Boolean(deviceId),
+  });
+
+export const useClientWorks = (clientId: number, enabled = true) =>
+  useQuery({
+    queryKey: ['clientWorks', clientId],
+    queryFn: () => api.get<DeviceWork[]>(`/clients/${clientId}/works`),
+    enabled,
+  });
+
+export const useMonthlyReport = (month: string) =>
+  useQuery({
+    queryKey: ['report', month],
+    queryFn: () => api.get<MonthlyReport>(`/reports/monthly?month=${month}`),
+    placeholderData: keepPreviousData,
+  });
+
+export const useTaskKinds = () =>
+  useQuery({ queryKey: ['taskKinds'], queryFn: () => api.get<TaskKind[]>('/task-kinds'), staleTime: 60_000 });
 
 export const useDashboard = () =>
   useQuery({ queryKey: keys.dashboard, queryFn: () => api.get<DashboardData>('/dashboard'), refetchInterval: 120_000 });
@@ -226,6 +254,14 @@ export function useReassignOrder(orderId: number) {
   return useMutation({
     mutationFn: (input: ReassignOrderInput) => api.post(`/orders/${orderId}/reassign`, input as any),
     onSuccess: () => inv('orders', 'order', 'tasks', 'dashboard'),
+  });
+}
+
+export function useReopenOrder(orderId: number) {
+  const inv = useInvalidate();
+  return useMutation({
+    mutationFn: (input: ReopenOrderInput) => api.post(`/orders/${orderId}/reopen`, input as any),
+    onSuccess: () => inv('orders', 'order', 'tasks', 'dashboard', 'client'),
   });
 }
 
