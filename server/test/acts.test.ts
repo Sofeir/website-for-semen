@@ -74,7 +74,7 @@ describe('акты по API', () => {
     const semen = await loginAs('semen');
     const lenya = await loginAs('lenya');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-12');
+    const orderId = await intakeLaptop(semen, users.lenya, '+7 900 000-00-12');
     const act = await lenya.post('/api/acts', { orderId, items: [{ name: 'Диагностика', qty: 1, price: 0 }], warrantyMonths: 0 });
     expect(act.status).toBe(201);
     expect((await lenya.del(`/api/acts/${act.body.id}`)).status).toBe(403);

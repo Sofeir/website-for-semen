@@ -52,7 +52,10 @@ authRouter.post(
     }
     resetLoginFails(ip, input.login);
     // Пароль верный, но руководитель ещё не открыл доступ — говорим об этом прямо, а не «неверный пароль».
-    if (user.pending) throw new HttpError(403, 'Регистрация ждёт подтверждения руководителем. Мы свяжемся с вами по указанному телефону.', { code: 'pending' });
+    if (user.pending)
+      throw new HttpError(403, 'Регистрация ждёт подтверждения руководителем. Мы свяжемся с вами по указанному телефону.', {
+        code: 'pending',
+      });
     const csrfToken = await createSession(res, user.id, input.remember, req.get('user-agent'));
     res.json({ user: await loadMe(user.id), csrfToken, appName: config.appName });
   }),
@@ -75,7 +78,15 @@ authRouter.post(
     await pool.query(
       `INSERT INTO users (login, password_hash, full_name, role, phone, email, reg_kind, reg_contact, pending)
        VALUES ($1, $2, $3, 'customer', $4, $5, $6, $7, true)`,
-      [input.login, await bcrypt.hash(input.password, 10), input.fullName, input.phone, input.email, input.kind, input.contactPerson],
+      [
+        input.login,
+        await bcrypt.hash(input.password, 10),
+        input.fullName,
+        input.phone,
+        input.email,
+        input.kind,
+        input.contactPerson,
+      ],
     );
     registerLog.set(ip, [...recent, now]);
     // Руководителю и администратору — уведомление, что есть кого подтвердить.

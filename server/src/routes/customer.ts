@@ -130,7 +130,6 @@ customerRouter.get(
   }),
 );
 
-
 /** Подробности по одной своей технике: этапы ремонта и ожидаемый срок. Чужая техника — 404. */
 customerRouter.get(
   '/customer/orders/:id',

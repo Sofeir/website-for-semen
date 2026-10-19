@@ -28,8 +28,15 @@ export interface ReceiptData {
   }[];
 }
 
-/** Примечание к заказу: условия договора с квитанции сервис-центра. Один пункт — одна строка. */
 export const DEFAULT_RECEIPT_TERMS = [
+  'Диагностика бесплатная. Оплачивается только выполненная работа, стоимость согласовываем с вами до начала ремонта.',
+  'Сервис-центр не отвечает за данные на носителях. Сохраните важные файлы заранее.',
+  'Технику выдаём по этой квитанции или по документу, удостоверяющему личность.',
+  'Если технику не забрали в течение 60 дней после уведомления о готовности, начисляется плата за хранение.',
+].join('\n');
+
+/** Примечание к заказу: условия договора сервис-центра. Печатаются под «Условиями» на каждом листе. */
+export const ORDER_NOTE_TERMS = [
   'Перечень работ и их стоимость, согласно Прейскуранту Исполнителя, определяется сторонами после проведения диагностики оборудования. Стоимость первичной диагностики — от 450 рублей (в случае отказа Заказчика от ремонта).',
   'Оплата услуг Исполнителя производится непосредственно сразу после подписания Акта сдачи-приёмки выполненных работ.',
   'Исполнитель предоставляет гарантию по ремонту узлов оборудования до 30 дней и на установленные комплектующие в соответствии с гарантийным талоном. При этом гарантия Исполнителя распространяется только на те узлы или комплектующие, которые подверглись ремонту или замене Исполнителем. В случае отказа от ремонта взимается сумма 2250 рублей за аппаратную диагностику.',
@@ -45,27 +52,22 @@ export const DEFAULT_RECEIPT_TERMS = [
   'Исполнитель не несёт ответственности за некомпетентность представителя Заказчика по оценке оказанных услуг.',
   'Все изменения к Договору оформляются путём принятия дополнительных соглашений, оформленных в письменном виде с подписью Заказчика и представителя Исполнителя и являющихся неотъемлемой частью данного Договора.',
   'В случае отсутствия Заказчика по согласованному с ним месту и времени получения оборудования каждая последующая доставка оплачивается в размере 390 рублей.',
-].join('\n');
+];
+
+/** На квитанции много текста — разделы поджаты, чтобы лист с подписями влез на одну страницу A4. */
+const SECTION: [number, number, number, number] = [0, 8, 0, 3];
 
 const joinList = (items: string[], note: string | null) => [items.join(', '), note].filter(Boolean).join('. ') || '—';
 
-/** Пункты условий: из реквизитов (одна строка — один пункт) или стандартные. Старая нумерация в начале строки убирается. */
-function termItems(custom: string | undefined): string[] {
-  return (custom?.trim() || DEFAULT_RECEIPT_TERMS)
-    .split('\n')
-    .map((l) => l.trim().replace(/^\d+[.)]\s*/, ''))
-    .filter(Boolean);
-}
-
 /**
- * Квитанция: каждая единица техники — на своём листе со своим номером, условиями и подписями,
+ * Квитанция: каждая единица техники — на своём листе со своим номером, условиями, примечанием к заказу и подписями,
  * даже если в одном приёме их несколько (так листы можно отдать и подшить по отдельности).
  */
 export function receiptTemplate(d: ReceiptData) {
   const numbers = d.devices.map((x) => x.number).join(', ');
   const docTitle = d.devices.length > 1 ? `Квитанции о приёме № ${numbers}` : `Квитанция о приёме № ${numbers}`;
   const client = d.client;
-  const terms = termItems(d.company.receiptTerms);
+  const terms = d.company.receiptTerms?.trim() || DEFAULT_RECEIPT_TERMS;
   const customerName = client.kind === 'legal' ? client.contactPerson || client.name : client.name;
 
   const content: Content[] = d.devices.flatMap((dev, i): Content[] => [
@@ -77,25 +79,34 @@ export function receiptTemplate(d: ReceiptData) {
     { text: `Квитанция о приёме № ${dev.number}`, style: 'title' },
     { text: `Дата приёма: ${fmtDateTime(d.createdAt)}. Принял: ${d.acceptedBy}.`, style: 'subtitle' },
     { text: client.kind === 'legal' ? 'Организация' : 'Клиент', style: 'section', margin: [0, 2, 0, 4] },
-    infoGrid([
-      [client.kind === 'legal' ? 'Название' : 'ФИО', client.name],
-      ['ИНН', client.inn],
-      ['Контактное лицо', client.contactPerson],
-      ['Телефон', client.phone],
-    ]),
-    { text: 'Техника', style: 'section' },
-    infoGrid([
-      ['Устройство', dev.title],
-      ['Серийный номер', dev.serial || 'не указан'],
-      ['Отдел', dev.department],
-      ['Неисправность со слов клиента', dev.fault],
-      ['Внешний вид', joinList(dev.appearance, dev.appearanceNote)],
-      ['Комплектность', joinList(dev.kit, dev.kitNote)],
-      ['Пароль устройства', dev.hasPassword ? 'сообщён мастеру' : 'не сообщался'],
-    ]),
+    infoGrid(
+      [
+        [client.kind === 'legal' ? 'Название' : 'ФИО', client.name],
+        ['ИНН', client.inn],
+        ['Контактное лицо', client.contactPerson],
+        ['Телефон', client.phone],
+      ],
+      true,
+    ),
+    { text: 'Техника', style: 'section', margin: SECTION },
+    infoGrid(
+      [
+        ['Устройство', dev.title],
+        ['Серийный номер', dev.serial || 'не указан'],
+        ['Отдел', dev.department],
+        ['Неисправность со слов клиента', dev.fault],
+        ['Внешний вид', joinList(dev.appearance, dev.appearanceNote)],
+        ['Комплектность', joinList(dev.kit, dev.kitNote)],
+        ['Пароль устройства', dev.hasPassword ? 'сообщён мастеру' : 'не сообщался'],
+      ],
+      true,
+    ),
     d.comment ? { text: `Комментарий: ${d.comment}`, style: 'value', margin: [0, 8, 0, 0] } : '',
-    { text: 'Примечание к заказу', style: 'section' },
-    { ol: [...terms], style: 'terms', fontSize: 7, lineHeight: 1.15, separator: ['', '.'] } as Content,
+    { text: 'Условия', style: 'section', margin: SECTION },
+    { text: terms, style: 'terms', fontSize: 7, lineHeight: 1.15 },
+    { text: 'Примечание к заказу', style: 'section', margin: SECTION },
+    // pdfmake меняет переданный список, поэтому каждому листу — своя копия
+    { ol: [...ORDER_NOTE_TERMS], style: 'terms', fontSize: 7, lineHeight: 1.15, separator: ['', '.'] } as Content,
     {
       columns: [
         { text: 'С условиями договора, прейскурантом ознакомлен и согласен.', style: 'value', bold: true },
@@ -106,13 +117,7 @@ export function receiptTemplate(d: ReceiptData) {
     // подписи не отрываются от условий: весь низ листа держится вместе
     {
       unbreakable: true,
-      stack: [
-        signatures(
-          ['Заказчик (представитель Заказчика)', customerName],
-          ['Оборудование принял представитель Исполнителя', d.acceptedBy],
-          true,
-        ),
-      ],
+      stack: [signatures(['Технику сдал, с условиями согласен', customerName], ['Технику принял', d.acceptedBy], true)],
     },
   ]);
   return baseDocument(content, { title: docTitle, margins: [36, 26, 36, 28] });

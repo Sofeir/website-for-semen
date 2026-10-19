@@ -3,7 +3,7 @@ import { can, type DashboardData } from '@sd/shared';
 import { many, one, pool } from '../db/pool';
 import { h, intParam } from '../lib/http';
 import { subscribe } from '../notify/hub';
-import { ORDER_SELECT, TASK_SELECT } from '../services/sql';
+import { ORDER_SELECT, orderAccess, TASK_SELECT } from '../services/sql';
 import { endOfDay } from '../services/workTime';
 
 export const notificationsRouter = Router();
@@ -77,6 +77,9 @@ notificationsRouter.get(
   h(async (req, res) => {
     const user = req.user!;
     const all = can(user.role, 'tasks.manageAll');
+    const allOrders = can(user.role, 'orders.viewAll');
+    // заявки: руководитель видит все, остальные — свои ($1 — id сотрудника)
+    const mineO = allOrders ? '' : `AND ${orderAccess('o', '$1')}`;
     const todayEnd = endOfDay();
     const [myTasksToday, overdue, newOrders, readyOrders, counts] = await Promise.all([
       many(
@@ -89,15 +92,19 @@ notificationsRouter.get(
           ORDER BY t.due_at LIMIT 50`,
         all ? [] : [user.id],
       ),
-      many(`${ORDER_SELECT} WHERE o.created_at > now() - interval '2 days' ORDER BY o.created_at DESC LIMIT 12`),
+      many(
+        `${ORDER_SELECT} WHERE o.created_at > now() - interval '2 days' ${mineO} ORDER BY o.created_at DESC LIMIT 12`,
+        allOrders ? [] : [user.id],
+      ),
       many(
         `${ORDER_SELECT} WHERE s.id = (SELECT id FROM stages WHERE is_active AND NOT is_final ORDER BY sort DESC, id DESC LIMIT 1)
-          ORDER BY o.stage_started_at LIMIT 30`,
+          ${mineO} ORDER BY o.stage_started_at LIMIT 30`,
+        allOrders ? [] : [user.id],
       ),
       one(
         `SELECT
-           (SELECT count(*) FROM orders o JOIN stages s ON s.id = o.stage_id WHERE NOT s.is_final) AS "inWork",
-           (SELECT count(*) FROM orders o WHERE o.stage_id = (SELECT id FROM stages WHERE is_active AND NOT is_final ORDER BY sort DESC, id DESC LIMIT 1)) AS ready,
+           (SELECT count(*) FROM orders o JOIN stages s ON s.id = o.stage_id WHERE NOT s.is_final ${mineO}) AS "inWork",
+           (SELECT count(*) FROM orders o WHERE o.stage_id = (SELECT id FROM stages WHERE is_active AND NOT is_final ORDER BY sort DESC, id DESC LIMIT 1) ${mineO}) AS ready,
            (SELECT count(*) FROM tasks t WHERE t.status = 'open' AND t.due_at < now() ${all ? '' : 'AND t.assignee_id = $1'}) AS overdue,
            (SELECT count(*) FROM tasks t WHERE t.status = 'open' AND t.assignee_id = $1 AND t.due_at <= $2) AS today`,
         [user.id, todayEnd],

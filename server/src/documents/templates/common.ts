@@ -50,13 +50,14 @@ export function header(company: CompanySettings): Content {
   };
 }
 
-/** Таблица «подпись: значение» в две колонки. */
-export function infoGrid(rows: [string, string | null | undefined][]): Content {
+/** Таблица «подпись: значение» в две колонки. `dense` — плотнее строки, когда на листе много текста. */
+export function infoGrid(rows: [string, string | null | undefined][], dense = false): Content {
+  const pad = dense ? 1.5 : 3;
   const body: any[][] = rows
     .filter(([, v]) => v)
     .map(([k, v]) => [
-      { text: k, style: 'label', margin: [0, 3, 8, 3] },
-      { text: v as string, style: 'value', margin: [0, 2, 0, 2] },
+      { text: k, style: 'label', margin: [0, pad, 8, pad] },
+      { text: v as string, style: 'value', margin: [0, pad - 1, 0, pad - 1] },
     ]);
   if (!body.length) return '';
   return {

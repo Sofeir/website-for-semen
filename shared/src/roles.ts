@@ -19,6 +19,8 @@ export const ROLE_LABELS: Record<Role, string> = {
 export const PERMISSIONS = {
   'intake.create': ['admin', 'manager'],
   'clients.edit': ['admin', 'manager'],
+  /** Видеть все заявки, акты и документы. Остальные — только те, где они ведут или вели заявку или у них задача по ней. */
+  'orders.viewAll': ['admin', 'manager'],
   /** Двигать любую заявку по этапам. Остальные — только те, где они ответственные. */
   'orders.advanceAny': ['admin', 'manager'],
   /** Назначать ответственного по заявке без перехода этапа. */

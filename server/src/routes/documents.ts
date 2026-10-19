@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { formatPhone } from '@sd/shared';
+import { can, formatPhone } from '@sd/shared';
 import { many, one } from '../db/pool';
 import { h, HttpError, intParam } from '../lib/http';
 import { getCompanySettings } from '../services/settings';
-import { DEVICE_TITLE } from '../services/sql';
+import { DEVICE_TITLE, orderAccess } from '../services/sql';
+import { assertOrderVisible } from '../services/access';
 import { renderPdf } from '../documents/render';
 import { receiptTemplate } from '../documents/templates/receipt';
 import { actTemplate } from '../documents/templates/act';
@@ -33,6 +34,13 @@ documentsRouter.get(
       [batchId],
     );
     if (!batch) throw new HttpError(404, 'Квитанция не найдена');
+    if (!can(req.user!.role, 'orders.viewAll')) {
+      const visible = await one(`SELECT 1 FROM orders o WHERE o.batch_id = $1 AND ${orderAccess('o', '$2')} LIMIT 1`, [
+        batchId,
+        req.user!.id,
+      ]);
+      if (!visible) throw new HttpError(403, 'Это ведёт другой сотрудник. Если доступ нужен, попросите руководителя.');
+    }
     const orders = await many(
       `SELECT o.number, ${DEVICE_TITLE} AS title, d.serial, o.appearance, o.appearance_note, o.kit, o.kit_note,
               (o.device_password IS NOT NULL AND o.device_password <> '') AS has_password, o.department,
@@ -82,6 +90,7 @@ documentsRouter.get(
   h(async (req, res) => {
     const act = await loadAct(intParam(req.params.id));
     if (!act) throw new HttpError(404, 'Акт не найден');
+    await assertOrderVisible(req.user!, act.orderId);
     const extra = await one(
       `SELECT c.kind, c.name, c.phone, c.contact_person, c.inn, d.serial, coalesce(u.full_name, uc.full_name) AS executor
          FROM acts a JOIN orders o ON o.id = a.order_id JOIN clients c ON c.id = o.client_id

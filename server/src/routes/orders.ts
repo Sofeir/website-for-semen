@@ -5,7 +5,8 @@ import { h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { Outbox } from '../notify/notify';
 import { activeStages, advanceOrder, canAdvanceOrder, createIntake, nextStageOf, reassignOrder } from '../services/orders';
-import { DEVICE_SELECT, likeEscape, ORDER_SELECT, TASK_SELECT } from '../services/sql';
+import { DEVICE_SELECT, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT } from '../services/sql';
+import { assertOrderVisible } from '../services/access';
 
 export const ordersRouter = Router();
 
@@ -19,6 +20,7 @@ ordersRouter.get(
       params.push(v);
       where.push(sql(`$${params.length}`));
     };
+    if (!can(req.user!.role, 'orders.viewAll')) add((p) => orderAccess('o', p), req.user!.id);
     if (req.query.stage) add((p) => `o.stage_id = ${p}`, Number(req.query.stage));
     if (req.query.responsible) add((p) => `o.responsible_id = ${p}`, Number(req.query.responsible));
     if (req.query.mine === '1') add((p) => `o.responsible_id = ${p}`, req.user!.id);
@@ -60,6 +62,7 @@ ordersRouter.get(
     const id = intParam(req.params.id);
     const order = await one(`${ORDER_SELECT} WHERE o.id = $1`, [id]);
     if (!order) throw new HttpError(404, 'Заявка не найдена');
+    await assertOrderVisible(req.user!, id);
     const raw = (await one(`SELECT * FROM orders WHERE id = $1`, [id]))!;
     const stages = await activeStages(pool);
     const [device, history, attachments, acts, tasks, accepted] = await Promise.all([

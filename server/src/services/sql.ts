@@ -58,3 +58,17 @@ export const CLIENT_FIELDS = `
 
 /** Экранирует % и _ для ILIKE. */
 export const likeEscape = (s: string) => s.replace(/[\\%_]/g, (m) => '\\' + m);
+
+/**
+ * Заявка видна сотруднику, если он её ведёт или вёл раньше, или у него (от него) есть задача по ней.
+ * `o` — псевдоним таблицы orders, `p` — параметр с id сотрудника.
+ */
+export const orderAccess = (o: string, p: string) =>
+  `(${o}.responsible_id = ${p}
+    OR EXISTS (SELECT 1 FROM order_history oh WHERE oh.order_id = ${o}.id AND oh.responsible_id = ${p})
+    OR EXISTS (SELECT 1 FROM tasks ot WHERE ot.order_id = ${o}.id AND (ot.assignee_id = ${p} OR ot.creator_id = ${p})))`;
+
+/** Задача видна, если сотрудник её исполнитель, постановщик или был в цепочке передачи. */
+export const taskAccess = (t: string, p: string) =>
+  `(${t}.assignee_id = ${p} OR ${t}.creator_id = ${p}
+    OR EXISTS (SELECT 1 FROM task_steps ts WHERE ts.task_id = ${t}.id AND ts.assignee_id = ${p}))`;
