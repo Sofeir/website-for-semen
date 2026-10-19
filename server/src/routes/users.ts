@@ -13,7 +13,7 @@ usersRouter.get(
   h(async (req, res) => {
     const admin = can(req.user!.role, 'users.manage');
     const rows = await many(
-      `SELECT id, full_name AS "fullName", role, is_active AS "isActive"${admin ? ', login, phone' : ''}
+      `SELECT id, full_name AS "fullName", role, is_active AS "isActive"${admin ? ', login, phone, role_confirmed AS "roleConfirmed"' : ''}
          FROM users WHERE role <> 'customer'${admin ? '' : ' AND is_active'} ORDER BY is_active DESC, full_name`,
     );
     res.json(rows);
@@ -52,6 +52,9 @@ usersRouter.put(
     };
     if (u.fullName !== undefined) add('full_name', u.fullName);
     if (u.role !== undefined) add('role', u.role);
+    // сменили роль вручную — значит, теперь она известна точно
+    if (u.roleConfirmed !== undefined) add('role_confirmed', u.roleConfirmed);
+    else if (u.role !== undefined) add('role_confirmed', true);
     if (u.phone !== undefined) add('phone', u.phone);
     if (u.isActive !== undefined) add('is_active', u.isActive);
     if (u.password) add('password_hash', await bcrypt.hash(u.password, 10));

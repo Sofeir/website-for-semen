@@ -71,22 +71,29 @@ export function infoGrid(rows: [string, string | null | undefined][]): Content {
   };
 }
 
-export function signatures(left: [string, string], right: [string, string]): Content {
+export function signatures(left: [string, string], right: [string, string], compact = false): Content {
   const block = ([title, name]: [string, string]): any => ({
     width: '*',
     stack: [
       { text: title, style: 'label' },
-      { canvas: [{ type: 'line', x1: 0, y1: 26, x2: 200, y2: 26, lineWidth: 0.6, lineColor: COLORS.ink }] },
+      {
+        canvas: [
+          { type: 'line', x1: 0, y1: compact ? 18 : 26, x2: 200, y2: compact ? 18 : 26, lineWidth: 0.6, lineColor: COLORS.ink },
+        ],
+      },
       { text: name, style: 'small', margin: [0, 3, 0, 0] },
     ],
   });
-  return { columns: [block(left), block(right)], columnGap: 40, margin: [0, 22, 0, 0] };
+  return { columns: [block(left), block(right)], columnGap: 40, margin: [0, compact ? 10 : 22, 0, 0] };
 }
 
-export function baseDocument(content: Content[], meta: { title: string }): TDocumentDefinitions {
+export function baseDocument(
+  content: Content[],
+  meta: { title: string; margins?: [number, number, number, number] },
+): TDocumentDefinitions {
   return {
     pageSize: 'A4',
-    pageMargins: [40, 36, 40, 40],
+    pageMargins: meta.margins ?? [40, 36, 40, 40],
     info: { title: meta.title, creator: 'ASOFT Сервис' },
     defaultStyle: { font: 'Roboto', fontSize: 10, color: COLORS.ink },
     styles,

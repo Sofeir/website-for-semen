@@ -1,7 +1,7 @@
 import { forwardRef, type SelectHTMLAttributes } from 'react';
 import { ROLE_LABELS, STAFF_ROLES, type Role } from '@sd/shared';
 import { useSettings, useUsers } from '@/api/queries';
-import { defaultDueDate, fromLocalInput, sameDay, toLocalInput } from '@/lib/dates';
+import { defaultDueDate, fromLocalInput, sameDay, startForDue, toLocalInput } from '@/lib/dates';
 import { cx } from '@/ui/Button';
 import { Input, Select } from '@/ui/Form';
 import s from './Pickers.module.css';
@@ -41,12 +41,15 @@ export const UserSelect = forwardRef<
 export function DueInput({
   value,
   onChange,
+  onPreset,
   id,
   'aria-invalid': invalid,
   'aria-describedby': describedBy,
 }: {
   value: string;
   onChange: (iso: string) => void;
+  /** Быстрый выбор: вместе со сроком подставить и начало работы. */
+  onPreset?: (startIso: string, dueIso: string) => void;
   id?: string;
   'aria-invalid'?: boolean;
   'aria-describedby'?: string;
@@ -70,7 +73,10 @@ export function DueInput({
               type="button"
               className={cx(s.preset, on && s.presetOn)}
               aria-pressed={on}
-              onClick={() => onChange(p.date.toISOString())}
+              onClick={() => {
+                onChange(p.date.toISOString());
+                onPreset?.(startForDue(ws, p.date).toISOString(), p.date.toISOString());
+              }}
             >
               {p.label}
             </button>

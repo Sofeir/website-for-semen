@@ -3,7 +3,7 @@ import { one, type Db, pool } from '../db/pool';
 
 export const DEFAULT_WORK: WorkSettings = {
   workStart: '10:00',
-  workEnd: '20:00',
+  workEnd: '19:00',
   workDays: [1, 2, 3, 4, 5],
   defaultDueDays: 1,
 };
@@ -18,7 +18,7 @@ export const DEFAULT_COMPANY: CompanySettings = {
   phone: '',
   email: '',
   site: '',
-  workHours: 'Пн–Пт 10:00–20:00',
+  workHours: 'Пн–Пт 10:00–19:00',
   receiptTerms: '',
   actTerms: '',
   repeatDiscountText: '',

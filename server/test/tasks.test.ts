@@ -5,16 +5,16 @@ import { DEFAULT_WORK } from '../src/services/settings';
 import { dict, inDays, loginAs, resetDb } from './helpers';
 
 describe('рабочее время', () => {
-  it('срок позже 20:00 переносится на 20:00 того же дня', () => {
+  it('срок позже 19:00 переносится на 19:00 того же дня', () => {
     const d = new Date(2026, 9, 14, 22, 30);
-    expect(clampToWorkEnd(d, DEFAULT_WORK).getHours()).toBe(20);
+    expect(clampToWorkEnd(d, DEFAULT_WORK).getHours()).toBe(19);
   });
 
-  it('срок «через 1 рабочий день» с пятницы — понедельник 20:00', () => {
+  it('срок «через 1 рабочий день» с пятницы — понедельник 19:00', () => {
     const friday = new Date(2026, 9, 16, 12, 0);
     const due = addWorkDays(friday, 1, DEFAULT_WORK);
     expect(due.getDay()).toBe(1);
-    expect(due.getHours()).toBe(20);
+    expect(due.getHours()).toBe(19);
   });
 });
 

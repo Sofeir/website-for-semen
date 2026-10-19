@@ -5,7 +5,7 @@ import { taskSchema, type TaskDetail, type TaskInput } from '@sd/shared';
 import { useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
 import { useInvalidate, useSettings } from '@/api/queries';
-import { defaultDueDate } from '@/lib/dates';
+import { defaultDueDate, startForDue } from '@/lib/dates';
 import { Button } from '@/ui/Button';
 import { ErrorBox } from '@/ui/Display';
 import { Field, Input, Textarea, formStyles } from '@/ui/Form';
@@ -22,7 +22,7 @@ interface Props {
   presetTitle?: string;
 }
 
-/** Создание и правка задачи. Рабочее время ограничено настройкой (по умолчанию до 20:00). */
+/** Создание и правка задачи. Рабочее время ограничено настройкой (по умолчанию до 19:00). */
 export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTitle }: Props) {
   const me = useMe();
   const settings = useSettings();
@@ -50,7 +50,8 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
             assigneeId: me.id,
             orderId: orderId ?? null,
             clientId: clientId ?? null,
-            startAt: new Date().toISOString(),
+            // срок по умолчанию — завтра; начало тогда — с начала рабочего дня, а для «сегодня» — с текущего момента
+            startAt: startForDue(settings.data?.work, defaultDueDate(settings.data?.work)).toISOString(),
             dueAt: defaultDueDate(settings.data?.work).toISOString(),
             deadlineAt: null,
           },
@@ -74,7 +75,8 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
     }
   });
 
-  const workEnd = settings.data?.work.workEnd ?? '20:00';
+  const workStart = settings.data?.work.workStart ?? '10:00';
+  const workEnd = settings.data?.work.workEnd ?? '19:00';
 
   return (
     <Sheet
@@ -103,11 +105,22 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
           <UserSelect {...form.register('assigneeId')} disabled={Boolean(task)} />
         </Field>
         <div className={formStyles.grid2}>
-          <Field label="Срок" error={errors.dueAt?.message} hint={`Рабочий день до ${workEnd}`} className={formStyles.span2}>
+          <Field
+            label="Срок"
+            error={errors.dueAt?.message}
+            hint={`Рабочий день с ${workStart} до ${workEnd}`}
+            className={formStyles.span2}
+          >
             <Controller
               control={form.control}
               name="dueAt"
-              render={({ field }) => <DueInput value={field.value} onChange={field.onChange} />}
+              render={({ field }) => (
+                <DueInput
+                  value={field.value}
+                  onChange={field.onChange}
+                  onPreset={(start) => form.setValue('startAt', start, { shouldDirty: true, shouldValidate: true })}
+                />
+              )}
             />
           </Field>
           <Field label="Начало" error={errors.startAt?.message}>

@@ -52,6 +52,7 @@ export function fromLocalInput(v: string): string {
 }
 
 export interface WorkSettingsLike {
+  workStart?: string;
   workEnd: string;
   workDays: number[];
   defaultDueDays: number;
@@ -59,7 +60,7 @@ export interface WorkSettingsLike {
 
 /** Конец рабочего дня через N рабочих дней — так же, как считает сервер. */
 export function defaultDueDate(ws: WorkSettingsLike | undefined, days?: number): Date {
-  const end = ws?.workEnd ?? '20:00';
+  const end = ws?.workEnd ?? '19:00';
   const workDays = ws?.workDays ?? [1, 2, 3, 4, 5];
   const n = days ?? ws?.defaultDueDays ?? 1;
   const [h, m] = end.split(':').map(Number);
@@ -84,4 +85,17 @@ export function defaultDueDate(ws: WorkSettingsLike | undefined, days?: number):
 
 export function isOverdue(d: string | null | undefined) {
   return Boolean(d && new Date(d).getTime() < Date.now());
+}
+
+/**
+ * Начало работы над задачей со сроком `due`: если срок сегодня — с текущего момента,
+ * если позже — с начала рабочего дня того дня, на который поставлен срок.
+ */
+export function startForDue(ws: WorkSettingsLike | undefined, due: Date): Date {
+  const [h, m] = (ws?.workStart ?? '10:00').split(':').map(Number);
+  const start = new Date(due);
+  start.setHours(h, m, 0, 0);
+  const now = new Date();
+  if (sameDay(due, now)) return now > start ? now : start;
+  return start;
 }
