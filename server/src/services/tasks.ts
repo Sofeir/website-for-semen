@@ -1,7 +1,7 @@
 import { can, type Role, type TaskInput, type TransferTaskInput } from '@sd/shared';
-import { one, type Db } from '../db/pool';
+import { many, one, type Db } from '../db/pool';
 import { forbidden, HttpError } from '../lib/http';
-import type { Outbox } from '../notify/notify';
+import type { Notice, Outbox } from '../notify/notify';
 import { getWorkSettings } from './settings';
 import { clampToWorkEnd, formatDateTimeRu } from './workTime';
 
@@ -19,6 +19,28 @@ interface TaskRow {
   assignee_id: number;
   order_id: number | null;
   stage_id: number | null;
+}
+
+/** Руководители и администраторы — они получают копию уведомлений о передачах и просрочках. */
+export async function overseerIds(db: Db): Promise<number[]> {
+  const rows = await many<{ id: number }>(
+    `SELECT id FROM users WHERE is_active AND role IN ('admin', 'manager')`,
+    [],
+    db,
+  );
+  return rows.map((r) => r.id);
+}
+
+/** Одно уведомление всем получателям без повторов и без тех, кто совершил действие. */
+export async function notifyHandover(
+  db: Db,
+  outbox: Outbox,
+  recipients: (number | null | undefined)[],
+  skip: number[],
+  notice: Omit<Notice, 'userId'>,
+) {
+  const ids = new Set([...recipients, ...(await overseerIds(db))].filter((x): x is number => Boolean(x)));
+  for (const userId of ids) if (!skip.includes(userId)) outbox.add({ ...notice, userId });
 }
 
 export async function assertActiveUser(db: Db, userId: number) {
@@ -172,7 +194,7 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
     due,
     input.comment,
   ]);
-  await db.query(`UPDATE tasks SET assignee_id = $2, due_at = $3, updated_at = now() WHERE id = $1`, [id, input.assigneeId, due]);
+  await db.query(`UPDATE tasks SET assignee_id = $2, due_at = $3, overdue_notified_at = NULL, updated_at = now() WHERE id = $1`, [id, input.assigneeId, due]);
   if (input.assigneeId !== actor.id) {
     outbox.add({
       userId: input.assigneeId,
@@ -182,6 +204,13 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
       link: `/tasks?task=${id}`,
     });
   }
+  // Постановщик, прошлый исполнитель и руководители узнают, кто кому передал задачу и почему.
+  await notifyHandover(db, outbox, [t.creator_id, t.assignee_id], [actor.id, input.assigneeId], {
+    type: 'task_handover',
+    title: `Задачу передали: ${t.title}`,
+    body: [`${actor.fullName} передал задачу сотруднику ${next.full_name}.`, `Причина и что сделано: ${input.comment}`].join('\n'),
+    link: `/tasks?task=${id}`,
+  });
   outbox.touch('tasks');
   return next;
 }

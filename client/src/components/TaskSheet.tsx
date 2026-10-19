@@ -74,8 +74,9 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   const doTransfer = async () => {
     setError('');
     if (!assignee) return setError('Выберите, кому передать');
+    if (comment.trim().length < 3) return setError('Напишите причину передачи и что уже сделано');
     try {
-      await transfer.mutateAsync({ assigneeId: Number(assignee), dueAt: due, comment: comment || null });
+      await transfer.mutateAsync({ assigneeId: Number(assignee), dueAt: due, comment: comment.trim() });
       toast.success('Задача передана');
       setMode('view');
       setComment('');
@@ -192,7 +193,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                 <Field label="Новый срок" hint={`Рабочий день до ${settings.data?.work.workEnd ?? '20:00'}`}>
                   <DueInput value={due} onChange={setDue} />
                 </Field>
-                <Field label="Комментарий" optional>
+                <Field label="Причина передачи и что уже сделано" hint="Увидят постановщик и руководитель">
                   <Textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={2000} />
                 </Field>
               </>

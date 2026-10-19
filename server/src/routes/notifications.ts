@@ -5,6 +5,7 @@ import { h, intParam } from '../lib/http';
 import { subscribe } from '../notify/hub';
 import { ORDER_SELECT, orderAccess, TASK_SELECT } from '../services/sql';
 import { runServicePlansSoon } from '../services/servicePlans';
+import { notifyOverdueSoon } from '../services/overdue';
 import { endOfDay } from '../services/workTime';
 
 export const notificationsRouter = Router();
@@ -76,7 +77,7 @@ notificationsRouter.get('/events', (req, res) => {
 notificationsRouter.get(
   '/dashboard',
   h(async (req, res) => {
-    await runServicePlansSoon();
+    await Promise.all([runServicePlansSoon(), notifyOverdueSoon()]);
     const user = req.user!;
     const all = can(user.role, 'tasks.manageAll');
     const allOrders = can(user.role, 'orders.viewAll');

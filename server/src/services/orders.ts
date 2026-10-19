@@ -2,6 +2,7 @@ import {
   can,
   formatOrderNumber,
   type AdvanceOrderInput,
+  type ReopenOrderInput,
   type IntakeInput,
   type IntakeResult,
   type ReassignOrderInput,
@@ -13,7 +14,7 @@ import type { Outbox } from '../notify/notify';
 import { createClient, replaceFleet } from './clients';
 import { getWorkSettings } from './settings';
 import { DEVICE_TITLE } from './sql';
-import { assertActiveUser, closeTasks, createTask, normalizeDue, type Actor } from './tasks';
+import { assertActiveUser, closeTasks, createTask, normalizeDue, notifyHandover, type Actor } from './tasks';
 import { defaultDue, formatDateTimeRu } from './workTime';
 
 export async function activeStages(db: Db): Promise<Stage[]> {
@@ -122,8 +123,8 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
     const order = await one<{ id: number }>(
       `INSERT INTO orders (number, batch_id, client_id, device_id, stage_id, responsible_id, stage_due_at,
                            fault_ids, fault_text, appearance, appearance_note, kit, kit_note, device_password,
-                           department, comment, accepted_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
+                           department, comment, accepted_by, branch, requester_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id`,
       [
         number,
         batch!.id,
@@ -142,6 +143,8 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
         item.department,
         input.comment,
         actor.id,
+        input.branch,
+        input.requesterName,
       ],
       db,
     );
@@ -209,8 +212,17 @@ export async function advanceOrder(db: Db, actor: Actor, orderId: number, input:
   const stages = await activeStages(db);
   const current = stages.find((s) => s.id === order.stage_id);
   if (current?.isFinal) throw new HttpError(409, 'Заявка уже выдана');
-  const next = nextStageOf(stages, order.stage_id);
+  let next = nextStageOf(stages, order.stage_id);
   if (!next) throw new HttpError(409, 'Дальше этапов нет');
+  if (input.declined) {
+    // Заказчик не согласовал ремонт: из «Согласования» сразу в «Готово», этап ремонта пропускаем.
+    if (current?.code !== 'approval') throw new HttpError(409, 'Отказ без ремонта возможен только на согласовании');
+    next = nextStageOf(stages, next.id);
+    if (!next) throw new HttpError(409, 'Дальше этапов нет');
+  }
+  if (next.isFinal && !input.deviceReturned) {
+    throw new HttpError(400, 'Отметьте, что техника возвращена клиенту, иначе заявку закрыть нельзя');
+  }
   if (input.toStageId !== next.id) {
     throw new HttpError(409, `Этапы идут строго по порядку: следующий — «${next.name}».`, { nextStageId: next.id });
   }
@@ -245,9 +257,20 @@ export async function advanceOrder(db: Db, actor: Actor, orderId: number, input:
   await db.query(
     `UPDATE orders SET stage_id = $2, responsible_id = $3, stage_started_at = now(), stage_due_at = $4,
             estimated_cost = coalesce($5, estimated_cost), updated_at = now(),
-            issued_at = CASE WHEN $6 THEN now() ELSE issued_at END
+            issued_at = CASE WHEN $6 THEN now() ELSE issued_at END,
+            device_returned_at = CASE WHEN $6 THEN now() ELSE device_returned_at END,
+            outcome = CASE WHEN $7 THEN 'declined' WHEN $8 THEN 'repaired' ELSE outcome END
       WHERE id = $1`,
-    [orderId, next.id, responsible.id, due, input.estimatedCost ?? null, next.isFinal],
+    [
+      orderId,
+      next.id,
+      responsible.id,
+      due,
+      input.estimatedCost ?? null,
+      next.isFinal,
+      Boolean(input.declined),
+      next.code === 'ready' && !input.declined,
+    ],
   );
 
   const title = await deviceTitle(db, order.device_id);
@@ -332,14 +355,24 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
       due,
       input.comment,
     ]);
-    await db.query(`UPDATE tasks SET assignee_id = $2, due_at = $3, updated_at = now() WHERE id = $1`, [
+    await db.query(`UPDATE tasks SET assignee_id = $2, due_at = $3, overdue_notified_at = NULL, updated_at = now() WHERE id = $1`, [
       task.id,
       responsible.id,
       due,
     ]);
   }
+  const handoverTitle = await deviceTitle(db, order.device_id);
+  await notifyHandover(db, outbox, [order.accepted_by, order.responsible_id], [actor.id, responsible.id], {
+    type: 'order_handover',
+    title: `Заявку №${order.number} передали`,
+    body: [
+      `${handoverTitle}. ${actor.fullName} передал сотруднику ${responsible.full_name}.`,
+      `Причина и что сделано: ${input.comment}`,
+    ].join('\n'),
+    link: `/orders/${orderId}`,
+  });
   if (responsible.id !== actor.id) {
-    const title = await deviceTitle(db, order.device_id);
+    const title = handoverTitle;
     outbox.add({
       userId: responsible.id,
       type: 'order_assigned',
@@ -351,4 +384,60 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
     });
   }
   outbox.touch('orders', 'tasks', 'dashboard');
+}
+
+/**
+ * Выданная техника вернулась (гарантия или новая поломка): та же заявка открывается заново на диагностике,
+ * история остаётся, номер не меняется.
+ */
+export async function reopenOrder(db: Db, actor: Actor, orderId: number, input: ReopenOrderInput, outbox: Outbox) {
+  const order = await lockOrder(db, orderId);
+  if (!(can(actor.role, 'orders.advanceAny') || order.responsible_id === actor.id || order.accepted_by === actor.id)) {
+    throw forbidden('Открыть заявку заново может приёмщик, ответственный или руководитель');
+  }
+  const stages = await activeStages(db);
+  const current = stages.find((s) => s.id === order.stage_id);
+  if (!current?.isFinal) throw new HttpError(409, 'Заявка ещё в работе, открывать заново не нужно');
+  const entry = stages[1];
+  if (!entry) throw new HttpError(500, 'В справочнике нет этапа для повторной диагностики');
+  const responsible = await assertActiveUser(db, input.responsibleId);
+  const due = await normalizeDue(db, input.dueAt);
+  const label = input.reason === 'warranty' ? 'Возврат по гарантии' : 'Новая поломка';
+  const note = [label, input.comment].filter(Boolean).join('. ');
+
+  await db.query(
+    `INSERT INTO order_history (order_id, kind, stage_id, responsible_id, from_user_id, due_at, comment)
+     VALUES ($1, 'reopen', $2, $3, $4, $5, $6)`,
+    [orderId, entry.id, responsible.id, actor.id, due, note],
+  );
+  await db.query(
+    `UPDATE orders SET stage_id = $2, responsible_id = $3, stage_started_at = now(), stage_due_at = $4,
+            issued_at = NULL, device_returned_at = NULL, outcome = NULL, reopen_count = reopen_count + 1, updated_at = now()
+      WHERE id = $1`,
+    [orderId, entry.id, responsible.id, due],
+  );
+  const title = await deviceTitle(db, order.device_id);
+  await createTask(
+    db,
+    actor,
+    {
+      title: stageTaskTitle(entry, title, order.number),
+      description: note,
+      assigneeId: responsible.id,
+      orderId,
+      clientId: order.client_id,
+      startAt: new Date().toISOString(),
+      dueAt: due.toISOString(),
+      deadlineAt: null,
+      stageId: entry.id,
+    },
+    outbox,
+  );
+  await notifyHandover(db, outbox, [order.accepted_by], [actor.id, responsible.id], {
+    type: 'order_reopened',
+    title: `Заявка №${order.number} открыта заново`,
+    body: `${title}. ${note}. Ответственный: ${responsible.full_name}.`,
+    link: `/orders/${orderId}`,
+  });
+  outbox.touch('orders', 'tasks', 'dashboard', 'clients');
 }

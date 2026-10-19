@@ -1,10 +1,18 @@
 import { Router } from 'express';
-import { advanceOrderSchema, can, intakeSchema, reassignOrderSchema, type OrderDetail } from '@sd/shared';
+import { advanceOrderSchema, can, intakeSchema, reassignOrderSchema, reopenOrderSchema, type OrderDetail } from '@sd/shared';
 import { many, one, pool, tx } from '../db/pool';
 import { h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { Outbox } from '../notify/notify';
-import { activeStages, advanceOrder, canAdvanceOrder, createIntake, nextStageOf, reassignOrder } from '../services/orders';
+import {
+  activeStages,
+  advanceOrder,
+  canAdvanceOrder,
+  createIntake,
+  nextStageOf,
+  reassignOrder,
+  reopenOrder,
+} from '../services/orders';
 import { DEVICE_SELECT, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT } from '../services/sql';
 import { assertOrderVisible } from '../services/access';
 
@@ -103,6 +111,14 @@ ordersRouter.get(
       kitNote: raw.kit_note,
       devicePassword: raw.device_password,
       department: raw.department,
+      branch: raw.branch,
+      requesterName: raw.requester_name,
+      deviceReturnedAt: raw.device_returned_at,
+      outcome: raw.outcome,
+      reopenCount: raw.reopen_count,
+      canReopen:
+        Boolean(raw.issued_at) &&
+        (can(req.user!.role, 'orders.advanceAny') || raw.responsible_id === req.user!.id || raw.accepted_by === req.user!.id),
       comment: raw.comment,
       estimatedCost: raw.estimated_cost,
       acceptedByName: accepted?.full_name ?? null,
@@ -150,6 +166,18 @@ ordersRouter.post(
     const input = parse(reassignOrderSchema, req.body);
     const outbox = new Outbox();
     await tx((db) => reassignOrder(db, req.user!, id, input, outbox));
+    await outbox.flush();
+    res.json({ ok: true });
+  }),
+);
+
+ordersRouter.post(
+  '/orders/:id/reopen',
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const input = parse(reopenOrderSchema, req.body);
+    const outbox = new Outbox();
+    await tx((db) => reopenOrder(db, req.user!, id, input, outbox));
     await outbox.flush();
     res.json({ ok: true });
   }),

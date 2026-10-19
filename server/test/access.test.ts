@@ -53,7 +53,7 @@ describe('мастер и диагност видят только своё', ()
     expect((await lenya.get(`/api/tasks/${t.body.id}`)).status).toBe(403);
     expect((await semen.get(`/api/tasks/${t.body.id}`)).status).toBe(200);
     // Ольга передаёт Лёне — теперь видят оба
-    await olga.post(`/api/tasks/${t.body.id}/transfer`, { assigneeId: users.lenya, dueAt: inDays(2), comment: null });
+    await olga.post(`/api/tasks/${t.body.id}/transfer`, { assigneeId: users.lenya, dueAt: inDays(2), comment: 'Это к Лёне' });
     expect((await lenya.get(`/api/tasks/${t.body.id}`)).status).toBe(200);
     expect((await olga.get(`/api/tasks/${t.body.id}`)).status).toBe(200);
   });

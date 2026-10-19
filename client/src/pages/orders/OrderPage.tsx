@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, ArrowRightLeft, Eye, EyeOff, FilePlus2, FileText, ListPlus, Phone, Printer } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowRightLeft, Eye, EyeOff, FilePlus2, FileText, ListPlus, Phone, Printer, RotateCcw } from 'lucide-react';
 import { formatMoney, formatPhone } from '@sd/shared';
 import { useAuth, useMe } from '@/app/auth';
 import { useDictionaries, useInvalidate, useOrder } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
 import { useDocumentTitle } from '@/lib/hooks';
-import { AdvanceSheet, ReassignSheet } from '@/components/AdvanceSheet';
+import { AdvanceSheet, ReassignSheet, ReopenSheet } from '@/components/AdvanceSheet';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
 import { StageRail } from '@/components/StageRail';
 import { TaskRow } from '@/components/TaskRow';
@@ -25,6 +25,7 @@ export default function OrderPage() {
   const inv = useInvalidate();
   const [advanceOpen, setAdvanceOpen] = useState(false);
   const [reassignOpen, setReassignOpen] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
   const [taskId, setTaskId] = useState<number | null>(null);
   const [newTask, setNewTask] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -58,6 +59,8 @@ export default function OrderPage() {
               </Pill>
             )}
             {o.clientKind === 'legal' && <Pill tone="outline">юрлицо</Pill>}
+            {o.outcome === 'declined' && <Pill tone="outline">без ремонта</Pill>}
+            {o.reopenCount > 0 && <Pill tone="outline">повторно: {o.reopenCount}</Pill>}
           </div>
           <h1 className={s.title}>{o.deviceTitle}</h1>
           <p className={s.sub}>
@@ -94,6 +97,11 @@ export default function OrderPage() {
             Передать
           </Button>
         )}
+        {o.canReopen && (
+          <Button variant="secondary" icon={<RotateCcw size={18} aria-hidden />} onClick={() => setReopenOpen(true)}>
+            Открыть заново
+          </Button>
+        )}
         {can('acts.edit') && (
           <ButtonLink to={`/acts/new?order=${o.id}`} variant="secondary" icon={<FilePlus2 size={18} aria-hidden />}>
             Акт работ
@@ -116,6 +124,8 @@ export default function OrderPage() {
                 ['Тип', o.device.deviceType],
                 ['Марка и модель', [o.device.brand, o.device.model].filter(Boolean).join(' ') || '—'],
                 ['Серийный номер', o.device.serial || 'не указан'],
+                ['Филиал', o.branch],
+                ['Заявку подал', o.requesterName],
                 ['Отдел', o.department],
                 ['Неисправность', o.fault],
                 [
@@ -159,6 +169,7 @@ export default function OrderPage() {
                 ['Примерная стоимость', o.estimatedCost !== null && formatMoney(o.estimatedCost)],
                 ['Комментарий', o.comment],
                 ['Принял', o.acceptedByName && `${o.acceptedByName}, ${fmtWhen(o.createdAt)}`],
+                ['Техника возвращена', o.deviceReturnedAt && fmtWhen(o.deviceReturnedAt)],
               ]}
             />
           </Card>
@@ -247,12 +258,16 @@ export default function OrderPage() {
                   <span className={s.hDot} aria-hidden />
                   <div className={s.hBody}>
                     <b>
-                      {h.kind === 'transfer' ? `Передано: ${h.responsibleName ?? '—'}` : h.stageName}
-                      {h.kind === 'stage' && h.responsibleName && <span className={s.hWho}>, {h.responsibleName}</span>}
+                      {h.kind === 'transfer'
+                        ? `Передано: ${h.responsibleName ?? '—'}`
+                        : h.kind === 'reopen'
+                          ? `Открыта заново: ${h.stageName}`
+                          : h.stageName}
+                      {h.kind !== 'transfer' && h.responsibleName && <span className={s.hWho}>, {h.responsibleName}</span>}
                     </b>
                     <span className={s.hMeta}>
                       {fmtWhen(h.startedAt)}
-                      {h.fromUserName && h.kind === 'transfer' && `, от ${h.fromUserName}`}
+                      {h.fromUserName && h.kind !== 'stage' && `, от ${h.fromUserName}`}
                       {h.dueAt && !h.finishedAt && `, срок ${fmtWhen(h.dueAt)}`}
                     </span>
                     {h.comment && <span className={s.hComment}>{h.comment}</span>}
@@ -273,6 +288,7 @@ export default function OrderPage() {
 
       <AdvanceSheet order={advanceOpen ? target : null} next={o.nextStage} onClose={() => setAdvanceOpen(false)} />
       <ReassignSheet order={reassignOpen ? target : null} onClose={() => setReassignOpen(false)} />
+      <ReopenSheet order={reopenOpen ? target : null} onClose={() => setReopenOpen(false)} />
       <TaskSheet taskId={taskId} onClose={() => setTaskId(null)} />
       <TaskFormSheet
         open={newTask}

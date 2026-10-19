@@ -576,6 +576,7 @@ export async function seedDemo() {
           dueAt: due(1),
           comment: null,
           estimatedCost: code === 'approval' ? 1000 : null,
+          deviceReturned: code === 'issued' ? true : undefined,
         },
         ob,
       ),

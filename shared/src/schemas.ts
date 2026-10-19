@@ -119,6 +119,9 @@ export const intakeSchema = z
     responsibleId: id,
     dueAt: isoDate,
     comment: optionalText(2000),
+    /** Филиал и сотрудник организации, от которого пришла заявка. */
+    branch: optionalText(200),
+    requesterName: optionalText(200),
     attachmentIds: z.array(id).max(20).default([]),
     fleet: z.array(fleetRowSchema).max(200).optional().nullable(),
   })
@@ -142,15 +145,30 @@ export const advanceOrderSchema = z.object({
   dueAt: isoDate.optional().nullable(),
   comment: optionalText(2000),
   estimatedCost: z.coerce.number().min(0).max(10_000_000).optional().nullable(),
+  /** Согласование → «Готово» без ремонта: заказчик отказался. */
+  declined: z.boolean().optional(),
+  /** Обязательна при выдаче: техника физически возвращена клиенту. */
+  deviceReturned: z.boolean().optional(),
 });
 export type AdvanceOrderInput = z.infer<typeof advanceOrderSchema>;
+
+const reasonText = text(2000).min(3, 'Напишите причину передачи и что уже сделано');
 
 export const reassignOrderSchema = z.object({
   responsibleId: id,
   dueAt: isoDate.optional().nullable(),
-  comment: optionalText(2000),
+  comment: reasonText,
 });
 export type ReassignOrderInput = z.infer<typeof reassignOrderSchema>;
+
+/** Повторное открытие выданной заявки: гарантийный возврат или новая поломка. */
+export const reopenOrderSchema = z.object({
+  reason: z.enum(['warranty', 'new_fault']),
+  responsibleId: id,
+  dueAt: isoDate,
+  comment: optionalText(2000),
+});
+export type ReopenOrderInput = z.infer<typeof reopenOrderSchema>;
 
 // ---------- Задачи ----------
 
@@ -211,7 +229,7 @@ export type CloseTasksInput = z.infer<typeof closeTasksSchema>;
 export const transferTaskSchema = z.object({
   assigneeId: id,
   dueAt: isoDate,
-  comment: optionalText(2000),
+  comment: reasonText,
 });
 export type TransferTaskInput = z.infer<typeof transferTaskSchema>;
 

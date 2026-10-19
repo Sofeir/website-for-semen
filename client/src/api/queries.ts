@@ -23,6 +23,7 @@ import type {
   OrderListItem,
   Paged,
   ReassignOrderInput,
+  ReopenOrderInput,
   TaskDetail,
   TaskListItem,
   TransferTaskInput,
@@ -226,6 +227,14 @@ export function useReassignOrder(orderId: number) {
   return useMutation({
     mutationFn: (input: ReassignOrderInput) => api.post(`/orders/${orderId}/reassign`, input as any),
     onSuccess: () => inv('orders', 'order', 'tasks', 'dashboard'),
+  });
+}
+
+export function useReopenOrder(orderId: number) {
+  const inv = useInvalidate();
+  return useMutation({
+    mutationFn: (input: ReopenOrderInput) => api.post(`/orders/${orderId}/reopen`, input as any),
+    onSuccess: () => inv('orders', 'order', 'tasks', 'dashboard', 'client'),
   });
 }
 

@@ -101,7 +101,7 @@ export interface OrderListItem {
 
 export interface StageHistoryItem {
   id: number;
-  kind: 'stage' | 'transfer';
+  kind: 'stage' | 'transfer' | 'reopen';
   stageId: number;
   stageName: string;
   stageCode: string;
@@ -171,9 +171,17 @@ export interface OrderDetail extends OrderListItem {
   kitNote: string | null;
   devicePassword: string | null;
   department: string | null;
+  /** Филиал и сотрудник организации, от которого пришла заявка. */
+  branch: string | null;
+  requesterName: string | null;
   comment: string | null;
   estimatedCost: number | null;
   acceptedByName: string | null;
+  deviceReturnedAt: string | null;
+  /** repaired — отремонтировано, declined — без ремонта (отказ на согласовании). */
+  outcome: 'repaired' | 'declined' | null;
+  reopenCount: number;
+  canReopen: boolean;
   history: StageHistoryItem[];
   attachments: Attachment[];
   acts: ActBrief[];
