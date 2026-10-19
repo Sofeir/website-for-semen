@@ -1,0 +1,60 @@
+.list {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: var(--tap);
+}
+
+.off {
+  opacity: 0.55;
+}
+
+.colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.swatch {
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: 50%;
+  border: 0;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.picked {
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    0 0 0 3px var(--primary);
+}
+
+.blue,
+.sky {
+  background: var(--sky-100);
+}
+.teal {
+  background: var(--teal-100);
+}
+.amber {
+  background: var(--amber-100);
+}
+.red {
+  background: var(--red-100);
+}
+.violet {
+  background: var(--violet-100);
+}
+.slate {
+  background: var(--slate-100);
+}

@@ -23,6 +23,8 @@ import { useDocumentTitle } from '@/lib/hooks';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
 import { ChecklistEditor } from '@/components/ChecklistEditor';
 import { ClientFormSheet } from '@/components/ClientFormSheet';
+import { DeviceJournalSheet } from '@/components/DeviceJournalSheet';
+import { RefillSheet } from '@/components/RefillSheet';
 import { FleetEditor, emptyFleetRow, fleetTotals } from '@/components/FleetEditor';
 import { OrderRow } from '@/components/OrderRow';
 import { ServicePlanCard } from '@/components/ServicePlanCard';
@@ -53,6 +55,8 @@ export default function ClientPage() {
   const [works, setWorks] = useState<string[]>([]);
   const [savingWorks, setSavingWorks] = useState(false);
   const [visit, setVisit] = useState(false);
+  const [journalFor, setJournalFor] = useState<number | null>(null);
+  const [refillOpen, setRefillOpen] = useState(false);
   useEffect(() => {
     if (service.data) setWorks(service.data.items);
   }, [service.data]);
@@ -195,16 +199,30 @@ export default function ClientPage() {
 
       {tab === 'devices' && (
         <Card>
+          <CardHead title="Техника" count={c.devices.length}>
+            <Button variant="secondary" size="sm" onClick={() => setRefillOpen(true)}>
+              Заправка картриджей
+            </Button>
+          </CardHead>
           {c.devices.length ? (
             <ul className={s.devices}>
               {c.devices.map((d) => {
                 const orders = c.orders.filter((o) => o.deviceTitle === d.title);
                 return (
                   <li key={d.id} className={s.device}>
-                    <b>{d.title}</b>
+                    <b>
+                      {d.inventoryNo ? `${d.inventoryNo}: ` : ''}
+                      {d.title}
+                    </b>
                     <span>
                       {d.serial ? `S/N ${d.serial}` : 'серийный номер не указан'}
+                      {d.location ? `, ${d.location}` : ''}
                       {orders.length ? `, обращений: ${orders.length}` : ''}
+                    </span>
+                    <span>
+                      <Button variant="ghost" size="sm" onClick={() => setJournalFor(d.id)}>
+                        Журнал и паспорт
+                      </Button>
                     </span>
                   </li>
                 );
@@ -326,6 +344,8 @@ export default function ClientPage() {
         visit
       />
       <ClientFormSheet open={editing} onClose={() => setEditing(false)} client={c} />
+      <DeviceJournalSheet device={c.devices.find((d) => d.id === journalFor) ?? null} onClose={() => setJournalFor(null)} />
+      <RefillSheet clientId={c.id} open={refillOpen} onClose={() => setRefillOpen(false)} />
       <TaskSheet taskId={taskId} onClose={() => setTaskId(null)} />
     </div>
   );

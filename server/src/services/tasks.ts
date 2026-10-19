@@ -68,8 +68,9 @@ export async function createTask(
   const due = await normalizeDue(db, input.dueAt);
   const deadline = input.deadlineAt ? await normalizeDue(db, input.deadlineAt) : null;
   const row = await one<{ id: number }>(
-    `INSERT INTO tasks (title, description, creator_id, assignee_id, order_id, client_id, stage_id, start_at, due_at, deadline_at, is_visit)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+    `INSERT INTO tasks (title, description, creator_id, assignee_id, order_id, client_id, stage_id, start_at, due_at, deadline_at, is_visit, kind_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+             COALESCE($12, (SELECT id FROM task_kinds WHERE code = $13))) RETURNING id`,
     [
       input.title,
       input.description ?? null,
@@ -82,6 +83,8 @@ export async function createTask(
       due,
       deadline,
       input.visit ?? false,
+      input.kindId ?? null,
+      input.visit ? 'visit' : input.orderId ? 'device' : 'general',
     ],
     db,
   );

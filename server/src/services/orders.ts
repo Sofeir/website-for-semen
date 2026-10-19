@@ -250,9 +250,18 @@ export async function advanceOrder(db: Db, actor: Actor, orderId: number, input:
   }
 
   await db.query(
-    `INSERT INTO order_history (order_id, stage_id, responsible_id, from_user_id, due_at, comment, finished_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [orderId, next.id, responsible.id, actor.id, due, input.comment, next.isFinal ? new Date() : null],
+    `INSERT INTO order_history (order_id, stage_id, responsible_id, from_user_id, due_at, comment, finished_at, outcome)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      orderId,
+      next.id,
+      responsible.id,
+      actor.id,
+      due,
+      input.comment,
+      next.isFinal ? new Date() : null,
+      next.code === 'ready' ? (input.declined ? 'declined' : 'repaired') : null,
+    ],
   );
   await db.query(
     `UPDATE orders SET stage_id = $2, responsible_id = $3, stage_started_at = now(), stage_due_at = $4,

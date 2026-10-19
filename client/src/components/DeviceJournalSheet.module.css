@@ -1,0 +1,41 @@
+.h {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-md);
+  margin: 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.item:first-child {
+  border-top: 0;
+}
+
+.itemMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.meta,
+.note {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}

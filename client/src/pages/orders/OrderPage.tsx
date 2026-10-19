@@ -8,6 +8,7 @@ import { fmtWhen } from '@/lib/dates';
 import { useDocumentTitle } from '@/lib/hooks';
 import { AdvanceSheet, ReassignSheet, ReopenSheet } from '@/components/AdvanceSheet';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
+import { DeviceJournalSheet } from '@/components/DeviceJournalSheet';
 import { StageRail } from '@/components/StageRail';
 import { TaskRow } from '@/components/TaskRow';
 import { TaskSheet } from '@/components/TaskSheet';
@@ -26,6 +27,7 @@ export default function OrderPage() {
   const [advanceOpen, setAdvanceOpen] = useState(false);
   const [reassignOpen, setReassignOpen] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
+  const [journalOpen, setJournalOpen] = useState(false);
   const [taskId, setTaskId] = useState<number | null>(null);
   const [newTask, setNewTask] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -118,9 +120,15 @@ export default function OrderPage() {
       <div className={s.grid}>
         <div className={s.col}>
           <Card>
-            <CardHead title="Техника" />
+            <CardHead title="Техника">
+              <Button variant="ghost" size="sm" onClick={() => setJournalOpen(true)}>
+                Журнал и паспорт
+              </Button>
+            </CardHead>
             <DescList
               items={[
+                ['Номер', o.device.inventoryNo],
+                ['Где стоит', o.device.location],
                 ['Тип', o.device.deviceType],
                 ['Марка и модель', [o.device.brand, o.device.model].filter(Boolean).join(' ') || '—'],
                 ['Серийный номер', o.device.serial || 'не указан'],
@@ -289,6 +297,7 @@ export default function OrderPage() {
       <AdvanceSheet order={advanceOpen ? target : null} next={o.nextStage} onClose={() => setAdvanceOpen(false)} />
       <ReassignSheet order={reassignOpen ? target : null} onClose={() => setReassignOpen(false)} />
       <ReopenSheet order={reopenOpen ? target : null} onClose={() => setReopenOpen(false)} />
+      <DeviceJournalSheet device={journalOpen ? o.device : null} orderId={o.id} onClose={() => setJournalOpen(false)} />
       <TaskSheet taskId={taskId} onClose={() => setTaskId(null)} />
       <TaskFormSheet
         open={newTask}

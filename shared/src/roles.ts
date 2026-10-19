@@ -48,6 +48,8 @@ export const PERMISSIONS = {
   'users.manage': ['admin'],
   'settings.edit': ['admin'],
   'import.run': ['admin'],
+  /** Помесячные отчёты по клиентам: заправки, ремонты, парк техники. */
+  'reports.view': ['admin', 'manager'],
   /** Подтверждать регистрации заказчиков и управлять их доступом. */
   'customers.manage': ['admin', 'manager'],
 } as const satisfies Record<string, readonly Role[]>;

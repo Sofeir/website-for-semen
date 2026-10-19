@@ -37,6 +37,14 @@
   font-size: var(--fs-lg);
 }
 
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-3);
+}
+
 .assignee {
   margin-bottom: var(--s-3);
 }
