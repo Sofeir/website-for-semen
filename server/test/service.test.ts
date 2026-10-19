@@ -94,8 +94,24 @@ describe('выезд к клиенту: чек-лист работ', () => {
     ]);
     expect(new Date(task.body.startAt).getHours()).toBe(11);
     expect(await runServicePlans()).toBe(0);
-    const list = await semen.get('/api/service-plans');
-    expect(list.body).toHaveLength(1);
-    expect(list.body[0].assigneeName).toBe('Лёня');
+    const list = await semen.get('/api/visits');
+    expect(list.body.plans).toHaveLength(1);
+    expect(list.body.plans[0].assigneeName).toBe('Лёня');
+  });
+
+  it('раздел «Выезды»: руководитель видит все, исполнитель — свои, посторонний — ничего', async () => {
+    const semen = await loginAs('semen');
+    const lenya = await loginAs('lenya');
+    const stas = await loginAs('stas');
+    const all = (await semen.get('/api/visits')).body;
+    expect(all.tasks.length).toBeGreaterThan(0);
+    expect(all.tasks.every((t: { isVisit: boolean }) => t.isVisit)).toBe(true);
+    expect(all.plans[0].upcoming).toHaveLength(3);
+    const mine = (await lenya.get('/api/visits')).body;
+    expect(mine.plans).toHaveLength(1);
+    expect(mine.tasks.length).toBeGreaterThan(0);
+    const other = (await stas.get('/api/visits')).body;
+    expect(other.plans).toHaveLength(0);
+    expect(other.tasks).toHaveLength(0);
   });
 });

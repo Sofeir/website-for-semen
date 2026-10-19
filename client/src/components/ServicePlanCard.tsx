@@ -58,7 +58,8 @@ const fromPlan = (p: ServicePlan | null): Draft =>
     : { period: '1:month', nextDate: tomorrowYmd(), visitTime: '', assigneeId: '', isActive: true };
 
 /** График регулярных выездов к клиенту: накануне выезда задача с чек-листом ставится сама. */
-export function ServicePlanCard({ clientId }: { clientId: number }) {
+export function ServicePlanCard({ clientId, bare, onSaved }: { clientId: number; bare?: boolean; onSaved?: () => void }) {
+  const Wrap = bare ? 'div' : Card;
   const { can } = useAuth();
   const q = useServicePlan(clientId);
   const plan = q.data?.plan ?? null;
@@ -95,7 +96,8 @@ export function ServicePlanCard({ clientId }: { clientId: number }) {
         isActive: d.isActive,
       });
       toast.success('График сохранён');
-      inv('servicePlan', 'servicePlans', 'tasks', 'dashboard', 'client');
+      onSaved?.();
+      inv('servicePlan', 'servicePlans', 'visits', 'tasks', 'dashboard', 'client');
     } catch (e) {
       toast.error('Не сохранилось', (e as ApiError).message);
     } finally {
@@ -116,14 +118,14 @@ export function ServicePlanCard({ clientId }: { clientId: number }) {
     try {
       await api.del(`/clients/${clientId}/service-plan`);
       toast.success('График удалён');
-      inv('servicePlan', 'servicePlans');
+      inv('servicePlan', 'servicePlans', 'visits');
     } catch (e) {
       toast.error('Не удалилось', (e as ApiError).message);
     }
   };
 
   return (
-    <Card>
+    <Wrap>
       <CardHead title="Регулярные выезды">
         {plan && (
           <Pill tone={plan.isActive ? 'teal' : 'outline'} dot={plan.isActive}>
@@ -184,6 +186,6 @@ export function ServicePlanCard({ clientId }: { clientId: number }) {
           </div>
         </div>
       )}
-    </Card>
+    </Wrap>
   );
 }

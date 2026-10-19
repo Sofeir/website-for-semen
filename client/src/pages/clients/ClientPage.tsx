@@ -323,6 +323,7 @@ export default function ClientPage() {
         clientId={c.id}
         presetTitle={`Выезд: ${c.name}`}
         presetChecklist={works.map((x) => x.trim()).filter(Boolean)}
+        visit
       />
       <ClientFormSheet open={editing} onClose={() => setEditing(false)} client={c} />
       <TaskSheet taskId={taskId} onClose={() => setTaskId(null)} />

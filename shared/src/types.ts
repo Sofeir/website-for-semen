@@ -220,6 +220,8 @@ export interface TaskListItem {
   /** Пункты чек-листа: всего и отмечено. */
   checklistTotal: number;
   checklistDone: number;
+  /** Выезд к клиенту. */
+  isVisit: boolean;
   overdue: boolean;
 }
 
@@ -415,4 +417,11 @@ export interface ServicePlan {
   assigneeName: string;
   isActive: boolean;
   lastTaskId: number | null;
+  /** Ближайшие даты по графику, начиная с nextDate. */
+  upcoming?: string[];
+}
+
+export interface VisitsData {
+  tasks: TaskListItem[];
+  plans: ServicePlan[];
 }
