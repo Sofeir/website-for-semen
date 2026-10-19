@@ -1,86 +1,89 @@
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, BarChart3, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { BarChart3, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import type { MonthlyReport, ReportRow, ReportTotals } from '@sd/shared';
 import { useMonthlyReport } from '@/api/queries';
 import { useDocumentTitle } from '@/lib/hooks';
 import { Button, IconButton, cx } from '@/ui/Button';
-import { EmptyState, ErrorBox, PageHeader, Spinner } from '@/ui/Display';
+import { EmptyState, ErrorBox, PageHeader, Plate, Spinner } from '@/ui/Display';
 import { Segmented } from '@/ui/Form';
 import { ClientReportSheet } from './ClientReportSheet';
 import { downloadCsv, label, monthShift, thisMonth } from './reportUtils';
 import s from './ReportsPage.module.css';
 
 type Scope = 'all' | 'legal' | 'person';
-type SortKey = 'clientName' | keyof ReportTotals;
+type SortKey = 'name' | 'accepted' | 'refills';
 
-/** Колонки таблицы. `opt` — на узком экране скрываются, они есть в подробностях по клиенту. */
-const COLS: { key: keyof ReportTotals; label: string; short: string; opt?: boolean }[] = [
-  { key: 'accepted', label: 'Принято заявок', short: 'Заявки' },
-  { key: 'repaired', label: 'Ремонтов', short: 'Ремонты' },
-  { key: 'declined', label: 'Без ремонта', short: 'Без рем.', opt: true },
-  { key: 'refills', label: 'Картриджей', short: 'Картр.' },
-  { key: 'parts', label: 'Замен деталей', short: 'Детали', opt: true },
-  { key: 'otherWorks', label: 'Прочих работ', short: 'Прочее', opt: true },
-];
+const initials = (name: string) =>
+  name
+    .replace(/[«»"]/g, '')
+    .split(/\s+/)
+    .filter((w) => /\p{L}/u.test(w) && !/^(ооо|ип|ао|зао|пао)$/i.test(w))
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('') || '?';
 
-const num = (n: number) => (n ? String(n) : '·');
-
-function sortRows(rows: ReportRow[], key: SortKey, dir: 1 | -1) {
-  return [...rows].sort((a, b) =>
-    key === 'clientName' ? dir * a.clientName.localeCompare(b.clientName, 'ru') : dir * (a[key] - b[key]) || a.clientName.localeCompare(b.clientName, 'ru'),
+/** Доля юрлиц в числе: две цветные части одной полосы. */
+function Split({ legal, person }: { legal: number; person: number }) {
+  const sum = legal + person;
+  return (
+    <span className={s.split} aria-hidden>
+      {sum > 0 && <i className={s.splitLegal} style={{ flexGrow: legal }} />}
+      {sum > 0 && <i className={s.splitPerson} style={{ flexGrow: person }} />}
+      {sum === 0 && <i className={s.splitNone} />}
+    </span>
   );
 }
 
-function Cells({ t, strong }: { t: ReportTotals; strong?: boolean }) {
+function HeroStat({ title, field, totals, legal, person, note }: { title: string; field: keyof ReportTotals; totals: ReportTotals; legal: ReportTotals; person: ReportTotals; note?: string }) {
   return (
-    <>
-      {COLS.map((c) => (
-        <td key={c.key} className={cx(s.n, c.opt && s.opt, !t[c.key] && s.zero, strong && s.strong)}>
-          {num(t[c.key])}
-        </td>
-      ))}
-    </>
+    <div className={s.heroStat}>
+      <span className={s.heroLabel}>{title}</span>
+      <b className={s.heroNum}>{totals[field]}</b>
+      <Split legal={legal[field]} person={person[field]} />
+      <span className={s.heroNote}>{note ?? `юр ${legal[field]} · физ ${person[field]}`}</span>
+    </div>
+  );
+}
+
+function Metric({ value, name, accent }: { value: number; name: string; accent?: boolean }) {
+  return (
+    <span className={cx(s.metric, !value && s.metricZero, accent && value > 0 && s.metricAccent)}>
+      <b>{value}</b>
+      <span>{name}</span>
+    </span>
   );
 }
 
 /**
- * Помесячный отчёт одной таблицей: строка на клиента, юрлица и физлица отдельными блоками с подитогом, внизу всего.
- * Нажатие на клиента открывает подробности: что именно сделали, для счёта.
+ * Помесячный отчёт: наверху главные цифры с долей юрлиц и физлиц, ниже клиенты стеклянными плашками.
+ * У каждого клиента три главные цифры и полоса картриджей относительно самого «заправляемого»; редкие показатели появляются
+ * только когда они не нулевые. Нажатие на клиента открывает подробности для счёта.
  */
 export default function ReportsPage() {
   useDocumentTitle('Отчёты');
   const [month, setMonth] = useState(thisMonth);
   const [scope, setScope] = useState<Scope>('all');
-  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'clientName', dir: 1 });
+  const [sort, setSort] = useState<SortKey>('name');
   const [openId, setOpenId] = useState<number | null>(null);
   const q = useMonthlyReport(month);
   const report = q.data;
 
   const groups = useMemo(() => {
     if (!report) return [];
-    const list: { id: 'legal' | 'person'; title: string; rows: ReportRow[]; totals: ReportTotals }[] = [
-      { id: 'legal', title: 'Юрлица', rows: [], totals: report.totals.legal },
-      { id: 'person', title: 'Физлица', rows: [], totals: report.totals.person },
-    ];
-    for (const r of report.rows) list.find((g) => g.id === r.kind)!.rows.push(r);
-    return list
-      .filter((g) => (scope === 'all' || scope === g.id) && g.rows.length)
-      .map((g) => ({ ...g, rows: sortRows(g.rows, sort.key, sort.dir) }));
+    const order = (a: ReportRow, b: ReportRow) =>
+      sort === 'name' ? a.clientName.localeCompare(b.clientName, 'ru') : b[sort] - a[sort] || a.clientName.localeCompare(b.clientName, 'ru');
+    return (['legal', 'person'] as const)
+      .filter((k) => scope === 'all' || scope === k)
+      .map((k) => ({
+        id: k,
+        title: k === 'legal' ? 'Юрлица' : 'Физлица',
+        totals: report.totals[k],
+        rows: report.rows.filter((r) => r.kind === k).sort(order),
+      }))
+      .filter((g) => g.rows.length);
   }, [report, scope, sort]);
 
-  const total = report?.totals[scope];
-  const toggleSort = (key: SortKey) =>
-    setSort((cur) => (cur.key === key ? { key, dir: (cur.dir * -1) as 1 | -1 } : { key, dir: key === 'clientName' ? 1 : -1 }));
-
-  const head = (key: SortKey, text: string, short: string, opt?: boolean, left?: boolean) => (
-    <th key={key} className={cx(left ? s.left : s.n, opt && s.opt)} aria-sort={sort.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
-      <button type="button" className={s.sortBtn} onClick={() => toggleSort(key)} title={text}>
-        <span className={s.full}>{text}</span>
-        <span className={s.shortLabel}>{short}</span>
-        {sort.key === key && (sort.dir === 1 ? <ArrowUp size={14} aria-hidden /> : <ArrowDown size={14} aria-hidden />)}
-      </button>
-    </th>
-  );
+  const maxRefills = Math.max(1, ...(report?.rows.map((r) => r.refills) ?? [0]));
 
   return (
     <>
@@ -115,7 +118,7 @@ export default function ReportsPage() {
           value={scope}
           onChange={setScope}
           options={[
-            { value: 'all', label: 'Все вместе' },
+            { value: 'all', label: 'Все' },
             { value: 'legal', label: 'Юрлица' },
             { value: 'person', label: 'Физлица' },
           ]}
@@ -125,51 +128,95 @@ export default function ReportsPage() {
       {q.isError && <ErrorBox error={q.error} />}
       {!report && q.isLoading && <Spinner />}
 
-      {report &&
-        (groups.length ? (
-          <div className={s.card}>
-            <table className={s.table}>
-              <thead>
-                <tr>
-                  {head('clientName', 'Клиент', 'Клиент', false, true)}
-                  {COLS.map((c) => head(c.key, c.label, c.short, c.opt))}
-                </tr>
-              </thead>
-              {groups.map((g) => (
-                <tbody key={g.id}>
-                  {scope === 'all' && (
-                    <tr className={s.group}>
-                      <td className={s.left}>
-                        {g.title} <span className={cx(s.tag, g.id === 'legal' ? s.legal : s.person)}>{g.rows.length}</span>
-                      </td>
-                      <Cells t={g.totals} strong />
-                    </tr>
-                  )}
-                  {g.rows.map((r) => (
-                    <tr key={r.clientId} className={s.row}>
-                      <td className={s.left}>
-                        <button type="button" className={s.client} onClick={() => setOpenId(r.clientId)}>
-                          {r.clientName}
-                        </button>
-                      </td>
-                      <Cells t={r} />
-                    </tr>
-                  ))}
-                </tbody>
-              ))}
-              <tfoot>
-                <tr className={s.total}>
-                  <td className={s.left}>Всего</td>
-                  <Cells t={total!} strong />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        ) : (
-          <EmptyState icon={<BarChart3 />} title="За этот месяц данных нет">
-            Отчёт строится из заявок и журнала техники. Если заправки не записывать, они не попадут в отчёт.
-          </EmptyState>
-        ))}
+      {report && (
+        <>
+          <Plate className={s.hero}>
+            <HeroStat title="Заявки" field="accepted" totals={report.totals[scope]} legal={report.totals.legal} person={report.totals.person} />
+            <HeroStat
+              title="Ремонтов"
+              field="repaired"
+              totals={report.totals[scope]}
+              legal={report.totals.legal}
+              person={report.totals.person}
+              note={report.totals[scope].declined ? `без ремонта: ${report.totals[scope].declined}` : undefined}
+            />
+            <HeroStat
+              title="Картриджей"
+              field="refills"
+              totals={report.totals[scope]}
+              legal={report.totals.legal}
+              person={report.totals.person}
+              note={report.totals[scope].parts ? `деталей: ${report.totals[scope].parts}` : undefined}
+            />
+            <div className={s.legend} aria-hidden>
+              <span><i className={s.splitLegal} /> юрлица</span>
+              <span><i className={s.splitPerson} /> физлица</span>
+            </div>
+          </Plate>
+
+          {groups.length > 0 && (
+            <div className={s.sortRow}>
+              <span className={s.sortLabel}>Сначала</span>
+              <Segmented<SortKey>
+                block
+                label="Порядок клиентов"
+                layoutId="report-sort"
+                value={sort}
+                onChange={setSort}
+                options={[
+                  { value: 'name', label: 'По имени' },
+                  { value: 'accepted', label: 'Заявки' },
+                  { value: 'refills', label: 'Картриджи' },
+                ]}
+              />
+            </div>
+          )}
+
+          {groups.map((g) => (
+            <section key={g.id} className={s.group} aria-label={g.title}>
+              <h3 className={s.groupHead}>
+                <i className={cx(s.dot, g.id === 'legal' ? s.splitLegal : s.splitPerson)} />
+                {g.title}
+                <span className={s.groupCount}>{g.rows.length}</span>
+              </h3>
+              <ul className={s.list}>
+                {g.rows.map((r) => (
+                  <li key={r.clientId}>
+                    <button type="button" className={cx('lg', s.row)} onClick={() => setOpenId(r.clientId)}>
+                      <span className={cx(s.avatar, r.kind === 'legal' ? s.avLegal : s.avPerson)} aria-hidden>
+                        {initials(r.clientName)}
+                      </span>
+                      <span className={s.who}>
+                        <span className={s.name}>{r.clientName}</span>
+                        <span className={s.sub}>техники в базе: {r.devices}</span>
+                        {(r.declined > 0 || r.parts > 0 || r.otherWorks > 0) && (
+                          <span className={s.chips}>
+                            {r.declined > 0 && <span className={s.chip}>без ремонта {r.declined}</span>}
+                            {r.parts > 0 && <span className={s.chip}>замен деталей {r.parts}</span>}
+                            {r.otherWorks > 0 && <span className={s.chip}>прочих работ {r.otherWorks}</span>}
+                          </span>
+                        )}
+                      </span>
+                      <span className={s.metrics}>
+                        <Metric value={r.accepted} name="заявки" />
+                        <Metric value={r.repaired} name="ремонты" />
+                        <Metric value={r.refills} name="картриджи" accent />
+                      </span>
+                      {r.refills > 0 && <i className={s.fillBar} style={{ width: `${Math.max(6, (r.refills / maxRefills) * 100)}%` }} aria-hidden />}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+
+          {!groups.length && (
+            <EmptyState icon={<BarChart3 />} title="За этот месяц данных нет">
+              Отчёт строится из заявок и журнала техники. Если заправки не записывать, они не попадут в отчёт.
+            </EmptyState>
+          )}
+        </>
+      )}
 
       <ClientReportSheet clientId={openId} month={month} onClose={() => setOpenId(null)} />
     </>
