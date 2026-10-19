@@ -59,7 +59,7 @@ export function DueInput({
   const presets = [
     { label: 'Сегодня', date: defaultDueDate(ws, 0) },
     { label: 'Завтра', date: defaultDueDate(ws, 1) },
-    { label: 'Через 3 дня', date: defaultDueDate(ws, 3) },
+    { label: 'Послезавтра', date: defaultDueDate(ws, 2) },
   ];
   const current = value ? new Date(value) : null;
   return (

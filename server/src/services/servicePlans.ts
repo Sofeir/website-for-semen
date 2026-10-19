@@ -93,6 +93,7 @@ export async function runServicePlans(now = new Date()): Promise<number> {
             startAt: start.toISOString(),
             dueAt: endOfWorkDay(parseYmd(day), ws).toISOString(),
             checklist,
+            visit: true,
           },
           outbox,
         );

@@ -1,6 +1,6 @@
 import type { Content } from 'pdfmake/interfaces';
 import type { CompanySettings } from '@sd/shared';
-import { baseDocument, COLORS, fmtDate, fmtDateTime, header, infoGrid, signatures } from './common';
+import { baseDocument, COLORS, fmtDate, fmtDateTime } from './common';
 
 export interface ReceiptData {
   company: CompanySettings;
@@ -55,70 +55,168 @@ export const ORDER_NOTE_TERMS = [
 ];
 
 /** На квитанции много текста — разделы поджаты, чтобы лист с подписями влез на одну страницу A4. */
-const SECTION: [number, number, number, number] = [0, 8, 0, 3];
-
 const joinList = (items: string[], note: string | null) => [items.join(', '), note].filter(Boolean).join('. ') || '—';
 
+// A4 — 595 × 842 pt. Лист делится пополам: сверху экземпляр заказчика, снизу — сервис-центра.
+const MARGIN = 18;
+const WIDTH = 595 - MARGIN * 2;
+const HALF = (842 - MARGIN * 2) / 2;
+const PAD = 12;
+
+const label = (text: string): Content => ({ text, fontSize: 6.5, color: COLORS.muted });
+const val = (text: string): Content => ({ text, fontSize: 7.5, color: COLORS.ink });
+
+/** Компактная таблица «подпись: значение», чтобы экземпляр поместился на пол-листа. */
+function grid(rows: [string, string | null | undefined][]): Content {
+  const body = rows.filter(([, v]) => v).map(([k, v]) => [label(k), val(v as string)]);
+  return {
+    table: { widths: [70, '*'], body },
+    layout: {
+      hLineWidth: () => 0,
+      vLineWidth: () => 0,
+      paddingLeft: () => 0,
+      paddingRight: () => 4,
+      paddingTop: () => 0.5,
+      paddingBottom: () => 0.5,
+    },
+  };
+}
+
+function signLine(title: string, name: string): any {
+  return {
+    width: '*',
+    stack: [
+      { text: title, fontSize: 6.5, color: COLORS.muted },
+      { canvas: [{ type: 'line', x1: 0, y1: 14, x2: 170, y2: 14, lineWidth: 0.6, lineColor: COLORS.ink }] },
+      { text: name, fontSize: 6.5, color: COLORS.muted, margin: [0, 2, 0, 0] },
+    ],
+  };
+}
+
 /**
- * Квитанция: каждая единица техники — на своём листе со своим номером, условиями, примечанием к заказу и подписями,
- * даже если в одном приёме их несколько (так листы можно отдать и подшить по отдельности).
+ * Квитанция-договор: на каждую единицу техники один лист A4 с двумя одинаковыми экземплярами —
+ * верхний отдаём заказчику, нижний остаётся в сервисе. Между ними линия отреза.
+ * В каждом экземпляре прежние «Условия», «Примечание к заказу» (15 пунктов договора), согласие, дата и подписи.
  */
 export function receiptTemplate(d: ReceiptData) {
   const numbers = d.devices.map((x) => x.number).join(', ');
   const docTitle = d.devices.length > 1 ? `Квитанции о приёме № ${numbers}` : `Квитанция о приёме № ${numbers}`;
   const client = d.client;
-  const terms = d.company.receiptTerms?.trim() || DEFAULT_RECEIPT_TERMS;
+  const company = d.company;
+  const terms = company.receiptTerms?.trim() || DEFAULT_RECEIPT_TERMS;
   const customerName = client.kind === 'legal' ? client.contactPerson || client.name : client.name;
+  const contacts = [company.address, company.phone, company.workHours].filter(Boolean).join(' · ');
+  const requisites = [company.legalName, company.inn && `ИНН ${company.inn}`].filter(Boolean).join(', ');
 
-  const content: Content[] = d.devices.flatMap((dev, i): Content[] => [
-    {
-      stack: [header(d.company)],
+  const copy = (dev: ReceiptData['devices'][number], whose: string): Content => {
+    // Длинная неисправность или комментарий занимают лишние строки — тогда мельче пункты договора,
+    // чтобы экземпляр всё равно поместился на пол-листа.
+    const long = [dev.title, dev.fault, d.comment, joinList(dev.appearance, dev.appearanceNote), joinList(dev.kit, dev.kitNote)]
+      .map((t) => Math.max(0, Math.ceil((t?.length ?? 0) / 44) - 1))
+      .reduce((a, b) => a + b, 0);
+    const shrink = Math.min(1, Math.max(0, long - 2) * 0.15);
+    return {
+      stack: [
+        {
+          columns: [
+            {
+              width: '*',
+              stack: [
+                { text: company.name || 'Сервисный центр', fontSize: 10, bold: true, color: COLORS.ink },
+                requisites ? { text: requisites, fontSize: 6.5, color: COLORS.muted } : '',
+                contacts ? { text: contacts, fontSize: 6.5, color: COLORS.muted } : '',
+              ],
+            },
+            { width: 'auto', text: whose, fontSize: 7, bold: true, color: COLORS.accent, alignment: 'right' },
+          ],
+        },
+        {
+          text: [
+            { text: `Квитанция о приёме № ${dev.number}`, fontSize: 11, bold: true, color: COLORS.ink },
+            { text: `   от ${fmtDateTime(d.createdAt)}, принял ${d.acceptedBy}`, fontSize: 7.5, color: COLORS.muted },
+          ],
+          margin: [0, 4, 0, 4],
+        },
+        {
+          columns: [
+            {
+              width: '*',
+              stack: [
+                grid([
+                  [client.kind === 'legal' ? 'Организация' : 'Клиент', client.name],
+                  ['ИНН', client.inn],
+                  ['Контактное лицо', client.contactPerson],
+                  ['Телефон', client.phone],
+                  ['Пароль', dev.hasPassword ? 'сообщён мастеру' : 'не сообщался'],
+                ]),
+              ],
+            },
+            {
+              width: '*',
+              stack: [
+                grid([
+                  ['Устройство', dev.title],
+                  ['Серийный номер', dev.serial || 'не указан'],
+                  ['Отдел', dev.department],
+                  ['Неисправность', dev.fault],
+                  ['Внешний вид', joinList(dev.appearance, dev.appearanceNote)],
+                  ['Комплектность', joinList(dev.kit, dev.kitNote)],
+                  ['Комментарий', d.comment],
+                ]),
+              ],
+            },
+          ],
+          columnGap: 12,
+        },
+        { text: 'Условия', fontSize: 7.5, bold: true, color: COLORS.ink, margin: [0, 4, 0, 1] },
+        { text: terms, fontSize: 6 - shrink * 0.8, color: COLORS.muted, lineHeight: 1.05 },
+        { text: 'Примечание к заказу', fontSize: 7.5, bold: true, color: COLORS.ink, margin: [0, 3, 0, 1] },
+        // pdfmake меняет переданный список, поэтому каждому экземпляру — своя копия
+        {
+          ol: [...ORDER_NOTE_TERMS],
+          fontSize: 5.8 - shrink,
+          color: COLORS.muted,
+          lineHeight: 1.03,
+          separator: ['', '.'],
+        } as Content,
+        {
+          columns: [
+            { text: 'С условиями договора, прейскурантом ознакомлен и согласен.', fontSize: 7.5, bold: true, color: COLORS.ink },
+            { text: `Дата: ${fmtDate(d.createdAt)}`, fontSize: 7.5, color: COLORS.ink, width: 'auto' },
+          ],
+          margin: [0, 4, 0, 2],
+        },
+        {
+          columns: [
+            signLine('Заказчик (представитель Заказчика): технику сдал', customerName),
+            signLine('Оборудование принял представитель Исполнителя', d.acceptedBy),
+          ],
+          columnGap: 30,
+        },
+      ],
+    };
+  };
+
+  const content: Content[] = d.devices.map(
+    (dev, i): Content => ({
       ...(i > 0 ? { pageBreak: 'before' as const } : {}),
-    },
-    { canvas: [{ type: 'line', x1: 0, y1: 8, x2: 515, y2: 8, lineWidth: 1.2, lineColor: COLORS.accent }] },
-    { text: `Квитанция о приёме № ${dev.number}`, style: 'title' },
-    { text: `Дата приёма: ${fmtDateTime(d.createdAt)}. Принял: ${d.acceptedBy}.`, style: 'subtitle' },
-    { text: client.kind === 'legal' ? 'Организация' : 'Клиент', style: 'section', margin: [0, 2, 0, 4] },
-    infoGrid(
-      [
-        [client.kind === 'legal' ? 'Название' : 'ФИО', client.name],
-        ['ИНН', client.inn],
-        ['Контактное лицо', client.contactPerson],
-        ['Телефон', client.phone],
-      ],
-      true,
-    ),
-    { text: 'Техника', style: 'section', margin: SECTION },
-    infoGrid(
-      [
-        ['Устройство', dev.title],
-        ['Серийный номер', dev.serial || 'не указан'],
-        ['Отдел', dev.department],
-        ['Неисправность со слов клиента', dev.fault],
-        ['Внешний вид', joinList(dev.appearance, dev.appearanceNote)],
-        ['Комплектность', joinList(dev.kit, dev.kitNote)],
-        ['Пароль устройства', dev.hasPassword ? 'сообщён мастеру' : 'не сообщался'],
-      ],
-      true,
-    ),
-    d.comment ? { text: `Комментарий: ${d.comment}`, style: 'value', margin: [0, 8, 0, 0] } : '',
-    { text: 'Условия', style: 'section', margin: SECTION },
-    { text: terms, style: 'terms', fontSize: 7, lineHeight: 1.15 },
-    { text: 'Примечание к заказу', style: 'section', margin: SECTION },
-    // pdfmake меняет переданный список, поэтому каждому листу — своя копия
-    { ol: [...ORDER_NOTE_TERMS], style: 'terms', fontSize: 7, lineHeight: 1.15, separator: ['', '.'] } as Content,
-    {
-      columns: [
-        { text: 'С условиями договора, прейскурантом ознакомлен и согласен.', style: 'value', bold: true },
-        { text: `Дата: ${fmtDate(d.createdAt)}`, style: 'value', width: 'auto' },
-      ],
-      margin: [0, 8, 0, 0],
-    },
-    // подписи не отрываются от условий: весь низ листа держится вместе
-    {
-      unbreakable: true,
-      stack: [signatures(['Технику сдал, с условиями согласен', customerName], ['Технику принял', d.acceptedBy], true)],
-    },
-  ]);
-  return baseDocument(content, { title: docTitle, margins: [36, 26, 36, 28] });
+      table: {
+        widths: [WIDTH - PAD * 2],
+        heights: [HALF - PAD * 2, HALF - PAD * 2],
+        dontBreakRows: true,
+        body: [[copy(dev, 'Экземпляр заказчика')], [copy(dev, 'Экземпляр сервис-центра')]],
+      },
+      layout: {
+        hLineWidth: (n: number) => (n === 1 ? 0.8 : 0),
+        vLineWidth: () => 0,
+        hLineColor: () => COLORS.muted,
+        hLineStyle: (n: number) => (n === 1 ? { dash: { length: 4, space: 3 } } : null),
+        paddingLeft: () => PAD,
+        paddingRight: () => PAD,
+        paddingTop: (n: number) => (n === 1 ? PAD : 0),
+        paddingBottom: (n: number) => (n === 0 ? PAD : 0),
+      },
+    }),
+  );
+  return baseDocument(content, { title: docTitle, margins: [MARGIN, MARGIN, MARGIN, MARGIN] });
 }

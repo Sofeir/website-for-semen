@@ -7,6 +7,7 @@ import {
   servicePlanSchema,
   type ClientDetail,
   type ServicePlan,
+  type VisitsData,
 } from '@sd/shared';
 import { many, one, tx } from '../db/pool';
 import { h, HttpError, intParam, parse } from '../lib/http';
@@ -14,7 +15,13 @@ import { requirePermission } from '../auth/session';
 import { createClient, replaceFleet, updateClient } from '../services/clients';
 import { CLIENT_FIELDS, DEVICE_SELECT, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT, taskAccess } from '../services/sql';
 import { broadcast } from '../notify/hub';
-import { getServicePlan, runServicePlans, SERVICE_PLAN_SELECT } from '../services/servicePlans';
+import {
+  getServicePlan,
+  nextVisitDate,
+  runServicePlans,
+  runServicePlansSoon,
+  SERVICE_PLAN_SELECT,
+} from '../services/servicePlans';
 import { assertActiveUser } from '../services/tasks';
 
 export const clientsRouter = Router();
@@ -211,11 +218,41 @@ clientsRouter.put(
   }),
 );
 
-/** Все графики выездов — для обзора «кто к кому и когда едет». */
+/** Ближайшие даты по графику — для обзора «кто к кому и когда едет». */
+const withUpcoming = (p: ServicePlan): ServicePlan => {
+  const upcoming = [p.nextDate];
+  while (upcoming.length < 3) upcoming.push(nextVisitDate(upcoming[upcoming.length - 1], p.everyN, p.unit));
+  return { ...p, upcoming };
+};
+
+/**
+ * Все выезды: задачи-выезды и графики регулярных выездов.
+ * Руководитель видит всех (можно отфильтровать по сотруднику), остальные — только свои.
+ */
 clientsRouter.get(
-  '/service-plans',
-  h(async (_req, res) => {
-    res.json(await many<ServicePlan>(`${SERVICE_PLAN_SELECT} WHERE p.is_active ORDER BY p.next_date, c.name`));
+  '/visits',
+  h(async (req, res) => {
+    await runServicePlansSoon();
+    const user = req.user!;
+    const all = can(user.role, 'tasks.manageAll');
+    const who = all ? (req.query.assignee ? Number(req.query.assignee) : null) : user.id;
+    const done = req.query.status === 'done';
+    const tParams: unknown[] = [];
+    const tWhere = ['t.is_visit', done ? `t.status <> 'open'` : `t.status = 'open'`];
+    if (who) {
+      tParams.push(who);
+      tWhere.push(all ? `t.assignee_id = $1` : `(t.assignee_id = $1 OR t.creator_id = $1)`);
+    }
+    const tasks = await many(
+      `${TASK_SELECT} WHERE ${tWhere.join(' AND ')} ORDER BY ${done ? 't.closed_at DESC NULLS LAST' : 't.due_at, t.id'} LIMIT 300`,
+      tParams,
+    );
+    const plans = await many<ServicePlan>(
+      `${SERVICE_PLAN_SELECT} WHERE p.is_active ${who ? 'AND p.assignee_id = $1' : ''} ORDER BY p.next_date, c.name`,
+      who ? [who] : [],
+    );
+    const data: VisitsData = { tasks, plans: plans.map(withUpcoming) };
+    res.json(data);
   }),
 );
 

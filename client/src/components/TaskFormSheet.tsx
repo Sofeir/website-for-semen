@@ -23,10 +23,12 @@ interface Props {
   presetTitle?: string;
   /** Чек-лист работ, например для выезда к клиенту. */
   presetChecklist?: string[];
+  /** Выезд к клиенту — задача попадёт в раздел «Выезды». */
+  visit?: boolean;
 }
 
 /** Создание и правка задачи. Рабочее время ограничено настройкой (по умолчанию до 19:00). */
-export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTitle, presetChecklist }: Props) {
+export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTitle, presetChecklist, visit }: Props) {
   const [checklist, setChecklist] = useState<string[]>([]);
   const me = useMe();
   const settings = useSettings();
@@ -69,8 +71,8 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
   const submit = form.handleSubmit(async (values) => {
     try {
       if (task) await api.put(`/tasks/${task.id}`, values as any);
-      else await api.post('/tasks', { ...values, checklist: checklist.map((x) => x.trim()).filter(Boolean) } as any);
-      inv('tasks', 'task', 'dashboard', 'order', 'client');
+      else await api.post('/tasks', { ...values, visit, checklist: checklist.map((x) => x.trim()).filter(Boolean) } as any);
+      inv('tasks', 'task', 'dashboard', 'order', 'client', 'visits');
       toast.success(task ? 'Задача сохранена' : 'Задача поставлена');
       onClose();
     } catch (e) {

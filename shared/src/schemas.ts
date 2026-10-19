@@ -169,6 +169,8 @@ export const taskSchema = z
     deadlineAt: isoDate.optional().nullable(),
     /** Чек-лист работ (например, на выезде у клиента). Пустые строки отбрасываются. */
     checklist: z.array(z.string().trim().max(300)).max(60).optional(),
+    /** Выезд к клиенту: попадает в раздел «Выезды». */
+    visit: z.boolean().optional(),
   })
   .superRefine((v, ctx) => {
     if (new Date(v.dueAt) < new Date(v.startAt)) {

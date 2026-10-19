@@ -311,7 +311,7 @@ export async function seedDemo() {
             faultText: null,
             appearance: ['Трещины', 'Сколы'],
             appearanceNote: 'Трещина матрицы в левом верхнем углу',
-            kit: ['Без ЗУ'],
+            kit: ['Без ЗУ и кабеля питания'],
             kitNote: null,
             devicePassword: null,
             department: null,

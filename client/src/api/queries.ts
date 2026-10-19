@@ -27,6 +27,7 @@ import type {
   TaskListItem,
   TransferTaskInput,
   ServicePlan,
+  VisitsData,
   UserBrief,
   WorkSettings,
 } from '@sd/shared';
@@ -58,9 +59,9 @@ export const keys = {
 /** Какие запросы сбрасывать, когда сервер сообщил «изменилось X». */
 export const SCOPE_KEYS: Record<string, string[]> = {
   orders: ['orders', 'order', 'dashboard', 'customerOrders', 'customerOrder'],
-  tasks: ['tasks', 'task', 'dashboard', 'order', 'customerTasks'],
+  tasks: ['tasks', 'task', 'dashboard', 'order', 'customerTasks', 'visits'],
   customers: ['customers'],
-  clients: ['clients', 'client', 'clientDevices', 'serviceChecklist', 'servicePlan', 'servicePlans'],
+  clients: ['clients', 'client', 'clientDevices', 'serviceChecklist', 'servicePlan', 'servicePlans', 'visits'],
   dashboard: ['dashboard'],
   dictionaries: ['dictionaries'],
   acts: ['acts', 'act', 'order'],
@@ -199,8 +200,12 @@ export const useServicePlan = (clientId: number) =>
     enabled: clientId > 0,
   });
 
-export const useServicePlans = (enabled = true) =>
-  useQuery({ queryKey: ['servicePlans'], queryFn: () => api.get<ServicePlan[]>('/service-plans'), enabled });
+export const useVisits = (f: { assignee?: string; status?: 'open' | 'done' }) =>
+  useQuery({
+    queryKey: ['visits', f],
+    queryFn: () => api.get<VisitsData>(`/visits${qs(f as Record<string, string>)}`),
+    placeholderData: keepPreviousData,
+  });
 
 /** Инвалидация после изменений, чтобы списки и карточки обновились сразу. */
 export function useInvalidate() {
