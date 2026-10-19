@@ -116,6 +116,8 @@ export async function createUsers(password: string, db: Db = pool) {
       [u.login, hash, u.fullName, u.role, u.phone ?? null],
     );
   }
+  // роли этих сотрудников взяты из примеров в ТЗ — помечаем, что их нужно уточнить
+  await db.query(`UPDATE users SET role_confirmed = false WHERE login IN ('stas', 'olga', 'lenya')`);
 }
 
 async function actor(login: string): Promise<Actor> {
@@ -145,7 +147,7 @@ const daysAgo = (n: number, hour = 12) => {
   return d;
 };
 
-/** Заказчики: один с открытым кабинетом (Мария, ей принадлежит заявка №001003), один ждёт подтверждения. Можно вызывать повторно. */
+/** Заказчики: один с открытым кабинетом (Мария, ей принадлежит заявка №001003), Можно вызывать повторно. */
 export async function seedCustomers() {
   const maria = await one<{ id: number; phone: string }>(`SELECT id, phone FROM clients WHERE name = 'Мария Лебедева' LIMIT 1`);
   if (maria) {
@@ -156,12 +158,8 @@ export async function seedCustomers() {
       [maria.phone, maria.id],
     );
   }
-  await pool.query(
-    `INSERT INTO users (login, password_hash, full_name, role, phone, email, reg_kind, reg_contact, pending)
-     SELECT 'sokolov', password_hash, 'ИП Соколов', 'customer', '+7 912 555-10-20', 'sokolov@example.com', 'legal', 'Андрей Соколов', true
-       FROM users WHERE login = 'semen'
-     ON CONFLICT (login) DO NOTHING`,
-  );
+  // ИП Соколов был тестовой регистрацией — убираем его и из уже созданных демо-баз
+  await pool.query(`DELETE FROM users WHERE login = 'sokolov' AND role = 'customer' AND pending`);
 }
 
 /** Живые демо-данные: клиенты, заявки на разных этапах, задачи, акт, чек-лист юрлица. */

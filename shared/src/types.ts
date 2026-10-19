@@ -26,6 +26,8 @@ export interface UserBrief {
   login?: string;
   phone?: string | null;
   isActive?: boolean;
+  /** false — роль пока предположение, её надо уточнить. Видит только администратор. */
+  roleConfirmed?: boolean;
 }
 
 export interface Stage {

@@ -228,6 +228,7 @@ export type UserCreateInput = z.infer<typeof userCreateSchema>;
 export const userUpdateSchema = z.object({
   fullName: text(120).min(2).optional(),
   role: z.enum(STAFF_ROLES).optional(),
+  roleConfirmed: z.boolean().optional(),
   phone: optionalText(32),
   isActive: z.boolean().optional(),
   password: z.union([z.literal(''), z.string().min(8, 'Пароль от 8 символов').max(200)]).optional(),

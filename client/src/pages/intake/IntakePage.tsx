@@ -161,6 +161,38 @@ export default function IntakePage() {
     } as any);
   };
 
+  // Клиента можно сохранить в базу сразу, не дожидаясь всего приёма: если что-то зависнет, вводить заново не придётся.
+  const [savingClient, setSavingClient] = useState(false);
+  const saveClient = async () => {
+    const nc = form.getValues('newClient');
+    if (!nc?.name?.trim()) {
+      form.setError('newClient.name' as any, { message: 'Укажите имя или название' });
+      return;
+    }
+    setSavingClient(true);
+    try {
+      const r = await api.post<{ id: number }>('/clients', { ...nc, kind } as any);
+      const saved = await api.get<Client>(`/clients/${r.id}`);
+      setMode('search');
+      selectClient(saved);
+      inv('clients');
+      toast.success('Клиент сохранён в базе', 'Можно продолжать приём.');
+    } catch (e) {
+      const err = e as ApiError;
+      if (err.data?.code === 'client_exists' && err.data.clientId) {
+        const existing = await api.get<Client>(`/clients/${err.data.clientId}`);
+        setMode('search');
+        selectClient(existing);
+        toast.success('Такой клиент уже есть', 'Выбрали его карточку.');
+      } else {
+        Object.entries(err.fields ?? {}).forEach(([k, v]) => form.setError(`newClient.${k}` as any, { message: v }));
+        toast.error('Не получилось сохранить клиента', err.message);
+      }
+    } finally {
+      setSavingClient(false);
+    }
+  };
+
   const submit = handleSubmit(
     async (values) => {
       setServerError('');
@@ -309,7 +341,16 @@ export default function IntakePage() {
                     </Field>
                   )}
                 </div>
-                <div>
+                <div className="row wrap">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<Save size={16} aria-hidden />}
+                    loading={savingClient}
+                    onClick={saveClient}
+                  >
+                    Сохранить клиента
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"

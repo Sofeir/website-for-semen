@@ -133,6 +133,16 @@ function Users() {
                 {u.fullName} {u.id === me.id && <Pill tone="outline">это вы</Pill>}
               </b>
               <span>логин {u.login}</span>
+              {u.roleConfirmed === false && (
+                <span className="row wrap" style={{ gap: 'var(--s-2)', marginTop: 4 }}>
+                  <Pill tone="amber" dot>
+                    Роль не уточнена — проверьте и выберите верную
+                  </Pill>
+                  <Button variant="ghost" size="sm" onClick={() => update(u, { roleConfirmed: true })}>
+                    Роль верна
+                  </Button>
+                </span>
+              )}
             </div>
             <Select
               aria-label={`Роль: ${u.fullName}`}
