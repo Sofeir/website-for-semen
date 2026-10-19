@@ -86,6 +86,34 @@ describe('кабинет заказчика по API', () => {
     );
   });
 
+  it('карточка техники: этапы и срок — только для своей техники', async () => {
+    const petr = await loginAs('petr');
+    const anna = await loginAs('anna');
+    const [first] = (await petr.get('/api/customer/orders')).body;
+    const detail = await petr.get(`/api/customer/orders/${first.id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body).toMatchObject({ number: first.number, fault: expect.any(String), serial: 'SN1' });
+    expect(detail.body.steps.length).toBeGreaterThanOrEqual(6);
+    const states = detail.body.steps.map((s: { state: string }) => s.state);
+    expect(states.filter((s: string) => s === 'current')).toHaveLength(1);
+    // до текущего этапа — «сделано», после — «впереди»
+    expect(states.join(',')).toMatch(/^(done,)*current(,todo)*$/);
+    // внутренние данные в ответ не попадают
+    expect(JSON.stringify(detail.body)).not.toMatch(/clientPhone|price|amount/);
+    // чужая и несуществующая техника — 404
+    expect((await anna.get(`/api/customer/orders/${first.id}`)).status).toBe(404);
+    expect((await petr.get('/api/customer/orders/999999')).status).toBe(404);
+  });
+
+  it('контакты сервис-центра и уведомления с параметрами адреса доступны заказчику', async () => {
+    const petr = await loginAs('petr');
+    const c = await petr.get('/api/customer/company');
+    expect(c.status).toBe(200);
+    expect(Object.keys(c.body).sort()).toEqual(['address', 'email', 'name', 'phone', 'workHours']);
+    expect((await petr.get('/api/notifications?limit=60')).status).toBe(200);
+    expect((await petr.get('/api/notifications?unread=1')).status).toBe(200);
+  });
+
   it('заказчик ставит задачу: она уходит руководителю с пометкой, видна только автору', async () => {
     const semen = await loginAs('semen');
     const anna = await loginAs('anna');

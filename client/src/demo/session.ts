@@ -76,7 +76,11 @@ const CUSTOMER_OPEN = ['/notifications', '/events'];
 
 export function denyCustomer(req: Request, _res: Response, next: NextFunction) {
   if (req.user?.role !== 'customer') return next();
-  if (CUSTOMER_OPEN.some((p) => req.path === p || req.path.startsWith(`${p}/`))) return next();
+  // полный адрес без «?query» и без префикса /api: так одинаково и на сервере, и в демо-версии
+  const path = String(req.originalUrl ?? req.url ?? req.path ?? '')
+    .split('?')[0]
+    .replace(/^\/api(?=\/)/, '');
+  if (CUSTOMER_OPEN.some((p) => path === p || path.startsWith(`${p}/`))) return next();
   next(forbidden());
 }
 

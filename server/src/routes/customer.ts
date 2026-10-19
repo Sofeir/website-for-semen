@@ -1,11 +1,17 @@
 import { Router } from 'express';
-import { customerTaskSchema, type CustomerOrder, type CustomerTask } from '@sd/shared';
+import {
+  customerTaskSchema,
+  type CustomerCompany,
+  type CustomerOrder,
+  type CustomerOrderDetail,
+  type CustomerTask,
+} from '@sd/shared';
 import { many, one, tx } from '../db/pool';
 import { h, HttpError, intParam, parse } from '../lib/http';
 import { requireCustomer } from '../auth/session';
 import { Outbox } from '../notify/notify';
 import { createTask } from '../services/tasks';
-import { getWorkSettings } from '../services/settings';
+import { getCompanySettings, getWorkSettings } from '../services/settings';
 import { defaultDue } from '../services/workTime';
 import { ORDER_SELECT } from '../services/sql';
 
@@ -124,3 +130,61 @@ customerRouter.get(
   }),
 );
 
+
+/** Подробности по одной своей технике: этапы ремонта и ожидаемый срок. Чужая техника — 404. */
+customerRouter.get(
+  '/customer/orders/:id',
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const clientId = req.user!.clientId;
+    const o = clientId
+      ? await one<Record<string, any>>(`${ORDER_SELECT} WHERE o.id = $1 AND o.client_id = $2`, [id, clientId])
+      : null;
+    if (!o) throw new HttpError(404, 'Техника не найдена');
+    const stages = await many<{ id: number; code: string; name: string; sort: number; is_final: boolean }>(
+      `SELECT id, code, name, sort, is_final FROM stages WHERE is_active OR id = $1 ORDER BY sort`,
+      [o.stageId],
+    );
+    const started = new Map(
+      (
+        await many<{ stage_id: number; at: string }>(
+          `SELECT stage_id, max(started_at) AS at FROM order_history WHERE order_id = $1 AND kind = 'stage' GROUP BY stage_id`,
+          [id],
+        )
+      ).map((r) => [r.stage_id, r.at]),
+    );
+    const current = stages.find((s) => s.id === o.stageId);
+    const detail: CustomerOrderDetail = {
+      id: o.id,
+      number: o.number,
+      deviceTitle: o.deviceTitle,
+      serial: o.serial,
+      fault: o.fault,
+      stageName: o.stageName,
+      stageCode: o.stageCode,
+      stageColor: o.stageColor,
+      isFinal: Boolean(current?.is_final),
+      createdAt: o.createdAt,
+      issuedAt: o.issuedAt,
+      stageDueAt: current?.is_final ? null : o.stageDueAt,
+      responsibleName: current?.is_final ? null : o.responsibleName,
+      steps: stages.map((s) => ({
+        code: s.code,
+        name: s.name,
+        state: s.id === o.stageId ? (s.is_final ? 'done' : 'current') : s.sort < (current?.sort ?? 0) ? 'done' : 'todo',
+        startedAt: started.get(s.id) ?? null,
+      })),
+    };
+    res.json(detail);
+  }),
+);
+
+/** Как с нами связаться: телефон, адрес и часы работы из реквизитов сервис-центра. */
+customerRouter.get(
+  '/customer/company',
+  h(async (_req, res) => {
+    const c = await getCompanySettings();
+    const out: CustomerCompany = { name: c.name, phone: c.phone, email: c.email, address: c.address, workHours: c.workHours };
+    res.json(out);
+  }),
+);

@@ -10,12 +10,11 @@ import { useIsMobile } from '@/lib/hooks';
 import { Brand } from '@/layout/Brand';
 import { NotificationsPanel } from '@/layout/NotificationsPanel';
 import { IconButton } from '@/ui/Button';
-import { Avatar, Spinner, Tabs } from '@/ui/Display';
+import { Avatar, Spinner } from '@/ui/Display';
 import { Sheet } from '@/ui/Sheet';
 import s from './Customer.module.css';
 
-const CustomerTasksPage = lazy(() => import('./CustomerTasksPage'));
-const CustomerOrdersPage = lazy(() => import('./CustomerOrdersPage'));
+const CustomerHome = lazy(() => import('./CustomerHome'));
 const ProfilePage = lazy(() => import('@/pages/ProfilePage'));
 
 /**
@@ -32,13 +31,10 @@ export function CustomerShell() {
   const unread = useNotifications().data?.unread ?? 0;
   useServerEvents(true);
 
-  const section = pathname.startsWith('/orders') ? 'orders' : pathname.startsWith('/profile') ? 'profile' : 'tasks';
-
   let page;
-  if (pathname === '/') page = <CustomerTasksPage />;
-  else if (pathname.startsWith('/orders')) page = <CustomerOrdersPage />;
+  if (pathname === '/') page = <CustomerHome />;
   else if (pathname.startsWith('/profile')) page = <ProfilePage />;
-  else page = <Navigate to="/" replace />;
+  else page = <Navigate to="/" replace />; // всё остальное, включая старые адреса сотрудников, ведёт на главную кабинета
 
   return (
     <div className={s.shell}>
@@ -78,19 +74,6 @@ export function CustomerShell() {
       </header>
 
       <main className={s.main}>
-        {section !== 'profile' && (
-          <div className={s.tabs}>
-            <Tabs
-              label="Разделы кабинета"
-              value={section}
-              onChange={(v) => navigate(v === 'orders' ? '/orders' : '/')}
-              items={[
-                { value: 'tasks', label: 'Мои задачи' },
-                { value: 'orders', label: 'Моя техника' },
-              ]}
-            />
-          </div>
-        )}
         <Suspense fallback={<Spinner />}>{page}</Suspense>
       </main>
 

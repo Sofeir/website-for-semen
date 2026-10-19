@@ -3,11 +3,10 @@ import { ListPlus, ListChecks, X } from 'lucide-react';
 import { customerTaskSchema, type CustomerTask } from '@sd/shared';
 import { api, ApiError } from '@/api/http';
 import { useCustomerTasks, useInvalidate } from '@/api/queries';
-import { useDocumentTitle } from '@/lib/hooks';
 import { fmtWhen } from '@/lib/dates';
 import { Button } from '@/ui/Button';
 import { useConfirm } from '@/ui/Confirm';
-import { Card, EmptyState, ErrorBox, PageHeader, Pill, Spinner, Tabs } from '@/ui/Display';
+import { Card, CardHead, EmptyState, ErrorBox, Pill, Spinner, Tabs } from '@/ui/Display';
 import { Field, Input, Textarea } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
@@ -19,27 +18,22 @@ const STATUS: Record<CustomerTask['status'], { label: string; tone: string }> = 
   cancelled: { label: 'Отменена', tone: 'slate' },
 };
 
-export default function CustomerTasksPage() {
-  useDocumentTitle('Мои задачи');
+/** Карточка «Мои задачи»: список с переключателем «в работе / завершённые». */
+export function TasksPanel({ onCreate }: { onCreate: () => void }) {
   const tasks = useCustomerTasks();
   const [tab, setTab] = useState<'open' | 'closed'>('open');
-  const [creating, setCreating] = useState(false);
   const all = tasks.data ?? [];
   const open = all.filter((t) => t.status === 'open');
   const closed = all.filter((t) => t.status !== 'open');
   const list = tab === 'open' ? open : closed;
 
   return (
-    <>
-      <PageHeader
-        title="Мои задачи"
-        subtitle="Опишите, что нужно сделать. Задача сразу попадёт руководителю, а здесь вы увидите, как она движется."
-        actions={
-          <Button icon={<ListPlus size={18} aria-hidden />} onClick={() => setCreating(true)}>
-            Поставить задачу
-          </Button>
-        }
-      />
+    <Card>
+      <CardHead title="Мои задачи">
+        <Button size="sm" icon={<ListPlus size={18} aria-hidden />} onClick={onCreate}>
+          Поставить задачу
+        </Button>
+      </CardHead>
       <Tabs
         label="Статус задач"
         value={tab}
@@ -50,37 +44,22 @@ export default function CustomerTasksPage() {
         ]}
       />
       <div style={{ height: 'var(--s-4)' }} />
-
       {tasks.isError ? (
         <ErrorBox error={tasks.error} />
       ) : !tasks.data ? (
         <Spinner />
       ) : list.length === 0 ? (
-        <EmptyState
-          icon={<ListChecks />}
-          title={tab === 'open' ? 'Открытых задач нет' : 'Завершённых задач пока нет'}
-          action={
-            tab === 'open' ? (
-              <Button icon={<ListPlus size={18} aria-hidden />} onClick={() => setCreating(true)}>
-                Поставить задачу
-              </Button>
-            ) : undefined
-          }
-        >
+        <EmptyState icon={<ListChecks />} title={tab === 'open' ? 'Открытых задач нет' : 'Завершённых задач пока нет'}>
           {tab === 'open' ? 'Поставьте задачу, и мы сразу возьмёмся за неё.' : 'Когда мы закончим работу, задача появится здесь.'}
         </EmptyState>
       ) : (
-        <Card>
-          <div className={s.list}>
-            {list.map((t) => (
-              <TaskItem key={t.id} task={t} />
-            ))}
-          </div>
-        </Card>
+        <div className={s.list}>
+          {list.map((t) => (
+            <TaskItem key={t.id} task={t} />
+          ))}
+        </div>
       )}
-
-      <NewTaskSheet open={creating} onClose={() => setCreating(false)} />
-    </>
+    </Card>
   );
 }
 
@@ -147,7 +126,7 @@ function TaskItem({ task }: { task: CustomerTask }) {
   );
 }
 
-function NewTaskSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function NewTaskSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const toast = useToast();
   const inv = useInvalidate();
   const [title, setTitle] = useState('');
