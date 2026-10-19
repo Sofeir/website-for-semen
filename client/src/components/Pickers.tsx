@@ -1,5 +1,5 @@
 import { forwardRef, type SelectHTMLAttributes } from 'react';
-import { ROLE_LABELS, ROLES, type Role } from '@sd/shared';
+import { ROLE_LABELS, STAFF_ROLES, type Role } from '@sd/shared';
 import { useSettings, useUsers } from '@/api/queries';
 import { defaultDueDate, fromLocalInput, sameDay, toLocalInput } from '@/lib/dates';
 import { cx } from '@/ui/Button';
@@ -13,7 +13,7 @@ export const UserSelect = forwardRef<
 >(function UserSelect({ preferRoles, placeholder = 'Выберите сотрудника', ...rest }, ref) {
   const users = useUsers();
   const active = (users.data ?? []).filter((u) => u.isActive !== false);
-  const order = [...(preferRoles ?? []), ...ROLES.filter((r) => !preferRoles?.includes(r))];
+  const order = [...(preferRoles ?? []), ...STAFF_ROLES.filter((r) => !preferRoles?.includes(r))];
   return (
     <Select ref={ref} {...rest}>
       <option value="">{users.isLoading ? 'Загружаем…' : placeholder}</option>

@@ -148,6 +148,11 @@
   height: 20px;
 }
 
+.help a {
+  color: var(--primary-text);
+  font-weight: 600;
+}
+
 .help {
   margin-top: var(--s-5);
   font-size: var(--fs-sm);

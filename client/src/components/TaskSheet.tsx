@@ -141,6 +141,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                   Закрыта
                 </Pill>
               )}
+              {task.fromCustomer && <Pill tone="blue">От заказчика</Pill>}
               {task.isStageTask && <Pill tone="outline">Этап заявки</Pill>}
             </span>
           )

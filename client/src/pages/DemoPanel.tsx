@@ -7,6 +7,7 @@ const ACCOUNTS = [
   { login: 'stas', label: 'Диагност', who: 'Стас' },
   { login: 'lenya', label: 'Мастер', who: 'Лёня' },
   { login: 'admin', label: 'Администратор', who: 'admin' },
+  { login: 'maria', label: 'Заказчик', who: 'Мария' },
 ];
 
 /** Подсказка на экране входа демо-версии: чьим сотрудником войти и как стереть данные. */

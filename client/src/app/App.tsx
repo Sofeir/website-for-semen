@@ -13,6 +13,9 @@ import { Lock } from 'lucide-react';
 import { AuthProvider, useAuth } from './auth';
 
 const LoginPage = lazy(() => import('@/pages/LoginPage'));
+const RegisterPage = lazy(() => import('@/pages/RegisterPage'));
+const CustomersPage = lazy(() => import('@/pages/customers/CustomersPage'));
+const CustomerShell = lazy(() => import('@/pages/customer/CustomerShell').then((m) => ({ default: m.CustomerShell })));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const OrdersPage = lazy(() => import('@/pages/orders/OrdersPage'));
 const OrderPage = lazy(() => import('@/pages/orders/OrderPage'));
@@ -46,6 +49,12 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+/** Заказчик видит свой кабинет, сотрудник — рабочее место. */
+function RoleShell() {
+  const { user } = useAuth();
+  return user?.role === 'customer' ? <CustomerShell /> : <AppShell />;
+}
+
 function RequirePermission({ permission, children }: { permission: Permission; children: ReactNode }) {
   const { can } = useAuth();
   if (!can(permission)) {
@@ -69,10 +78,11 @@ export function App() {
                 <Suspense fallback={<Spinner />}>
                   <Routes>
                     <Route path="/login" element={<LoginPage />} />
+                    <Route path="/register" element={<RegisterPage />} />
                     <Route
                       element={
                         <RequireAuth>
-                          <AppShell />
+                          <RoleShell />
                         </RequireAuth>
                       }
                     >
@@ -89,6 +99,14 @@ export function App() {
                       />
                       <Route path="clients" element={<ClientsPage />} />
                       <Route path="clients/:id" element={<ClientPage />} />
+                      <Route
+                        path="customers"
+                        element={
+                          <RequirePermission permission="customers.manage">
+                            <CustomersPage />
+                          </RequirePermission>
+                        }
+                      />
                       <Route path="tasks" element={<TasksPage />} />
                       <Route path="calendar" element={<CalendarPage />} />
                       <Route path="acts" element={<ActsPage />} />

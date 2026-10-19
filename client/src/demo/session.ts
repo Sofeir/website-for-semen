@@ -10,6 +10,7 @@ const KEY = 'asoft-demo-user';
 
 export interface SessionUser extends Actor {
   login: string;
+  clientId: number | null;
   sessionId: string;
   csrfToken: string;
 }
@@ -44,11 +45,20 @@ export async function loadSession(req: Request, _res: Response, next: NextFuncti
   try {
     const id = read();
     if (id) {
-      const u = await one<{ id: number; login: string; full_name: string; role: Role }>(
-        'SELECT id, login, full_name, role FROM users WHERE id = $1 AND is_active',
+      const u = await one<{ id: number; login: string; full_name: string; role: Role; client_id: number | null }>(
+        'SELECT id, login, full_name, role, client_id FROM users WHERE id = $1 AND is_active',
         [id],
       );
-      if (u) req.user = { id: u.id, login: u.login, fullName: u.full_name, role: u.role, sessionId: 'demo', csrfToken: 'demo-csrf' };
+      if (u)
+        req.user = {
+          id: u.id,
+          login: u.login,
+          fullName: u.full_name,
+          role: u.role,
+          clientId: u.client_id,
+          sessionId: 'demo',
+          csrfToken: 'demo-csrf',
+        };
     }
     next();
   } catch (e) {
@@ -58,6 +68,21 @@ export async function loadSession(req: Request, _res: Response, next: NextFuncti
 
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   if (!req.user) return next(new HttpError(401, 'Войдите в систему'));
+  next();
+}
+
+/** Всё, что не про заказчика, ему закрыто. */
+const CUSTOMER_OPEN = ['/notifications', '/events'];
+
+export function denyCustomer(req: Request, _res: Response, next: NextFunction) {
+  if (req.user?.role !== 'customer') return next();
+  if (CUSTOMER_OPEN.some((p) => req.path === p || req.path.startsWith(`${p}/`))) return next();
+  next(forbidden());
+}
+
+export function requireCustomer(req: Request, _res: Response, next: NextFunction) {
+  if (!req.user) return next(new HttpError(401, 'Войдите в систему'));
+  if (req.user.role !== 'customer') return next(forbidden());
   next();
 }
 

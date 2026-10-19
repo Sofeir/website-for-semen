@@ -7,6 +7,9 @@ import type {
   ClientDetail,
   Client,
   CloseTasksInput,
+  CustomerAccount,
+  CustomerOrder,
+  CustomerTask,
   CompanySettings,
   DashboardData,
   Device,
@@ -42,12 +45,16 @@ export const keys = {
   notifications: ['notifications'] as const,
   acts: (f?: object) => ['acts', f ?? {}] as const,
   act: (id: number) => ['act', id] as const,
+  customers: ['customers'] as const,
+  customerTasks: ['customerTasks'] as const,
+  customerOrders: ['customerOrders'] as const,
 };
 
 /** Какие запросы сбрасывать, когда сервер сообщил «изменилось X». */
 export const SCOPE_KEYS: Record<string, string[]> = {
   orders: ['orders', 'order', 'dashboard'],
-  tasks: ['tasks', 'task', 'dashboard', 'order'],
+  tasks: ['tasks', 'task', 'dashboard', 'order', 'customerTasks'],
+  customers: ['customers'],
   clients: ['clients', 'client', 'clientDevices'],
   dashboard: ['dashboard'],
   dictionaries: ['dictionaries'],
@@ -150,6 +157,15 @@ export const useActs = (f: { order?: number } = {}) =>
 
 export const useAct = (id: number) =>
   useQuery({ queryKey: keys.act(id), queryFn: () => api.get<Act>(`/acts/${id}`), enabled: id > 0 });
+
+export const useCustomers = () =>
+  useQuery({ queryKey: keys.customers, queryFn: () => api.get<CustomerAccount[]>('/customers') });
+
+export const useCustomerTasks = () =>
+  useQuery({ queryKey: keys.customerTasks, queryFn: () => api.get<CustomerTask[]>('/customer/tasks') });
+
+export const useCustomerOrders = () =>
+  useQuery({ queryKey: keys.customerOrders, queryFn: () => api.get<CustomerOrder[]>('/customer/orders') });
 
 /** Инвалидация после изменений, чтобы списки и карточки обновились сразу. */
 export function useInvalidate() {

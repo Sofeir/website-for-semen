@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ROLES } from './roles';
+import { STAFF_ROLES } from './roles';
 
 const text = (max = 255) => z.string().trim().max(max);
 /** Необязательный текст: пустая строка превращается в null. */
@@ -219,7 +219,7 @@ export const userCreateSchema = z.object({
     .max(64)
     .regex(/^[a-zA-Z0-9._-]+$/, 'Латиница, цифры, точка, дефис'),
   fullName: text(120).min(2, 'Имя и фамилия'),
-  role: z.enum(ROLES),
+  role: z.enum(STAFF_ROLES),
   phone: optionalText(32),
   password: z.string().min(8, 'Пароль от 8 символов').max(200),
 });
@@ -227,12 +227,39 @@ export type UserCreateInput = z.infer<typeof userCreateSchema>;
 
 export const userUpdateSchema = z.object({
   fullName: text(120).min(2).optional(),
-  role: z.enum(ROLES).optional(),
+  role: z.enum(STAFF_ROLES).optional(),
   phone: optionalText(32),
   isActive: z.boolean().optional(),
   password: z.union([z.literal(''), z.string().min(8, 'Пароль от 8 символов').max(200)]).optional(),
 });
 export type UserUpdateInput = z.infer<typeof userUpdateSchema>;
+
+// ---------- Заказчик ----------
+
+/** Самостоятельная регистрация заказчика. Доступ открывает руководитель после проверки. */
+export const registerSchema = z.object({
+  kind: z.enum(CLIENT_KINDS),
+  fullName: text(120).min(2, 'Укажите имя или название организации'),
+  contactPerson: optionalText(120),
+  phone: text(32).min(6, 'Укажите телефон для связи'),
+  email: optionalText(120),
+  login: z
+    .string()
+    .trim()
+    .min(3, 'Минимум 3 символа')
+    .max(64)
+    .regex(/^[a-zA-Z0-9._-]+$/, 'Латиница, цифры, точка, дефис'),
+  password: z.string().min(8, 'Пароль от 8 символов').max(200),
+});
+export type RegisterInput = z.infer<typeof registerSchema>;
+
+/** Задача от заказчика. Исполнителя и срок по умолчанию выбирает система. */
+export const customerTaskSchema = z.object({
+  title: text(200).min(2, 'Опишите, что нужно сделать'),
+  description: optionalText(4000),
+  dueAt: isoDate.optional().nullable(),
+});
+export type CustomerTaskInput = z.infer<typeof customerTaskSchema>;
 
 export const profileSchema = z.object({
   notifyInApp: z.boolean(),

@@ -13,6 +13,8 @@ export interface Me {
   notifyMax: boolean;
   telegramChatId: string | null;
   maxUserId: string | null;
+  /** Для заказчика — карточка клиента, к которой привязан кабинет. */
+  clientId?: number | null;
   /** Какие внешние каналы включены на сервере (есть токен бота). */
   channels: { telegram: boolean; max: boolean };
 }
@@ -211,6 +213,8 @@ export interface TaskListItem {
   closedByName: string | null;
   closeComment: string | null;
   isStageTask: boolean;
+  /** Задачу поставил заказчик из своего кабинета. */
+  fromCustomer: boolean;
   overdue: boolean;
 }
 
@@ -311,4 +315,48 @@ export interface ImportPreview {
 export interface Paged<T> {
   items: T[];
   total: number;
+}
+
+// ---------- Заказчик ----------
+
+/** Задача заказчика в его кабинете: только то, что ему нужно знать. */
+export interface CustomerTask {
+  id: number;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  assigneeName: string;
+  dueAt: string;
+  createdAt: string;
+  closedAt: string | null;
+  closeComment: string | null;
+}
+
+/** Техника заказчика в ремонте — только чтение. */
+export interface CustomerOrder {
+  id: number;
+  number: string;
+  deviceTitle: string;
+  stageName: string;
+  stageCode: string;
+  stageColor: string;
+  isFinal: boolean;
+  createdAt: string;
+  issuedAt: string | null;
+}
+
+/** Строка в списке заказчиков у руководителя. */
+export interface CustomerAccount {
+  id: number;
+  login: string;
+  fullName: string;
+  phone: string | null;
+  email: string | null;
+  kind: ClientKind;
+  pending: boolean;
+  isActive: boolean;
+  clientId: number | null;
+  clientName: string | null;
+  createdAt: string;
+  tasksCount: number;
 }

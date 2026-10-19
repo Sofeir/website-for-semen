@@ -1,0 +1,104 @@
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: var(--s-4) 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.row:first-child {
+  border-top: none;
+  padding-top: var(--s-2);
+}
+
+@media (min-width: 900px) {
+  .row {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--s-5);
+  }
+}
+
+.who {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--blue-100);
+  color: var(--blue-700);
+}
+
+.avatar svg {
+  width: 22px;
+  height: 22px;
+}
+
+.whoText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.whoText b {
+  overflow-wrap: anywhere;
+}
+
+.contacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--s-4);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.contacts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.contacts svg {
+  width: 14px;
+  height: 14px;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-3);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.link {
+  color: var(--primary-text);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}

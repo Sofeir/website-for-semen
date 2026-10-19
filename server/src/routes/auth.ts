@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { changePasswordSchema, loginSchema, profileSchema, type Me } from '@sd/shared';
+import { changePasswordSchema, loginSchema, normalizePhone, profileSchema, registerSchema, type Me } from '@sd/shared';
 import { one, pool } from '../db/pool';
 import { h, HttpError, parse } from '../lib/http';
 import { createSession, destroySession, requireAuth } from '../auth/session';
 import { loginRetryAfter, registerLoginFail, resetLoginFails } from '../auth/rateLimit';
 import { channels } from '../notify/channels';
+import { Outbox } from '../notify/notify';
 import { config } from '../config';
 
 export const authRouter = Router();
@@ -17,7 +18,7 @@ async function loadMe(userId: number): Promise<Me> {
   const u = await one(
     `SELECT id, login, full_name AS "fullName", role, phone, onboarded_at IS NOT NULL AS onboarded,
             notify_inapp AS "notifyInApp", notify_telegram AS "notifyTelegram", notify_max AS "notifyMax",
-            telegram_chat_id AS "telegramChatId", max_user_id AS "maxUserId"
+            telegram_chat_id AS "telegramChatId", max_user_id AS "maxUserId", client_id AS "clientId"
        FROM users WHERE id = $1`,
     [userId],
   );
@@ -40,8 +41,8 @@ authRouter.post(
       res.set('Retry-After', String(wait));
       throw new HttpError(429, `Слишком много попыток. Попробуйте через ${Math.ceil(wait / 60)} мин.`);
     }
-    const user = await one<{ id: number; password_hash: string; is_active: boolean }>(
-      'SELECT id, password_hash, is_active FROM users WHERE lower(login) = lower($1)',
+    const user = await one<{ id: number; password_hash: string; is_active: boolean; pending: boolean }>(
+      'SELECT id, password_hash, is_active, pending FROM users WHERE lower(login) = lower($1)',
       [input.login],
     );
     const ok = await bcrypt.compare(input.password, user?.password_hash ?? DUMMY_HASH);
@@ -50,8 +51,48 @@ authRouter.post(
       throw new HttpError(401, 'Неверный логин или пароль');
     }
     resetLoginFails(ip, input.login);
+    // Пароль верный, но руководитель ещё не открыл доступ — говорим об этом прямо, а не «неверный пароль».
+    if (user.pending) throw new HttpError(403, 'Регистрация ждёт подтверждения руководителем. Мы свяжемся с вами по указанному телефону.', { code: 'pending' });
     const csrfToken = await createSession(res, user.id, input.remember, req.get('user-agent'));
     res.json({ user: await loadMe(user.id), csrfToken, appName: config.appName });
+  }),
+);
+
+// Самостоятельная регистрация заказчика: не больше нескольких попыток в час с одного адреса.
+const REGISTER_LIMIT = 8;
+const registerLog = new Map<string, number[]>();
+
+authRouter.post(
+  '/register',
+  h(async (req, res) => {
+    const input = parse(registerSchema, req.body);
+    const ip = req.ip || 'unknown';
+    const now = Date.now();
+    const recent = (registerLog.get(ip) ?? []).filter((x) => now - x < 3600_000);
+    if (recent.length >= REGISTER_LIMIT) throw new HttpError(429, 'Слишком много регистраций с этого адреса. Попробуйте позже.');
+    const taken = await one('SELECT 1 FROM users WHERE lower(login) = lower($1)', [input.login]);
+    if (taken) throw new HttpError(409, 'Такой логин уже занят', { fields: { login: 'Такой логин уже занят' } });
+    await pool.query(
+      `INSERT INTO users (login, password_hash, full_name, role, phone, email, reg_kind, reg_contact, pending)
+       VALUES ($1, $2, $3, 'customer', $4, $5, $6, $7, true)`,
+      [input.login, await bcrypt.hash(input.password, 10), input.fullName, input.phone, input.email, input.kind, input.contactPerson],
+    );
+    registerLog.set(ip, [...recent, now]);
+    // Руководителю и администратору — уведомление, что есть кого подтвердить.
+    const outbox = new Outbox();
+    const bosses = await pool.query<{ id: number }>(`SELECT id FROM users WHERE is_active AND role IN ('admin', 'manager')`);
+    for (const b of bosses.rows) {
+      outbox.add({
+        userId: b.id,
+        type: 'customer_registered',
+        title: `Новая регистрация заказчика: ${input.fullName}`,
+        body: `Телефон: ${input.phone}. Откройте раздел «Заказчики», чтобы открыть доступ.`,
+        link: '/customers',
+      });
+    }
+    outbox.touch('customers');
+    await outbox.flush();
+    res.status(201).json({ ok: true, phoneDigits: normalizePhone(input.phone) });
   }),
 );
 

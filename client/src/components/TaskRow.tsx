@@ -54,6 +54,7 @@ export function TaskRow({ task, selected, onToggle, onOpen, showAssignee, checkL
               </span>
             )}
             {task.clientName && !task.orderNumber && <span className={s.metaItem}>{task.clientName}</span>}
+            {task.fromCustomer && <Pill tone="blue">от заказчика</Pill>}
             {task.isStageTask && <Pill tone="outline">этап заявки</Pill>}
           </span>
         </span>

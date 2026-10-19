@@ -2,11 +2,11 @@
 // Демо-режим: серверный код работает прямо в браузере поверх Postgres в WebAssembly.
 import './polyfills';
 import { Router, dispatch } from 'express';
-import { createUsers, seedDemo, seedReference } from '../../../server/src/db/seed';
+import { createUsers, seedCustomers, seedDemo, seedReference } from '../../../server/src/db/seed';
 import { migrate } from '../../../server/src/db/migrate';
 import { one, tx } from '../../../server/src/db/pool';
 import { errorHandler } from '../../../server/src/lib/http';
-import { csrfProtection, loadSession, requireAuth } from '../../../server/src/auth/session';
+import { csrfProtection, denyCustomer, loadSession, requireAuth } from '../../../server/src/auth/session';
 import { authRouter } from '../../../server/src/routes/auth';
 import { dictionariesRouter } from '../../../server/src/routes/dictionaries';
 import { usersRouter } from '../../../server/src/routes/users';
@@ -18,6 +18,8 @@ import { actsRouter } from '../../../server/src/routes/acts';
 import { documentsRouter } from '../../../server/src/routes/documents';
 import { filesRouter } from '../../../server/src/routes/files';
 import { importRouter } from '../../../server/src/routes/import';
+import { customerRouter } from '../../../server/src/routes/customer';
+import { customersRouter } from '../../../server/src/routes/customers';
 import { resetDb } from './pg-shim';
 
 export const DEMO_PASSWORD = 'demo';
@@ -28,7 +30,10 @@ const api: any = Router();
 api.use(csrfProtection);
 api.use('/auth', authRouter);
 api.use(requireAuth);
+api.use(customerRouter);
+api.use(denyCustomer);
 for (const r of [
+  customersRouter,
   dictionariesRouter,
   usersRouter,
   clientsRouter,
@@ -56,6 +61,8 @@ export function bootDemo() {
       await createUsers(DEMO_PASSWORD);
       await seedDemo();
     }
+    // демо-базы, созданные до появления заказчиков, тоже получают демо-заказчиков
+    await seedCustomers();
   })();
   return ready;
 }

@@ -145,6 +145,25 @@ const daysAgo = (n: number, hour = 12) => {
   return d;
 };
 
+/** Заказчики: один с открытым кабинетом (Мария, ей принадлежит заявка №001003), один ждёт подтверждения. Можно вызывать повторно. */
+export async function seedCustomers() {
+  const maria = await one<{ id: number; phone: string }>(`SELECT id, phone FROM clients WHERE name = 'Мария Лебедева' LIMIT 1`);
+  if (maria) {
+    await pool.query(
+      `INSERT INTO users (login, password_hash, full_name, role, phone, client_id)
+       SELECT 'maria', password_hash, 'Мария Лебедева', 'customer', $1, $2 FROM users WHERE login = 'semen'
+       ON CONFLICT (login) DO NOTHING`,
+      [maria.phone, maria.id],
+    );
+  }
+  await pool.query(
+    `INSERT INTO users (login, password_hash, full_name, role, phone, email, reg_kind, reg_contact, pending)
+     SELECT 'sokolov', password_hash, 'ИП Соколов', 'customer', '+7 912 555-10-20', 'sokolov@example.com', 'legal', 'Андрей Соколов', true
+       FROM users WHERE login = 'semen'
+     ON CONFLICT (login) DO NOTHING`,
+  );
+}
+
 /** Живые демо-данные: клиенты, заявки на разных этапах, задачи, акт, чек-лист юрлица. */
 export async function seedDemo() {
   const semen = await actor('semen');
@@ -613,6 +632,8 @@ export async function seedDemo() {
   await pool.query(`UPDATE orders SET created_at = $2, issued_at = $3 WHERE id = $1`, [o6, daysAgo(12), daysAgo(5)]);
   await pool.query(`UPDATE intake_batches SET created_at = $2 WHERE id = $1`, [r6.batchId, daysAgo(12)]);
 
+  await seedCustomers();
+
   await ob.flush();
 }
 
@@ -630,7 +651,7 @@ if (isMain) {
       }
       await createUsers(password);
       await seedDemo();
-      console.log(`✓ демо-данные: сотрудники ${DEMO_USERS.map((u) => u.login).join(', ')}`);
+      console.log(`✓ демо-данные: сотрудники ${DEMO_USERS.map((u) => u.login).join(', ')}; заказчик maria`);
     } else {
       console.log('· сотрудники уже есть, демо-данные не трогаю');
     }
