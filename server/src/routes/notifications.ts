@@ -4,6 +4,7 @@ import { many, one, pool } from '../db/pool';
 import { h, intParam } from '../lib/http';
 import { subscribe } from '../notify/hub';
 import { ORDER_SELECT, orderAccess, TASK_SELECT } from '../services/sql';
+import { runServicePlansSoon } from '../services/servicePlans';
 import { endOfDay } from '../services/workTime';
 
 export const notificationsRouter = Router();
@@ -75,11 +76,13 @@ notificationsRouter.get('/events', (req, res) => {
 notificationsRouter.get(
   '/dashboard',
   h(async (req, res) => {
+    await runServicePlansSoon();
     const user = req.user!;
     const all = can(user.role, 'tasks.manageAll');
     const allOrders = can(user.role, 'orders.viewAll');
     // заявки: руководитель видит все, остальные — свои ($1 — id сотрудника)
-    const mineO = allOrders ? '' : `AND ${orderAccess('o', '$1')}`;
+    const noOrders = !can(user.role, 'workspace.view');
+    const mineO = noOrders ? 'AND false' : allOrders ? '' : `AND ${orderAccess('o', '$1')}`;
     const todayEnd = endOfDay();
     const [myTasksToday, overdue, newOrders, readyOrders, counts] = await Promise.all([
       many(
@@ -94,12 +97,12 @@ notificationsRouter.get(
       ),
       many(
         `${ORDER_SELECT} WHERE o.created_at > now() - interval '2 days' ${mineO} ORDER BY o.created_at DESC LIMIT 12`,
-        allOrders ? [] : [user.id],
+        allOrders || noOrders ? [] : [user.id],
       ),
       many(
         `${ORDER_SELECT} WHERE s.id = (SELECT id FROM stages WHERE is_active AND NOT is_final ORDER BY sort DESC, id DESC LIMIT 1)
           ${mineO} ORDER BY o.stage_started_at LIMIT 30`,
-        allOrders ? [] : [user.id],
+        allOrders || noOrders ? [] : [user.id],
       ),
       one(
         `SELECT

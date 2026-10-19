@@ -8,6 +8,7 @@ import { canTouchTask, closeTasks, createTask, normalizeDue, reopenTask, transfe
 import { reassignOrder } from '../services/orders';
 import { likeEscape, TASK_SELECT } from '../services/sql';
 import { assertTaskVisible } from '../services/access';
+import { runServicePlansSoon } from '../services/servicePlans';
 
 export const tasksRouter = Router();
 
@@ -18,6 +19,7 @@ export const tasksRouter = Router();
 tasksRouter.get(
   '/tasks',
   h(async (req, res) => {
+    await runServicePlansSoon();
     const user = req.user!;
     const manageAll = can(user.role, 'tasks.manageAll');
     const scope = String(req.query.scope || 'mine');

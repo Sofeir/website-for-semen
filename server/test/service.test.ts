@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pool } from '../src/db/pool';
+import { nextVisitDate, runServicePlans, ymd } from '../src/services/servicePlans';
 import { dict, inDays, loginAs, resetDb } from './helpers';
 
 describe('выезд к клиенту: чек-лист работ', () => {
@@ -61,5 +62,40 @@ describe('выезд к клиенту: чек-лист работ', () => {
     // после закрытия чек-лист не меняется
     await lenya.post('/api/tasks/close', { ids: [id], comment: 'Готово' });
     expect((await lenya.post(`/api/tasks/${id}/checklist/${first.id}`, { done: true })).status).toBe(409);
+  });
+
+  it('график выездов: даты считаются верно', () => {
+    expect(nextVisitDate('2026-01-31', 1, 'month')).toBe('2026-02-28');
+    expect(nextVisitDate('2026-10-19', 2, 'week')).toBe('2026-11-02');
+    expect(nextVisitDate('2026-11-30', 3, 'month')).toBe('2027-02-28');
+  });
+
+  it('график выездов: накануне ставится задача с чек-листом, дата сдвигается, повторно не дублируется', async () => {
+    const semen = await loginAs('semen');
+    const lenya = await loginAs('lenya');
+    const { users } = await dict();
+    const clientId = (await pool.query(`SELECT id FROM clients WHERE name = 'ООО Точка'`)).rows[0].id;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const plan = { everyN: 2, unit: 'week', nextDate: ymd(tomorrow), visitTime: '11:30', assigneeId: users.lenya, isActive: true };
+    expect((await lenya.put(`/api/clients/${clientId}/service-plan`, plan)).status).toBe(403);
+    const put = await semen.put(`/api/clients/${clientId}/service-plan`, plan);
+    expect(put.status).toBe(200);
+    // выезд завтра — задача уже поставлена, следующий выезд через 2 недели
+    expect(put.body.plan.nextDate).toBe(nextVisitDate(ymd(tomorrow), 2, 'week'));
+    const taskId = put.body.plan.lastTaskId;
+    expect(taskId).toBeTruthy();
+    const task = await lenya.get(`/api/tasks/${taskId}`);
+    expect(task.body.title).toBe('Выезд: ООО Точка');
+    expect(task.body.checklist.map((x: { title: string }) => x.title)).toEqual([
+      'Проверить резервные копии',
+      'Проверить SSD',
+      'Почистить ПК',
+    ]);
+    expect(new Date(task.body.startAt).getHours()).toBe(11);
+    expect(await runServicePlans()).toBe(0);
+    const list = await semen.get('/api/service-plans');
+    expect(list.body).toHaveLength(1);
+    expect(list.body[0].assigneeName).toBe('Лёня');
   });
 });

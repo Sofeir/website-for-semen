@@ -84,6 +84,20 @@ export function denyCustomer(req: Request, _res: Response, next: NextFunction) {
   next(forbidden());
 }
 
+/** Сотруднику «только задачи» открыты задачи, уведомления и «Сегодня»; сотрудники и справочники — на чтение. */
+const ASSISTANT_OPEN = ['/tasks', '/notifications', '/events', '/dashboard', '/auth'];
+const ASSISTANT_READ = ['/users', '/dictionaries', '/settings'];
+
+export function limitAssistant(req: Request, _res: Response, next: NextFunction) {
+  if (req.user?.role !== 'assistant') return next();
+  const path = String(req.originalUrl ?? req.url ?? req.path ?? '')
+    .split('?')[0]
+    .replace(/^\/api(?=\/)/, '');
+  const hit = (list: string[]) => list.some((p) => path === p || path.startsWith(`${p}/`));
+  if (hit(ASSISTANT_OPEN) || (req.method === 'GET' && hit(ASSISTANT_READ))) return next();
+  next(forbidden());
+}
+
 export function requireCustomer(req: Request, _res: Response, next: NextFunction) {
   if (!req.user) return next(new HttpError(401, 'Войдите в систему'));
   if (req.user.role !== 'customer') return next(forbidden());

@@ -190,6 +190,44 @@
   text-align: center;
 }
 
+/* «Что может каждая роль» — раскрывающаяся подсказка над списком */
+.rights {
+  margin-bottom: var(--s-2);
+  border-radius: var(--r-md);
+  background: var(--fg-fill);
+  box-shadow: var(--fg-rim), var(--fg-shadow-sm);
+}
+
+.rights summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 var(--s-4);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--primary-text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rights dl {
+  display: grid;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0 var(--s-4) var(--s-4);
+}
+
+.rights dt {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.rights dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
 .users {
   display: flex;
   flex-direction: column;

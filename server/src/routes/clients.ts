@@ -1,11 +1,21 @@
 import { Router } from 'express';
-import { can, clientSchema, fleetSchema, serviceChecklistSchema, type ClientDetail } from '@sd/shared';
+import {
+  can,
+  clientSchema,
+  fleetSchema,
+  serviceChecklistSchema,
+  servicePlanSchema,
+  type ClientDetail,
+  type ServicePlan,
+} from '@sd/shared';
 import { many, one, tx } from '../db/pool';
 import { h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { createClient, replaceFleet, updateClient } from '../services/clients';
 import { CLIENT_FIELDS, DEVICE_SELECT, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT, taskAccess } from '../services/sql';
 import { broadcast } from '../notify/hub';
+import { getServicePlan, runServicePlans, SERVICE_PLAN_SELECT } from '../services/servicePlans';
+import { assertActiveUser } from '../services/tasks';
 
 export const clientsRouter = Router();
 
@@ -196,6 +206,56 @@ clientsRouter.put(
         ]);
       }
     });
+    broadcast('changed', { scopes: ['clients'] });
+    res.json({ ok: true });
+  }),
+);
+
+/** Все графики выездов — для обзора «кто к кому и когда едет». */
+clientsRouter.get(
+  '/service-plans',
+  h(async (_req, res) => {
+    res.json(await many<ServicePlan>(`${SERVICE_PLAN_SELECT} WHERE p.is_active ORDER BY p.next_date, c.name`));
+  }),
+);
+
+clientsRouter.get(
+  '/clients/:id/service-plan',
+  h(async (req, res) => {
+    res.json({ plan: await getServicePlan(intParam(req.params.id)) });
+  }),
+);
+
+clientsRouter.put(
+  '/clients/:id/service-plan',
+  requirePermission('clients.edit'),
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const input = parse(servicePlanSchema, req.body);
+    await tx(async (db) => {
+      const c = await one('SELECT 1 FROM clients WHERE id = $1', [id], db);
+      if (!c) throw new HttpError(404, 'Клиент не найден');
+      await assertActiveUser(db, input.assigneeId);
+      await db.query(
+        `INSERT INTO service_plans (client_id, every_n, unit, next_date, visit_time, assignee_id, is_active, created_by)
+         VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8)
+         ON CONFLICT (client_id) DO UPDATE SET every_n = $2, unit = $3, next_date = $4::date, visit_time = $5,
+           assignee_id = $6, is_active = $7, created_by = $8, updated_at = now()`,
+        [id, input.everyN, input.unit, input.nextDate, input.visitTime ?? null, input.assigneeId, input.isActive, req.user!.id],
+      );
+    });
+    // если выезд сегодня или завтра — задача появится сразу
+    await runServicePlans();
+    broadcast('changed', { scopes: ['clients', 'tasks'] });
+    res.json({ plan: await getServicePlan(id) });
+  }),
+);
+
+clientsRouter.delete(
+  '/clients/:id/service-plan',
+  requirePermission('clients.edit'),
+  h(async (req, res) => {
+    await one('DELETE FROM service_plans WHERE client_id = $1', [intParam(req.params.id)]);
     broadcast('changed', { scopes: ['clients'] });
     res.json({ ok: true });
   }),
