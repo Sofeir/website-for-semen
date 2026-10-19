@@ -1,0 +1,58 @@
+.h {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-md);
+  margin: 0 0 var(--s-2);
+}
+
+.line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: var(--tap);
+  padding: var(--s-2) 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.line:first-of-type {
+  border-top: 0;
+}
+
+.line b {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.sum {
+  border-top: 1px solid var(--border-strong);
+}
+
+.what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sub {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.kind {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-shrink: 0;
+}
+
+.open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--tap);
+  margin-right: auto;
+  color: var(--primary-text);
+  font-weight: 500;
+}

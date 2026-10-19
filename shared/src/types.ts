@@ -375,6 +375,37 @@ export interface ReportRow extends ReportTotals {
   devices: number;
 }
 
+export interface ClientReportWork {
+  id: number;
+  kind: 'refill' | 'part' | 'repair' | 'service';
+  title: string;
+  qty: number;
+  counter: number | null;
+  doneAt: string;
+  /** Номер и название техники, если работа привязана к устройству. */
+  deviceTitle: string | null;
+}
+
+export interface ClientReportOrder {
+  id: number;
+  number: string;
+  deviceTitle: string;
+  outcome: 'repaired' | 'declined';
+  doneAt: string;
+}
+
+/** Что сделали для одной организации за месяц: основа для счёта. */
+export interface ClientReport {
+  clientId: number;
+  clientName: string;
+  kind: 'person' | 'legal';
+  month: string;
+  /** Заправки одной модели сложены: сколько штук всего. */
+  refills: { title: string; qty: number }[];
+  works: ClientReportWork[];
+  orders: ClientReportOrder[];
+}
+
 export interface MonthlyReport {
   month: string;
   rows: ReportRow[];

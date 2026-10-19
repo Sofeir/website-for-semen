@@ -14,6 +14,7 @@ import type {
   CustomerTask,
   CompanySettings,
   DashboardData,
+  ClientReport,
   Device,
   DeviceWork,
   MonthlyReport,
@@ -109,6 +110,13 @@ export const useMonthlyReport = (month: string) =>
     queryKey: ['report', month],
     queryFn: () => api.get<MonthlyReport>(`/reports/monthly?month=${month}`),
     placeholderData: keepPreviousData,
+  });
+
+export const useClientReport = (clientId: number | null, month: string) =>
+  useQuery({
+    queryKey: ['report', 'client', clientId, month],
+    queryFn: () => api.get<ClientReport>(`/reports/client/${clientId}?month=${month}`),
+    enabled: Boolean(clientId),
   });
 
 export const useTaskKinds = () =>
