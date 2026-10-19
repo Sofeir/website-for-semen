@@ -360,3 +360,29 @@ export interface CustomerAccount {
   createdAt: string;
   tasksCount: number;
 }
+
+/** Один этап ремонта в карточке техники заказчика. */
+export interface CustomerOrderStep {
+  code: string;
+  name: string;
+  state: 'done' | 'current' | 'todo';
+  startedAt: string | null;
+}
+
+/** Подробности по технике заказчика: что принято, на каком этапе, что дальше. */
+export interface CustomerOrderDetail extends CustomerOrder {
+  serial: string | null;
+  fault: string;
+  stageDueAt: string | null;
+  responsibleName: string | null;
+  steps: CustomerOrderStep[];
+}
+
+/** Контакты сервис-центра для кабинета заказчика. */
+export interface CustomerCompany {
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  workHours: string;
+}

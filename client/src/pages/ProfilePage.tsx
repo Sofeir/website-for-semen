@@ -88,65 +88,75 @@ function Channels({ me }: { me: Me }) {
           </div>
         </div>
 
-        <div className={s.channel}>
-          <Send aria-hidden className={s.channelIcon} />
-          <div className={s.channelMain}>
-            <div className="row wrap">
-              <Checkbox label="Telegram" {...form.register('notifyTelegram')} disabled={!me.channels.telegram} />
-              {!me.channels.telegram && <Pill tone="neutral">не подключён на сервере</Pill>}
+        {(me.channels.telegram || me.role === 'admin') && (
+          <div className={s.channel}>
+            <Send aria-hidden className={s.channelIcon} />
+            <div className={s.channelMain}>
+              <div className="row wrap">
+                <Checkbox label="Telegram" {...form.register('notifyTelegram')} disabled={!me.channels.telegram} />
+                {!me.channels.telegram && <Pill tone="neutral">не подключён</Pill>}
+              </div>
+              {me.channels.telegram ? (
+                <>
+                  <Field label="Ваш chat id" optional hint="Напишите боту сервиса /start, затем узнайте id у @userinfobot.">
+                    <Input {...form.register('telegramChatId')} inputMode="numeric" disabled={!v.notifyTelegram} />
+                  </Field>
+                  <div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={testing === 'telegram'}
+                      disabled={!me.telegramChatId}
+                      onClick={() => test('telegram')}
+                    >
+                      Проверить
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <p className={s.channelHint}>
+                  Канал не подключён. Чтобы включить, создайте бота в Telegram через @BotFather и впишите его токен в настройки
+                  сервера (TELEGRAM_BOT_TOKEN). После этого каждый сотрудник сможет получать уведомления в Telegram.
+                </p>
+              )}
             </div>
-            {me.channels.telegram ? (
-              <>
-                <Field label="Ваш chat id" optional hint="Напишите боту сервиса /start, затем узнайте id у @userinfobot.">
-                  <Input {...form.register('telegramChatId')} inputMode="numeric" disabled={!v.notifyTelegram} />
-                </Field>
-                <div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    loading={testing === 'telegram'}
-                    disabled={!me.telegramChatId}
-                    onClick={() => test('telegram')}
-                  >
-                    Проверить
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <p className={s.channelHint}>Администратору нужно добавить TELEGRAM_BOT_TOKEN в настройки сервера.</p>
-            )}
           </div>
-        </div>
+        )}
 
-        <div className={s.channel}>
-          <Send aria-hidden className={s.channelIcon} />
-          <div className={s.channelMain}>
-            <div className="row wrap">
-              <Checkbox label="Max" {...form.register('notifyMax')} disabled={!me.channels.max} />
-              {!me.channels.max && <Pill tone="neutral">не подключён на сервере</Pill>}
+        {(me.channels.max || me.role === 'admin') && (
+          <div className={s.channel}>
+            <Send aria-hidden className={s.channelIcon} />
+            <div className={s.channelMain}>
+              <div className="row wrap">
+                <Checkbox label="Max" {...form.register('notifyMax')} disabled={!me.channels.max} />
+                {!me.channels.max && <Pill tone="neutral">не подключён</Pill>}
+              </div>
+              {me.channels.max ? (
+                <>
+                  <Field label="Ваш user id в Max" optional hint="Напишите боту сервиса в Max — он ответит вашим id.">
+                    <Input {...form.register('maxUserId')} inputMode="numeric" disabled={!v.notifyMax} />
+                  </Field>
+                  <div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={testing === 'max'}
+                      disabled={!me.maxUserId}
+                      onClick={() => test('max')}
+                    >
+                      Проверить
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <p className={s.channelHint}>
+                  Канал не подключён. Чтобы включить, создайте бота в Max и впишите его токен в настройки сервера (MAX_BOT_TOKEN).
+                  После этого каждый сотрудник сможет получать уведомления в Max.
+                </p>
+              )}
             </div>
-            {me.channels.max ? (
-              <>
-                <Field label="Ваш user id в Max" optional hint="Напишите боту сервиса в Max — он ответит вашим id.">
-                  <Input {...form.register('maxUserId')} inputMode="numeric" disabled={!v.notifyMax} />
-                </Field>
-                <div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    loading={testing === 'max'}
-                    disabled={!me.maxUserId}
-                    onClick={() => test('max')}
-                  >
-                    Проверить
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <p className={s.channelHint}>Администратору нужно добавить MAX_BOT_TOKEN в настройки сервера.</p>
-            )}
           </div>
-        </div>
+        )}
 
         <div>
           <Button type="submit" icon={<Save size={18} aria-hidden />} loading={form.formState.isSubmitting}>
