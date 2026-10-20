@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Download, LineChart, TrendingDown, TrendingUp, Minus } from 'lucide-react';
 import { WORK_KIND_LABELS, REFILL_OP_LABELS, type Analytics, type AnalyticsMaster, type AnalyticsTotals, type RefillOp } from '@sd/shared';
@@ -7,7 +7,7 @@ import { fmtWhen } from '@/lib/dates';
 import { useDocumentTitle, useIsMobile } from '@/lib/hooks';
 import { Avatar, Card, CardHead, EmptyState, ErrorBox, PageHeader, Pill, Plate, Spinner, Tabs } from '@/ui/Display';
 import { Button, IconButton, cx } from '@/ui/Button';
-import { Segmented, Select } from '@/ui/Form';
+import { Segmented } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { downloadCsv, label, monthShift, thisMonth } from './reportUtils';
 import s from './Analytics.module.css';
@@ -135,7 +135,19 @@ function Compare({ a }: { a: Analytics }) {
 }
 
 /** Динамика за год: столбцы по месяцам, выбранный и сравниваемый подсвечены. */
-function Trend({ a, onPick }: { a: Analytics; onPick: (month: string) => void }) {
+function Trend({
+  a,
+  onPick,
+  selected,
+  compared,
+  hint,
+}: {
+  a: Analytics;
+  onPick: (month: string) => void;
+  selected: string | null;
+  compared: string | null;
+  hint: string;
+}) {
   const [metric, setMetric] = useState<MetricKey>('revenue');
   const m = byKey(metric);
   const values = a.trend.map((p) => p[metric] ?? 0);
@@ -144,7 +156,7 @@ function Trend({ a, onPick }: { a: Analytics; onPick: (month: string) => void })
   return (
     <Card>
       <CardHead title="Динамика за год" />
-      <p className={s.muted}>Нажмите на столбец, чтобы открыть этот месяц.</p>
+      <p className={s.muted}>{hint}</p>
       <div className={s.metricTabs} role="radiogroup" aria-label="Показатель">
         {TREND_METRICS.map((k) => (
           <button
@@ -165,8 +177,8 @@ function Trend({ a, onPick }: { a: Analytics; onPick: (month: string) => void })
       <div className={s.chart} role="img" aria-label={`${m.label} по месяцам`}>
         {a.trend.map((p, i) => {
           const v = values[i];
-          const sel = p.month === a.month;
-          const cmp = p.month === a.compare;
+          const sel = p.month === selected;
+          const cmp = p.month === compared;
           return (
             <button
               key={p.month}
@@ -452,13 +464,28 @@ export default function AnalyticsPage() {
   useDocumentTitle('Аналитика');
   const [month, setMonth] = useState(thisMonth);
   const [mode, setMode] = useState<Mode>('prev');
-  const [custom, setCustom] = useState(() => monthShift(thisMonth(), -2));
+  /** Режим «Другим»: два месяца выбираются нажатием на столбцы графика. */
+  const [pick, setPick] = useState<string[]>([]);
   const [span, setSpan] = useState<'3' | '6' | '12'>('12');
   const [tab, setTab] = useState<Tab>('overview');
-  const compare = mode === 'prev' ? monthShift(month, -1) : mode === 'year' ? monthShift(month, -12) : custom;
-  const q = useAnalytics(month, compare, Number(span));
+  const custom = mode === 'custom' && tab === 'overview';
+  const ready = !custom || pick.length === 2;
+  const effMonth = custom ? (pick.length === 2 ? pick[0] : thisMonth()) : month;
+  const compare = custom
+    ? pick.length === 2
+      ? pick[1]
+      : monthShift(thisMonth(), -1)
+    : mode === 'year'
+      ? monthShift(month, -12)
+      : monthShift(month, -1);
+  const q = useAnalytics(effMonth, compare, Number(span));
   const a = q.data;
-  const options = useMemo(() => Array.from({ length: 36 }, (_, i) => monthShift(month, -(i + 1))), [month]);
+
+  /** Нажатие на столбец: обычно открывает месяц, в режиме «Другим» набирает пару месяцев. */
+  const pickMonth = (m: string) => {
+    if (!custom) return setMonth(m);
+    setPick((p) => (p.length === 1 ? (p[0] === m ? [] : [p[0], m]) : [m]));
+  };
 
   return (
     <>
@@ -466,22 +493,30 @@ export default function AnalyticsPage() {
         title="Аналитика"
         subtitle="Итоги месяца и сравнение с другим месяцем, работа сотрудников, расходы на технику, клиенты. Суммы берутся из записей работ."
         actions={
-          <Button variant="secondary" icon={<Download size={18} aria-hidden />} onClick={() => a && downloadCsv(`analitika-${month}.csv`, analyticsCsv(a))} disabled={!a}>
+          <Button variant="secondary" icon={<Download size={18} aria-hidden />} onClick={() => a && ready && downloadCsv(`analitika-${a.month}.csv`, analyticsCsv(a))} disabled={!a || !ready}>
             Скачать CSV
           </Button>
         }
       />
 
       <div className={s.bar}>
-        <div className={s.month}>
-          <IconButton label="Предыдущий месяц" onClick={() => setMonth(monthShift(month, -1))}>
-            <ChevronLeft />
-          </IconButton>
-          <h2 className={s.monthTitle}>{label(month)}</h2>
-          <IconButton label="Следующий месяц" onClick={() => setMonth(monthShift(month, 1))}>
-            <ChevronRight />
-          </IconButton>
-        </div>
+        {custom ? (
+          <div className={s.month}>
+            <h2 className={s.monthTitle}>
+              {pick.length === 0 ? 'Выберите два месяца' : pick.length === 1 ? `${label(pick[0])} и …` : `${label(pick[0])} и ${label(pick[1])}`}
+            </h2>
+          </div>
+        ) : (
+          <div className={s.month}>
+            <IconButton label="Предыдущий месяц" onClick={() => setMonth(monthShift(month, -1))}>
+              <ChevronLeft />
+            </IconButton>
+            <h2 className={s.monthTitle}>{label(month)}</h2>
+            <IconButton label="Следующий месяц" onClick={() => setMonth(monthShift(month, 1))}>
+              <ChevronRight />
+            </IconButton>
+          </div>
+        )}
         {tab === 'overview' && (
         <div className={s.compareBar}>
           <span className={s.muted}>Сравнить с</span>
@@ -499,21 +534,15 @@ export default function AnalyticsPage() {
                 role="radio"
                 aria-checked={mode === v}
                 className={cx(s.metricTab, mode === v && s.metricTabOn)}
-                onClick={() => setMode(v)}
+                onClick={() => {
+                  setMode(v);
+                  if (v === 'custom') setPick([]);
+                }}
               >
                 {text}
               </button>
             ))}
           </div>
-          {mode === 'custom' && (
-            <Select aria-label="Месяц для сравнения" value={custom} onChange={(e) => setCustom(e.target.value)}>
-              {options.map((m) => (
-                <option key={m} value={m}>
-                  {label(m)}
-                </option>
-              ))}
-            </Select>
-          )}
         </div>
         )}
       </div>
@@ -538,15 +567,29 @@ export default function AnalyticsPage() {
         <>
           {tab === 'overview' && (
             <>
-              <Hero a={a} />
-              {a.current.requests + a.current.works === 0 && (
+              {ready && <Hero a={a} />}
+              {ready && a.current.requests + a.current.works === 0 && (
                 <EmptyState icon={<LineChart />} title="В этом месяце пока пусто">
                   Выберите другой месяц стрелками или нажмите на столбец в динамике. Цифры появятся, когда будут заявки и записи работ.
                 </EmptyState>
               )}
               <div className={s.grid}>
-                <Compare a={a} />
-                <Trend a={a} onPick={setMonth} />
+                {ready && <Compare a={a} />}
+                <Trend
+                  a={a}
+                  onPick={pickMonth}
+                  selected={custom ? (pick[0] ?? null) : a.month}
+                  compared={custom ? (pick[1] ?? null) : a.compare}
+                  hint={
+                    custom
+                      ? pick.length === 0
+                        ? 'Нажмите на первый месяц, затем на второй. Они загорятся разными цветами, и начнётся сравнение.'
+                        : pick.length === 1
+                          ? 'Теперь нажмите на второй месяц.'
+                          : 'Нажмите на любой другой месяц, чтобы выбрать пару заново.'
+                      : 'Нажмите на столбец, чтобы открыть этот месяц.'
+                  }
+                />
               </div>
             </>
           )}

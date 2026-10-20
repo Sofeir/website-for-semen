@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { NotificationItem } from '@sd/shared';
+import { api } from '@/api/http';
 import { keys, SCOPE_KEYS } from '@/api/queries';
 import { useToast } from '@/ui/Toast';
 
@@ -29,7 +30,23 @@ export function useServerEvents(enabled: boolean) {
       qc.setQueryData<{ items: NotificationItem[]; unread: number }>(keys.notifications, (old) =>
         old ? { items: [n, ...old.items].slice(0, 60), unread: old.unread + 1 } : old,
       );
-      if (n.toast !== false) toast.show({ tone: 'info', title: n.title, body: n.body, link: n.link });
+      // Уведомление висит на экране, пока человек сам не закроет; нажатие открывает полное сообщение и отмечает его прочитанным
+      if (n.toast !== false) {
+        toast.show({
+          tone: 'info',
+          title: n.title,
+          body: n.body,
+          link: n.link,
+          persistent: true,
+          createdAt: n.createdAt,
+          onOpen: () => {
+            api
+              .post(`/notifications/${n.id}/read`)
+              .then(() => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'notifications' }))
+              .catch(() => {});
+          },
+        });
+      }
     };
 
     const onChanged = (e: Event) => {

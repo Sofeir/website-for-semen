@@ -104,3 +104,66 @@
     background: var(--surface-3);
   }
 }
+
+/* Уведомления из системы: стопка карточек одна на другой, висят, пока человек сам не закроет */
+.deck {
+  pointer-events: none;
+  position: relative;
+  margin-top: var(--s-2);
+}
+
+.card {
+  position: relative;
+  padding-right: 44px;
+  transform-origin: 50% 100%;
+}
+
+/* Карточки за верхней: той же высоты, видны только краем, чтобы стопка не росла */
+.card[data-back] {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--ink-100);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow:
+    0 0 0 1px var(--ink-200),
+    var(--shadow-sm);
+}
+
+.card[data-back] > * {
+  visibility: hidden;
+}
+
+.closeCorner {
+  position: absolute;
+  top: var(--s-2);
+  right: var(--s-2);
+}
+
+.closeAll {
+  pointer-events: auto;
+  position: absolute;
+  top: -34px;
+  right: 0;
+  z-index: 10;
+  min-height: 28px;
+  padding: 0 var(--s-3);
+  border-radius: 999px;
+  background: var(--glass-strong);
+  box-shadow: var(--shadow-md), inset 0 0 0 1px var(--glass-border);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.full {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.card .body {
+  -webkit-line-clamp: 4;
+}

@@ -28,6 +28,7 @@ export interface UserBrief {
   phone?: string | null;
   /** Должность: директор, ведущий инженер и так далее. Может быть пустой. */
   position?: string | null;
+  email?: string | null;
   isActive?: boolean;
   /** false — роль пока предположение, её надо уточнить. Видит только администратор. */
   roleConfirmed?: boolean;

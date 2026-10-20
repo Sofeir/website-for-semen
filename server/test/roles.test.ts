@@ -84,6 +84,19 @@ describe('права на уровне API', () => {
     }
   });
 
+  it('сотрудник: телефон обязателен, почта проверяется и сохраняется', async () => {
+    const boss = await loginAs('semen');
+    const base = { login: 'newbie', fullName: 'Новый Сотрудник', role: 'master', password: 'long-password-1' };
+    expect((await boss.post('/api/users', base)).status).toBe(400);
+    expect((await boss.post('/api/users', { ...base, phone: '+7 900 111-22-33', email: 'не-почта' })).status).toBe(400);
+    const ok = await boss.post('/api/users', { ...base, phone: '+7 900 111-22-33', email: 'new@example.ru' });
+    expect(ok.status).toBe(201);
+    const list = (await boss.get('/api/users')).body;
+    expect(list.find((u: any) => u.login === 'newbie')).toMatchObject({ phone: '+7 900 111-22-33', email: 'new@example.ru' });
+    const upd = await boss.put(`/api/users/${ok.body.id}`, { email: 'other@example.ru' });
+    expect(upd.status).toBe(200);
+  });
+
   it('после пяти неверных паролей вход блокируется', async () => {
     for (let i = 0; i < 5; i++) {
       await request(app).post('/api/auth/login').send({ login: 'olga', password: 'wrong' });

@@ -66,7 +66,7 @@ describe('сотрудник «только задачи»', () => {
     const semen = await loginAs('semen');
     // «только задачи» в рабочем составе нет, роль остаётся в системе: заводим такого сотрудника на время теста
     const boss = await loginAs('admin');
-    const made = await boss.post('/api/users', { login: 'vanya', fullName: 'Тест Помощник', role: 'assistant', password: PASSWORD });
+    const made = await boss.post('/api/users', { login: 'vanya', fullName: 'Тест Помощник', role: 'assistant', phone: '+7 900 000-00-99', password: PASSWORD });
     expect(made.status).toBe(201);
     const vanya = await loginAs('vanya');
     const { users } = await dict();
