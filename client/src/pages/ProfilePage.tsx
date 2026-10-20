@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { Bell, KeyRound, Save, Send } from 'lucide-react';
-import { changePasswordSchema, profileSchema, ROLE_LABELS, type Me, type ProfileInput } from '@sd/shared';
+import { can, changePasswordSchema, profileSchema, ROLE_LABELS, type Me, type ProfileInput } from '@sd/shared';
 import { z } from 'zod';
 import { useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
@@ -88,7 +88,7 @@ function Channels({ me }: { me: Me }) {
           </div>
         </div>
 
-        {(me.channels.telegram || me.role === 'admin') && (
+        {(me.channels.telegram || can(me.role, 'users.manage')) && (
           <div className={s.channel}>
             <Send aria-hidden className={s.channelIcon} />
             <div className={s.channelMain}>
@@ -123,7 +123,7 @@ function Channels({ me }: { me: Me }) {
           </div>
         )}
 
-        {(me.channels.max || me.role === 'admin') && (
+        {(me.channels.max || can(me.role, 'users.manage')) && (
           <div className={s.channel}>
             <Send aria-hidden className={s.channelIcon} />
             <div className={s.channelMain}>

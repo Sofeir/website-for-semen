@@ -6,18 +6,18 @@ export type Role = (typeof ROLES)[number];
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export const ROLE_LABELS: Record<Role, string> = {
-  admin: 'Администратор',
-  manager: 'Руководитель / приёмщик',
-  diagnostician: 'Диагност',
-  master: 'Мастер',
+  admin: 'Руководитель системного администрирования',
+  manager: 'Директор',
+  diagnostician: 'Ведущий инженер',
+  master: 'Инженер',
   assistant: 'Сотрудник: только задачи',
   customer: 'Заказчик',
 };
 
 /** Что может роль — коротко, для подсказки в «Сотрудниках». Сами права — в PERMISSIONS ниже. */
 export const ROLE_RIGHTS: Record<StaffRole, string> = {
-  admin: 'Всё, что руководитель, плюс сотрудники, роли, справочники, реквизиты и импорт.',
-  manager: 'Принимает технику, видит все заявки, задачи и акты, назначает ответственных, удаляет акты, подтверждает заказчиков.',
+  admin: 'Полный доступ, как у директора: все заявки, задачи и акты, сотрудники, роли, справочники, реквизиты и импорт.',
+  manager: 'Полный доступ, как у руководителя системного администрирования: принимает технику, видит все заявки, задачи и акты, назначает ответственных, подтверждает заказчиков, управляет сотрудниками, справочниками, реквизитами и импортом.',
   diagnostician:
     'Видит только свои заявки и задачи: где он ответственный, был им или где у него задача. Двигает свои заявки по этапам, оформляет акты, ставит задачи.',
   master: 'То же, что диагност: только свои заявки и задачи, свои этапы, акты и задачи коллегам.',
@@ -44,10 +44,10 @@ export const PERMISSIONS = {
   'tasks.manageAll': ['admin', 'manager'],
   'acts.edit': ['admin', 'manager', 'master', 'diagnostician'],
   'acts.delete': ['admin', 'manager'],
-  'dictionaries.edit': ['admin'],
-  'users.manage': ['admin'],
-  'settings.edit': ['admin'],
-  'import.run': ['admin'],
+  'dictionaries.edit': ['admin', 'manager'],
+  'users.manage': ['admin', 'manager'],
+  'settings.edit': ['admin', 'manager'],
+  'import.run': ['admin', 'manager'],
   /** Помесячные отчёты по клиентам: заправки, ремонты, парк техники. */
   'reports.view': ['admin', 'manager'],
   /** Подтверждать регистрации заказчиков и управлять их доступом. */

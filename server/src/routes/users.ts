@@ -41,8 +41,8 @@ usersRouter.put(
   h(async (req, res) => {
     const id = intParam(req.params.id);
     const u = parse(userUpdateSchema, req.body);
-    if (id === req.user!.id && (u.isActive === false || (u.role && u.role !== 'admin'))) {
-      throw new HttpError(400, 'Нельзя отключить себя или снять с себя роль администратора');
+    if (id === req.user!.id && (u.isActive === false || (u.role && !can(u.role, 'users.manage'))) {
+      throw new HttpError(400, 'Нельзя отключить себя или снять с себя полный доступ');
     }
     const sets: string[] = [];
     const vals: unknown[] = [id];
