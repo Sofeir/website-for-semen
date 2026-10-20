@@ -3,11 +3,11 @@ import { Plus } from 'lucide-react';
 import { REFILL_OPS, REFILL_OP_LABELS, WORK_KINDS, WORK_KIND_LABELS, type RefillOp, type WorkKind } from '@sd/shared';
 import { api, ApiError } from '@/api/http';
 import { useMe } from '@/app/auth';
-import { useInvalidate } from '@/api/queries';
+import { useClient, useInvalidate } from '@/api/queries';
 import { Button } from '@/ui/Button';
 import { ErrorBox } from '@/ui/Display';
 import { cx } from '@/ui/Button';
-import { ChipGroup, Field, Input, Textarea, formStyles } from '@/ui/Form';
+import { ChipGroup, Field, Input, Select, Textarea, formStyles } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import { UserSelect } from './Pickers';
@@ -33,6 +33,7 @@ export function WorkSheet({
   defaultKind,
   title: sheetTitle,
   subtitle,
+  chooseOrder,
 }: {
   open: boolean;
   onClose: () => void;
@@ -41,6 +42,8 @@ export function WorkSheet({
   defaultKind?: WorkKind;
   title?: string;
   subtitle?: string;
+  /** Спросить, по какой заявке сделана работа (когда её открыли из карточки клиента). */
+  chooseOrder?: boolean;
 }) {
   const me = useMe();
   const inv = useInvalidate();
@@ -60,6 +63,9 @@ export function WorkSheet({
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [orderId, setOrderId] = useState('');
+  const client = useClient(chooseOrder && open ? target.clientId : 0);
+  const orders = client.data?.orders ?? [];
 
   useEffect(() => {
     if (!open) return;
@@ -76,7 +82,16 @@ export function WorkSheet({
     setOps(['refill']);
     setNote('');
     setError('');
+    setOrderId('');
   }, [open, first, me.id]);
+
+  // По умолчанию берём последнюю заявку клиента, которая ещё в работе.
+  useEffect(() => {
+    if (!chooseOrder || !open || orderId) return;
+    const active = orders.find((o) => !o.issuedAt) ?? orders[0];
+    if (active) setOrderId(String(active.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chooseOrder, open, orders.length]);
 
   const save = async () => {
     setError('');
@@ -86,6 +101,7 @@ export function WorkSheet({
     try {
       await api.post('/works', {
         ...target,
+        orderId: target.orderId ?? (Number(orderId) || null),
         kind,
         title: what.trim(),
         qty: Number(qty) || 1,
@@ -145,6 +161,19 @@ export function WorkSheet({
               </button>
             ))}
           </div>
+        )}
+        {chooseOrder && (
+          <Field label="По какой заявке" hint="Заправка и замена записываются в заявку, по ней потом можно перейти из отчёта">
+            <Select value={orderId} onChange={(e) => setOrderId(e.target.value)}>
+              <option value="">Без заявки</option>
+              {orders.map((o) => (
+                <option key={o.id} value={o.id}>
+                  №{o.number}, {o.deviceTitle}
+                  {o.issuedAt ? ' (выдана)' : ''}
+                </option>
+              ))}
+            </Select>
+          </Field>
         )}
         <div className={formStyles.grid2}>
           <Field label={kind === 'refill' ? 'Модель картриджа' : 'Что сделано'} className={formStyles.span2}>

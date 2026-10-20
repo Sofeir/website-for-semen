@@ -57,7 +57,7 @@ export default function ClientsPage() {
         <Input
           icon={<Search aria-hidden />}
           type="search"
-          placeholder="Имя, телефон, ИНН, почта"
+          placeholder="Имя, ФИО сотрудника, телефон, ИНН, номер техники"
           aria-label="Поиск клиентов"
           value={q}
           onChange={(e) => {

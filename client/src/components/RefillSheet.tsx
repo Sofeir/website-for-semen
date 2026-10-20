@@ -8,6 +8,7 @@ export function RefillSheet({ clientId, open, onClose }: { clientId: number; ope
       onClose={onClose}
       target={{ clientId }}
       kinds={['refill']}
+      chooseOrder
       subtitle="Попадёт в помесячный отчёт по клиенту"
     />
   );

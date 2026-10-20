@@ -108,7 +108,6 @@ export default function ReportsPage() {
       .filter((g) => g.rows.length);
   }, [report, scope, sort]);
 
-  const maxRefills = Math.max(1, ...(report?.rows.map((r) => r.refills) ?? [0]));
 
   return (
     <>
@@ -171,7 +170,6 @@ export default function ReportsPage() {
               totals={report.totals[scope]}
               legal={report.totals.legal}
               person={report.totals.person}
-              note={report.totals[scope].parts ? `деталей: ${report.totals[scope].parts}` : undefined}
             />
             <div className={s.legend} aria-hidden>
               <span><i className={s.splitLegal} /> юрлица</span>
@@ -218,12 +216,6 @@ export default function ReportsPage() {
                           {g.id === 'all' && <b className={s.rank}>{i + 1} место · </b>}
                           техники в базе: {r.devices}
                         </span>
-                        {(r.parts > 0 || r.otherWorks > 0) && (
-                          <span className={s.chips}>
-                            {r.parts > 0 && <span className={s.chip}>замен деталей {r.parts}</span>}
-                            {r.otherWorks > 0 && <span className={s.chip}>прочих работ {r.otherWorks}</span>}
-                          </span>
-                        )}
                       </span>
                       <span className={s.metrics}>
                         <Metric value={r.accepted} name="заявки" active={sort === 'accepted'} />
@@ -231,7 +223,6 @@ export default function ReportsPage() {
                         <Metric value={r.refills} name="картриджи" active={sort === 'refills'} />
                         <Metric value={r.declined} name="без рем." title="Без ремонта: клиент отказался" active={sort === 'declined'} />
                       </span>
-                      {r.refills > 0 && <i className={s.fillBar} style={{ width: `${Math.max(6, (r.refills / maxRefills) * 100)}%` }} aria-hidden />}
                     </button>
                   </li>
                 ))}
@@ -253,9 +244,9 @@ export default function ReportsPage() {
 }
 
 function reportCsv(report: MonthlyReport, scope: Scope) {
-  const head = ['Клиент', 'Тип', 'Принято заявок', 'Ремонтов', 'Без ремонта', 'Картриджей', 'Замен деталей', 'Прочих работ'];
+  const head = ['Клиент', 'Тип', 'Принято заявок', 'Ремонтов', 'Без ремонта', 'Картриджей'];
   const rows = report.rows
     .filter((r) => scope === 'all' || r.kind === scope)
-    .map((r) => [r.clientName, r.kind === 'legal' ? 'Юрлицо' : 'Физлицо', r.accepted, r.repaired, r.declined, r.refills, r.parts, r.otherWorks]);
+    .map((r) => [r.clientName, r.kind === 'legal' ? 'Юрлицо' : 'Физлицо', r.accepted, r.repaired, r.declined, r.refills]);
   return [head, ...rows];
 }

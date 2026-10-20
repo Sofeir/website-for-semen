@@ -415,7 +415,12 @@ export interface ClientReportWork {
   title: string;
   qty: number;
   counter: number | null;
+  amount: number | null;
   doneAt: string;
+  ops: string[];
+  /** Заявка, по которой сделана работа: по ней можно перейти. */
+  orderId: number | null;
+  orderNumber: string | null;
   /** Номер и название техники, если работа привязана к устройству. */
   deviceTitle: string | null;
 }
@@ -424,8 +429,15 @@ export interface ClientReportOrder {
   id: number;
   number: string;
   deviceTitle: string;
-  outcome: 'repaired' | 'declined';
-  doneAt: string;
+  stageName: string;
+  createdAt: string;
+  /** Принята в этом месяце. */
+  acceptedInMonth: boolean;
+  /** Итог, который случился в этом месяце: ремонт выполнен или без ремонта. */
+  outcome: 'repaired' | 'declined' | null;
+  outcomeAt: string | null;
+  /** Работы по этой заявке за месяц. */
+  works: ClientReportWork[];
 }
 
 /** Что сделали для одной организации за месяц: основа для счёта. */
@@ -496,6 +508,35 @@ export interface EarlyReplacement {
   doneAt: string;
 }
 
+/** Одна запись из журнала работ инженера за месяц. */
+export interface AnalyticsMasterWork {
+  id: number;
+  kind: 'refill' | 'part' | 'repair' | 'service';
+  title: string;
+  qty: number;
+  amount: number | null;
+  doneAt: string;
+  orderId: number | null;
+  orderNumber: string | null;
+  deviceTitle: string | null;
+  inventoryNo: string | null;
+  clientId: number;
+  clientName: string;
+  partBrand: string | null;
+  partSpec: string | null;
+  warrantyMonths: number | null;
+  ops: string[];
+}
+
+export interface AnalyticsMasterDetail {
+  userId: number;
+  name: string;
+  position: string | null;
+  month: string;
+  total: number;
+  works: AnalyticsMasterWork[];
+}
+
 export interface Analytics {
   month: string;
   compare: string;
@@ -514,10 +555,13 @@ export interface ClientReport {
   clientName: string;
   kind: 'person' | 'legal';
   month: string;
-  /** Заправки одной модели сложены: сколько штук всего. */
-  refills: { title: string; qty: number }[];
-  works: ClientReportWork[];
+  /** Те же итоги, что в строке отчёта. */
+  totals: { accepted: number; repaired: number; declined: number; refills: number };
   orders: ClientReportOrder[];
+  /** Каждая заправка отдельной записью, с номером заявки. */
+  refills: ClientReportWork[];
+  /** Работы без заявки или по заявке не из этого месяца. */
+  otherWorks: ClientReportWork[];
 }
 
 export interface MonthlyReport {

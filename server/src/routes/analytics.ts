@@ -4,12 +4,14 @@ import type {
   AnalyticsClient,
   AnalyticsDevice,
   AnalyticsMaster,
+  AnalyticsMasterDetail,
+  AnalyticsMasterWork,
   AnalyticsTotals,
   EarlyReplacement,
 } from '@sd/shared';
 import { many, one } from '../db/pool';
 import { DEVICE_TITLE } from '../services/sql';
-import { h, HttpError } from '../lib/http';
+import { h, HttpError, intParam } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { monthRange } from './reports';
 
@@ -58,7 +60,11 @@ analyticsRouter.get(
     const windowFrom = addMonths(from, -(span - 1));
     if (to.getTime() - windowFrom.getTime() <= 0) throw new HttpError(400, 'Период указан неверно');
 
-    const trendMonths = Array.from({ length: 12 }, (_, i) => addMonths(from, i - 11));
+    // Окно графика не двигается за выбранным месяцем: 12 месяцев до нынешнего. Сдвигаем, только если выбран месяц за его пределами.
+    let trendEnd = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (from < addMonths(trendEnd, -11)) trendEnd = addMonths(from, 11);
+    if (from > trendEnd) trendEnd = from;
+    const trendMonths = Array.from({ length: 12 }, (_, i) => addMonths(trendEnd, i - 11));
     const [current, previous, trend] = await Promise.all([
       totals(from, to),
       totals(cmp.from, cmp.to),
@@ -80,7 +86,8 @@ analyticsRouter.get(
            SELECT h.responsible_id AS uid, count(*) AS stages
              FROM order_history h WHERE h.kind = 'stage' AND h.started_at >= $1 AND h.started_at < $2 GROUP BY 1
          ) s ON s.uid = u.id
-        WHERE u.role <> 'customer' AND (coalesce(w.works, 0) + coalesce(s.stages, 0)) > 0
+        WHERE (u.role IN ('diagnostician', 'master', 'assistant') AND (coalesce(w.works, 0) + coalesce(s.stages, 0)) > 0)
+           OR coalesce(w.works, 0) > 0
         ORDER BY revenue DESC, works DESC, name`,
       [from, to],
     );
@@ -139,5 +146,47 @@ analyticsRouter.get(
 
     const data: Analytics = { month, compare, span, current, previous, trend, masters, devices, clients, early };
     res.json(data);
+  }),
+);
+
+/** Что сделал инженер за месяц: список работ с суммами. */
+analyticsRouter.get(
+  '/analytics/master/:id',
+  requirePermission('reports.view'),
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const month = String(req.query.month ?? monthKey(new Date()));
+    const { from, to } = monthRange(month);
+    const user = await one<{ name: string; position: string | null }>(
+      `SELECT full_name AS name, position FROM users WHERE id = $1 AND role <> 'customer'`,
+      [id],
+    );
+    if (!user) throw new HttpError(404, 'Сотрудник не найден');
+    const works = await many<AnalyticsMasterWork>(
+      `SELECT w.id, w.kind, w.title, w.qty, w.amount::float8 AS amount, w.done_at AS "doneAt",
+              w.order_id AS "orderId", o.number AS "orderNumber",
+              CASE WHEN d.id IS NULL THEN NULL ELSE ${DEVICE_TITLE} END AS "deviceTitle", d.inventory_no AS "inventoryNo",
+              c.id AS "clientId", c.name AS "clientName",
+              w.part_brand AS "partBrand", w.part_spec AS "partSpec", w.warranty_months AS "warrantyMonths", w.ops
+         FROM device_works w
+         JOIN clients c ON c.id = w.client_id
+         LEFT JOIN orders o ON o.id = w.order_id
+         LEFT JOIN devices d ON d.id = w.device_id
+         LEFT JOIN device_types dt ON dt.id = d.device_type_id
+         LEFT JOIN brands b ON b.id = d.brand_id
+         LEFT JOIN models m ON m.id = d.model_id
+        WHERE coalesce(w.performer_id, w.created_by) = $1 AND w.done_at >= $2 AND w.done_at < $3
+        ORDER BY w.done_at DESC, w.id DESC`,
+      [id, from, to],
+    );
+    const detail: AnalyticsMasterDetail = {
+      userId: id,
+      name: user.name,
+      position: user.position,
+      month,
+      total: works.reduce((s, w) => s + (w.amount ?? 0), 0),
+      works,
+    };
+    res.json(detail);
   }),
 );
