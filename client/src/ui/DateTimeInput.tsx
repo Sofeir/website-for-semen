@@ -79,7 +79,8 @@ const PAD = 80; // два пустых ряда сверху и снизу, чт
 
 /**
  * Колесо выбора, как при установке будильника. Управление своё, без прокрутки браузера:
- *  — колесо мыши: один щелчок равен одной строке, повторные события от одного щелчка отбрасываются;
+ *  — колесо мыши: один щелчок равен одной строке, при быстром вращении строки идут без пропусков;
+ *    тачпад: мелкие движения копятся и дают строку на каждые ~40 пикселей;
  *  — палец и перетаскивание мышью: строки идут за пальцем, после отпускания колесо докатывается до ближайшей строки;
  *  — тап или клик по строке выбирает её; стрелки вверх и вниз работают с клавиатуры.
  * Значение записывается сразу, а не после остановки.
@@ -101,7 +102,9 @@ function Wheel({
   const pos = useRef(0);
   const raf = useRef(0);
   const drag = useRef<{ y: number; start: number; moved: boolean; t: number; v: number } | null>(null);
-  const lastEvent = useRef(0);
+  /** Куда уже «доехало» колесо: при быстром вращении события приходят чаще, чем обновляется значение. */
+  const virt = useRef(0);
+  const wheelAcc = useRef(0);
   const max = (items.length - 1) * ROW;
   const clamp = useCallback((n: number) => Math.max(0, Math.min(max, n)), [max]);
 
@@ -150,6 +153,7 @@ function Wheel({
 
   // при открытии и при внешней смене значения ставим колесо на нужную строку
   useLayoutEffect(() => {
+    virt.current = index;
     if (drag.current) return;
     if (Math.abs(pos.current - index * ROW) > 0.5) setPos(index * ROW);
   }, [index, setPos]);
@@ -163,15 +167,21 @@ function Wheel({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const now = performance.now();
-      // события, идущие вплотную друг за другом, — это один щелчок (или одно движение по тачпаду): одна строка
-      const sameGesture = now - lastEvent.current < 110;
-      lastEvent.current = now;
-      if (sameGesture) return;
       const dy = e.deltaMode === 0 ? e.deltaY : e.deltaY * ROW;
-      if (Math.abs(dy) < 4) return;
-      const dir = dy > 0 ? 1 : -1;
-      choose(indexRef.current + dir);
+      let steps: number;
+      if (e.deltaMode !== 0 || Math.abs(dy) >= 50) {
+        // щелчок колеса мыши: ровно одна строка на событие, как бы быстро ни крутили
+        steps = dy > 0 ? 1 : -1;
+        wheelAcc.current = 0;
+      } else {
+        // тачпад: мелкие движения копим
+        wheelAcc.current += dy;
+        steps = Math.trunc(wheelAcc.current / 40);
+        wheelAcc.current -= steps * 40;
+      }
+      if (!steps) return;
+      virt.current = Math.max(0, Math.min(itemsRef.current.length - 1, virt.current + steps));
+      choose(virt.current);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
