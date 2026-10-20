@@ -52,17 +52,17 @@ test('ремонт: диагностика → согласование → ма
     .fill(`+7 922 ${suffix.slice(0, 3)}-${suffix.slice(3, 5)}-${suffix.slice(4, 6)}`);
   await semen.getByText('Ноутбук', { exact: true }).click();
   await semen.getByText('Перегревается, шумит', { exact: true }).click();
-  await semen.getByLabel('Ответственный').selectOption({ label: 'Стас' });
+  await semen.getByLabel('Ответственный').selectOption({ label: 'Исаков Григорий Вячеславович' });
   await semen.getByRole('button', { name: 'Сохранить приём' }).click();
   await semen.getByRole('dialog').getByRole('button', { name: 'Открыть заявку' }).click();
   await expect(semen).toHaveURL(/\/orders\/\d+$/);
   const orderUrl = new URL(semen.url()).pathname;
 
   const stas = await as(browser, 'stas');
-  await advance(stas, orderUrl, /Дальше: Согласование/, 'Семён');
-  await advance(semen, orderUrl, /Дальше: Ремонт/, 'Лёня');
+  await advance(stas, orderUrl, /Дальше: Согласование/, 'Вайнштейн Семён Леонидович');
+  await advance(semen, orderUrl, /Дальше: Ремонт/, 'Катаев Артем Дмитриевич');
   const lenya = await as(browser, 'lenya');
-  await advance(lenya, orderUrl, /Дальше: Готово/, 'Семён');
+  await advance(lenya, orderUrl, /Дальше: Готово/, 'Вайнштейн Семён Леонидович');
 
   // Акт: две работы из прайса и одна своя строка.
   await lenya.goto(orderUrl);
@@ -122,7 +122,7 @@ test('массовое закрытие задач: постановщик по�
     await semen.getByRole('button', { name: 'Поставить задачу' }).click();
     const dialog = semen.getByRole('dialog', { name: 'Новая задача' });
     await dialog.getByLabel('Что сделать').fill(title);
-    await dialog.getByLabel('Ответственный').selectOption({ label: 'Ольга' });
+    await dialog.getByLabel('Ответственный').selectOption({ label: 'Тафлевич Мария Викторовна' });
     await dialog.getByRole('button', { name: 'Поставить задачу' }).click();
     await expect(dialog).toBeHidden();
   }

@@ -105,6 +105,7 @@ function Users() {
   const [creating, setCreating] = useState(false);
   const [resetFor, setResetFor] = useState<UserBrief | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  const [showOff, setShowOff] = useState(false);
 
   const update = async (u: UserBrief, patch: Record<string, unknown>) => {
     try {
@@ -117,6 +118,8 @@ function Users() {
   };
 
   if (!users.data) return <Spinner />;
+  const disabled = users.data.filter((u) => u.isActive === false).length;
+  const list = users.data.filter((u) => showOff || u.isActive !== false);
   return (
     <Card>
       <div className={s.dictHead}>
@@ -136,8 +139,11 @@ function Users() {
           ))}
         </dl>
       </details>
+      {disabled > 0 && (
+        <Checkbox label={`Показывать отключённых (${disabled})`} checked={showOff} onChange={(e) => setShowOff(e.target.checked)} />
+      )}
       <ul className={s.users}>
-        {users.data.map((u) => (
+        {list.map((u) => (
           <li key={u.id} className={s.user} data-inactive={u.isActive === false}>
             <Avatar name={u.fullName} size={40} />
             <div className={s.userMain}>
@@ -145,6 +151,17 @@ function Users() {
                 {u.fullName} {u.id === me.id && <Pill tone="outline">это вы</Pill>}
               </b>
               <span>логин {u.login}</span>
+              <Input
+                aria-label={`Должность: ${u.fullName}`}
+                defaultValue={u.position ?? ''}
+                placeholder="Должность"
+                maxLength={120}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v !== (u.position ?? '')) update(u, { position: v || null });
+                }}
+                style={{ marginTop: 4 }}
+              />
               {u.roleConfirmed === false && (
                 <span className="row wrap" style={{ gap: 'var(--s-2)', marginTop: 4 }}>
                   <Pill tone="amber" dot>
@@ -234,7 +251,7 @@ function UserCreateSheet({ open, onClose }: { open: boolean; onClose: () => void
   });
   const e = form.formState.errors;
   useEffect(() => {
-    if (open) form.reset({ login: '', fullName: '', role: 'diagnostician', phone: '', password: '' });
+    if (open) form.reset({ login: '', fullName: '', role: 'diagnostician', phone: '', position: '', password: '' });
   }, [open, form]);
   const submit = form.handleSubmit(async (v) => {
     try {
@@ -269,6 +286,9 @@ function UserCreateSheet({ open, onClose }: { open: boolean; onClose: () => void
         {e.root?.message && <ErrorBox>{e.root.message}</ErrorBox>}
         <Field label="Имя" error={e.fullName?.message}>
           <Input {...form.register('fullName')} data-autofocus />
+        </Field>
+        <Field label="Должность" optional>
+          <Input {...form.register('position')} placeholder="Например: инженер" />
         </Field>
         <Field label="Роль">
           <Select {...form.register('role')}>

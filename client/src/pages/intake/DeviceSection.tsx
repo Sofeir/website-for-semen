@@ -40,6 +40,8 @@ export function DeviceSection({
   const brandId = useWatch({ control, name: `${path}.device.brandId` });
   const existingId = useWatch({ control, name: `${path}.device.id` });
   const err = errors.devices?.[index];
+  const typeName = dict.deviceTypes.find((t) => t.id === Number(typeId))?.name;
+  const serialRequired = typeName === 'Ноутбук' || typeName === 'Принтеры/МФУ';
 
   const types = dict.deviceTypes.filter((t) => t.isActive);
   const brands = useMemo(() => dict.brands.filter((b) => b.isActive && b.parentId === Number(typeId)), [dict.brands, typeId]);
@@ -181,7 +183,12 @@ export function DeviceSection({
             />
           )}
         </Field>
-        <Field label="Серийный номер" optional>
+        <Field
+          label="Серийный номер"
+          optional={!serialRequired}
+          error={err?.device?.serial?.message}
+          hint={typeName === 'Компьютер' ? 'Если номера нет, система присвоит свой (ПК-0001)' : undefined}
+        >
           {(cp) => (
             <Controller
               control={control}

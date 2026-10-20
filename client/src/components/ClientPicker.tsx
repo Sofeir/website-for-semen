@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Building2, Phone, Search, UserPlus, UserRound, X } from 'lucide-react';
-import { formatPhone, type Client, type ClientKind } from '@sd/shared';
-import { useClients } from '@/api/queries';
+import { formatPhone, type Client, type ClientKind, type ContactHit } from '@sd/shared';
+import { api } from '@/api/http';
+import { useClients, useContactSearch } from '@/api/queries';
+import { useToast } from '@/ui/Toast';
 import { useDebounced } from '@/lib/hooks';
 import { Button, IconButton } from '@/ui/Button';
 import { Input } from '@/ui/Form';
@@ -27,6 +29,17 @@ export function ClientPicker({
   const [q, setQ] = useState('');
   const dq = useDebounced(q.trim(), 200);
   const clients = useClients({ q: dq, kind, limit: 8 }, dq.length >= 2);
+  const toast = useToast();
+  // Сотрудник организации сдаёт личную технику: находим его среди людей организаций, второй раз не заводим
+  const people = useContactSearch(dq, kind === 'person');
+  const pickPerson = async (c: ContactHit) => {
+    try {
+      const r = await api.post<{ id: number }>(`/contacts/${c.id}/person`);
+      onSelect(await api.get<Client>(`/clients/${r.id}`));
+    } catch {
+      toast.error('Не получилось открыть карточку', 'Попробуйте ещё раз');
+    }
+  };
 
   if (selected) {
     return (
@@ -91,7 +104,24 @@ export function ClientPicker({
               </span>
             </button>
           ))}
-          {!clients.isFetching && !items.length && <p className={s.hint}>Такого клиента нет в базе.</p>}
+          {kind === 'person' &&
+            (people.data ?? [])
+              .filter((c) => !items.some((i) => i.id === c.personClientId))
+              .map((c) => (
+                <button key={`c${c.id}`} type="button" className={s.item} onClick={() => pickPerson(c)}>
+                  <span className={s.icon}>
+                    <UserRound aria-hidden />
+                  </span>
+                  <span className={s.selMain}>
+                    <b>{c.fullName}</b>
+                    <span>
+                      Сотрудник: {c.clientName}
+                      {c.phone ? `, ${formatPhone(c.phone)}` : ''}
+                    </span>
+                  </span>
+                </button>
+              ))}
+          {!clients.isFetching && !items.length && !(people.data ?? []).length && <p className={s.hint}>Такого клиента нет в базе.</p>}
         </div>
       )}
       <Button variant="secondary" block icon={<UserPlus size={18} aria-hidden />} onClick={() => onCreateNew(prefill)}>

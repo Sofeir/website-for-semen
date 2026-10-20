@@ -10,7 +10,7 @@ export const reportsRouter = Router();
 const FIELDS = ['accepted', 'repaired', 'declined', 'refills', 'parts', 'otherWorks'] as const;
 const emptyTotals = (): ReportTotals => ({ accepted: 0, repaired: 0, declined: 0, refills: 0, parts: 0, otherWorks: 0 });
 
-function monthRange(raw: unknown) {
+export function monthRange(raw: unknown) {
   const m = /^(\d{4})-(\d{2})$/.exec(String(raw ?? ''));
   if (!m) throw new HttpError(400, 'Месяц нужен в виде 2026-10');
   const y = Number(m[1]);

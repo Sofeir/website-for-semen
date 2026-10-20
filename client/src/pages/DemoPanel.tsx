@@ -3,11 +3,10 @@ import { useConfirm } from '@/ui/Confirm';
 import s from './LoginPage.module.css';
 
 const ACCOUNTS = [
-  { login: 'semen', label: 'Руководитель', who: 'Семён' },
-  { login: 'stas', label: 'Диагност', who: 'Стас' },
-  { login: 'lenya', label: 'Мастер', who: 'Лёня' },
-  { login: 'vanya', label: 'Только задачи', who: 'Ваня' },
-  { login: 'admin', label: 'Администратор', who: 'admin' },
+  { login: 'semen', label: 'Директор', who: 'Вайнштейн' },
+  { login: 'admin', label: 'Рук. сисадмин', who: 'Голенков' },
+  { login: 'stas', label: 'Ведущий инженер', who: 'Исаков' },
+  { login: 'lenya', label: 'Инженер', who: 'Катаев' },
   { login: 'maria', label: 'Заказчик', who: 'Мария' },
 ];
 

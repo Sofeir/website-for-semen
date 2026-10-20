@@ -16,7 +16,7 @@ const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10);
 
 async function loadMe(userId: number): Promise<Me> {
   const u = await one(
-    `SELECT id, login, full_name AS "fullName", role, phone, onboarded_at IS NOT NULL AS onboarded,
+    `SELECT id, login, full_name AS "fullName", role, phone, position, onboarded_at IS NOT NULL AS onboarded,
             notify_inapp AS "notifyInApp", notify_telegram AS "notifyTelegram", notify_max AS "notifyMax",
             telegram_chat_id AS "telegramChatId", max_user_id AS "maxUserId", client_id AS "clientId"
        FROM users WHERE id = $1`,

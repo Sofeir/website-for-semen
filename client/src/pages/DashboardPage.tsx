@@ -13,6 +13,7 @@ import { Button, ButtonLink, cx } from '@/ui/Button';
 import { Card, CardHead, EmptyState, ErrorBox, PageHeader, Plate, Skeleton } from '@/ui/Display';
 import { useToast } from '@/ui/Toast';
 import { ApiError } from '@/api/http';
+import { staffFirstName } from '@/lib/names';
 import s from './DashboardPage.module.css';
 
 export default function DashboardPage() {
@@ -73,7 +74,7 @@ export default function DashboardPage() {
 
       <Plate className={s.plate}>
         <p className={s.greeting}>
-          {greeting(now)}, {me.fullName.split(' ')[0]}
+          {greeting(now)}, {staffFirstName(me.fullName)}
         </p>
         <div className={cx(s.stats, !workspace && s.statsTwo)}>
           {(d ? stats : Array.from({ length: workspace ? 4 : 2 }, () => null)).map((st, i) =>

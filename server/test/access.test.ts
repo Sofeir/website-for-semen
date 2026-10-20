@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pool } from '../src/db/pool';
-import { dict, inDays, intakeLaptop, loginAs, resetDb } from './helpers';
+import { PASSWORD, dict, inDays, intakeLaptop, loginAs, resetDb } from './helpers';
 
 afterAll(() => pool.end());
 
@@ -64,6 +64,10 @@ describe('сотрудник «только задачи»', () => {
 
   it('видит свои задачи и «Сегодня», ставит задачи, но заявки, клиенты и акты закрыты', async () => {
     const semen = await loginAs('semen');
+    // «только задачи» в рабочем составе нет, роль остаётся в системе: заводим такого сотрудника на время теста
+    const boss = await loginAs('admin');
+    const made = await boss.post('/api/users', { login: 'vanya', fullName: 'Тест Помощник', role: 'assistant', password: PASSWORD });
+    expect(made.status).toBe(201);
     const vanya = await loginAs('vanya');
     const { users } = await dict();
     const orderId = await intakeLaptop(semen, users.lenya, '+7 900 222-00-01');

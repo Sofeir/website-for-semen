@@ -14,6 +14,8 @@ import { ordersRouter } from './routes/orders';
 import { tasksRouter } from './routes/tasks';
 import { equipmentRouter } from './routes/equipment';
 import { reportsRouter } from './routes/reports';
+import { contactsRouter } from './routes/contacts';
+import { analyticsRouter } from './routes/analytics';
 import { notificationsRouter } from './routes/notifications';
 import { actsRouter } from './routes/acts';
 import { documentsRouter } from './routes/documents';
@@ -63,6 +65,8 @@ export function createApp() {
   api.use(tasksRouter);
   api.use(equipmentRouter);
   api.use(reportsRouter);
+  api.use(contactsRouter);
+  api.use(analyticsRouter);
   api.use(notificationsRouter);
   api.use(actsRouter);
   api.use(documentsRouter);

@@ -4,6 +4,7 @@ import {
   FileText,
   ListChecks,
   BarChart3,
+  LineChart,
   PlusCircle,
   Settings2,
   Truck,
@@ -34,6 +35,7 @@ export const NAV: NavItem[] = [
   { to: '/customers', label: 'Заказчики', icon: UserCheck, permission: 'customers.manage' },
   { to: '/acts', label: 'Акты', icon: FileText, permission: 'workspace.view' },
   { to: '/reports', label: 'Отчёты', icon: BarChart3, permission: 'reports.view' },
+  { to: '/analytics', label: 'Аналитика', icon: LineChart, permission: 'reports.view' },
   { to: '/settings', label: 'Настройки', icon: Settings2, permission: 'dictionaries.edit' },
 ];
 

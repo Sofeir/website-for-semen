@@ -4,7 +4,10 @@ import type {
   ActBrief,
   ActInput,
   AdvanceOrderInput,
+  Analytics,
   ClientDetail,
+  Contact,
+  ContactHit,
   Client,
   CloseTasksInput,
   CustomerAccount,
@@ -103,6 +106,36 @@ export const useClientWorks = (clientId: number, enabled = true) =>
     queryKey: ['clientWorks', clientId],
     queryFn: () => api.get<DeviceWork[]>(`/clients/${clientId}/works`),
     enabled,
+  });
+
+export const useContacts = (clientId: number | null, q = '', enabled = true) =>
+  useQuery({
+    queryKey: ['contacts', clientId, q],
+    queryFn: () => api.get<Contact[]>(`/clients/${clientId}/contacts${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+    enabled: enabled && Boolean(clientId),
+    placeholderData: keepPreviousData,
+  });
+
+export const useContactSearch = (q: string, enabled = true) =>
+  useQuery({
+    queryKey: ['contactSearch', q],
+    queryFn: () => api.get<ContactHit[]>(`/contacts/search?q=${encodeURIComponent(q)}`),
+    enabled: enabled && q.length >= 2,
+    placeholderData: keepPreviousData,
+  });
+
+export const useDeviceComponents = (deviceId: number | null) =>
+  useQuery({
+    queryKey: ['deviceComponents', deviceId],
+    queryFn: () => api.get<Device[]>(`/devices/${deviceId}/components`),
+    enabled: Boolean(deviceId),
+  });
+
+export const useAnalytics = (month: string, compare: string, span: number) =>
+  useQuery({
+    queryKey: ['analytics', month, compare, span],
+    queryFn: () => api.get<Analytics>(`/analytics?month=${month}&compare=${compare}&span=${span}`),
+    placeholderData: keepPreviousData,
   });
 
 export const useMonthlyReport = (month: string) =>

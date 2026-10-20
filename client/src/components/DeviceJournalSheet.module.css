@@ -39,3 +39,49 @@
   color: var(--text-muted);
   overflow-wrap: anywhere;
 }
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: var(--s-2);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+.stat b {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-md);
+  white-space: nowrap;
+}
+
+.stat span {
+  font-size: var(--fs-xs, 12px);
+  color: var(--text-muted);
+}
+
+.icon {
+  flex: none;
+  margin-top: 3px;
+  color: var(--blue-700);
+}
+
+.sum {
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.early {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--red-700, #b42318);
+}
