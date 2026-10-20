@@ -1,0 +1,50 @@
+# Автоматическая публикация: любая ветка, отправленная в GitHub (в том числе автопушем из Claude Code),
+# проходит проверку (типы и сборка демо), затем для неё создаётся pull request, и он сразу вливается в main.
+# Сайт на GitHub Pages обновляется после вливания. Если проверка упала, в main ничего не попадает.
+# Разрешено владельцем репозитория (Sofeir) 20.10.2026.
+name: Auto merge to main
+
+on:
+  push:
+    branches-ignore: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: auto-merge-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build:demo
+      - name: Pull request и слияние
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="${GITHUB_REF_NAME}"
+          if [ "$(git rev-list --count origin/main..HEAD)" = "0" ]; then
+            echo "В ветке нет новых коммитов относительно main, вливать нечего."
+            exit 0
+          fi
+          if ! gh pr view "$branch" --json number >/dev/null 2>&1; then
+            gh pr create --base main --head "$branch" \
+              --title "$(git log -1 --pretty=%s)" \
+              --body "Создан автоматически после проверки: типы и сборка демо прошли."
+          fi
+          gh pr merge "$branch" --merge
+          # Слияние токеном Actions не запускает другие workflow само, поэтому публикацию сайта запускаем явно.
+          gh workflow run pages.yml --ref main
