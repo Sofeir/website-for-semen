@@ -1,89 +1,102 @@
-import { useState } from 'react';
-import { BarChart3, ChevronLeft, ChevronRight, Download, Link2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { BarChart3, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import type { MonthlyReport, ReportRow, ReportTotals } from '@sd/shared';
 import { useMonthlyReport } from '@/api/queries';
 import { useDocumentTitle } from '@/lib/hooks';
-import { Button, IconButton } from '@/ui/Button';
-import { Card, EmptyState, ErrorBox, PageHeader, Pill, Spinner } from '@/ui/Display';
+import { Button, IconButton, cx } from '@/ui/Button';
+import { EmptyState, ErrorBox, PageHeader, Plate, Spinner } from '@/ui/Display';
 import { Segmented } from '@/ui/Form';
+import { ClientReportSheet } from './ClientReportSheet';
+import { downloadCsv, label, monthShift, thisMonth } from './reportUtils';
 import s from './ReportsPage.module.css';
 
 type Scope = 'all' | 'legal' | 'person';
+type SortKey = 'name' | 'accepted' | 'refills';
 
-const STATS: { key: keyof ReportTotals; label: string }[] = [
-  { key: 'accepted', label: 'Принято заявок' },
-  { key: 'repaired', label: 'Ремонтов' },
-  { key: 'declined', label: 'Без ремонта' },
-  { key: 'refills', label: 'Картриджей' },
-  { key: 'parts', label: 'Замен деталей' },
-  { key: 'otherWorks', label: 'Прочих работ' },
-];
+const initials = (name: string) =>
+  name
+    .replace(/[«»"]/g, '')
+    .split(/\s+/)
+    .filter((w) => /\p{L}/u.test(w) && !/^(ооо|ип|ао|зао|пао)$/i.test(w))
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('') || '?';
 
-const monthFmt = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' });
-
-const ym = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-const shift = (month: string, n: number) => {
-  const [y, m] = month.split('-').map(Number);
-  return ym(new Date(y, m - 1 + n, 1));
-};
-const label = (month: string) => {
-  const [y, m] = month.split('-').map(Number);
-  const t = monthFmt.format(new Date(y, m - 1, 1));
-  return t.charAt(0).toUpperCase() + t.slice(1);
-};
-
-function toCsv(report: MonthlyReport, scope: Scope) {
-  const head = ['Клиент', 'Тип', 'Принято заявок', 'Ремонтов', 'Без ремонта', 'Картриджей', 'Замен деталей', 'Прочих работ'];
-  const rows = report.rows
-    .filter((r) => scope === 'all' || r.kind === scope)
-    .map((r) => [r.clientName, r.kind === 'legal' ? 'Юрлицо' : 'Физлицо', r.accepted, r.repaired, r.declined, r.refills, r.parts, r.otherWorks]);
-  const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
-  return '\uFEFF' + [head, ...rows].map((r) => r.map(esc).join(';')).join('\r\n');
+/** Доля юрлиц в числе: две цветные части одной полосы. */
+function Split({ legal, person }: { legal: number; person: number }) {
+  const sum = legal + person;
+  return (
+    <span className={s.split} aria-hidden>
+      {sum > 0 && <i className={s.splitLegal} style={{ flexGrow: legal }} />}
+      {sum > 0 && <i className={s.splitPerson} style={{ flexGrow: person }} />}
+      {sum === 0 && <i className={s.splitNone} />}
+    </span>
+  );
 }
 
-function StatGrid({ totals }: { totals: ReportTotals }) {
+function HeroStat({ title, field, totals, legal, person, note }: { title: string; field: keyof ReportTotals; totals: ReportTotals; legal: ReportTotals; person: ReportTotals; note?: string }) {
   return (
-    <dl className={s.stats}>
-      {STATS.map((st) => (
-        <div key={st.key} className={s.stat}>
-          <dt>{st.label}</dt>
-          <dd>{totals[st.key]}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className={s.heroStat}>
+      <span className={s.heroLabel}>{title}</span>
+      <b className={s.heroNum}>{totals[field]}</b>
+      <Split legal={legal[field]} person={person[field]} />
+      <span className={s.heroNote}>{note ?? `юр ${legal[field]} · физ ${person[field]}`}</span>
+    </div>
+  );
+}
+
+function Metric({ value, name, accent }: { value: number; name: string; accent?: boolean }) {
+  return (
+    <span className={cx(s.metric, !value && s.metricZero, accent && value > 0 && s.metricAccent)}>
+      <b>{value}</b>
+      <span>{name}</span>
+    </span>
   );
 }
 
 /**
- * Помесячный отчёт: сколько заявок принято, ремонтов сделано, картриджей заправлено.
- * «Все» — слитный отчёт по юрлицам и физлицам вместе, с разбивкой итогов.
+ * Помесячный отчёт: наверху главные цифры с долей юрлиц и физлиц, ниже клиенты стеклянными плашками.
+ * У каждого клиента три главные цифры и полоса картриджей относительно самого «заправляемого»; редкие показатели появляются
+ * только когда они не нулевые. Нажатие на клиента открывает подробности для счёта.
  */
 export default function ReportsPage() {
   useDocumentTitle('Отчёты');
-  const [month, setMonth] = useState(() => ym(new Date()));
+  const [month, setMonth] = useState(thisMonth);
   const [scope, setScope] = useState<Scope>('all');
+  const [sort, setSort] = useState<SortKey>('name');
+  const [openId, setOpenId] = useState<number | null>(null);
   const q = useMonthlyReport(month);
   const report = q.data;
-  const rows: ReportRow[] = (report?.rows ?? []).filter((r) => scope === 'all' || r.kind === scope);
 
-  const download = () => {
-    if (!report) return;
-    const blob = new Blob([toCsv(report, scope)], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `otchet-${month}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
+  const groups = useMemo(() => {
+    if (!report) return [];
+    const order = (a: ReportRow, b: ReportRow) =>
+      sort === 'name' ? a.clientName.localeCompare(b.clientName, 'ru') : b[sort] - a[sort] || a.clientName.localeCompare(b.clientName, 'ru');
+    return (['legal', 'person'] as const)
+      .filter((k) => scope === 'all' || scope === k)
+      .map((k) => ({
+        id: k,
+        title: k === 'legal' ? 'Юрлица' : 'Физлица',
+        totals: report.totals[k],
+        rows: report.rows.filter((r) => r.kind === k).sort(order),
+      }))
+      .filter((g) => g.rows.length);
+  }, [report, scope, sort]);
+
+  const maxRefills = Math.max(1, ...(report?.rows.map((r) => r.refills) ?? [0]));
 
   return (
     <>
       <PageHeader
         title="Отчёты"
-        subtitle="По месяцам: заявки, ремонты, заправки картриджей. Считается само из заявок и журнала техники."
+        subtitle="По месяцам: заявки, ремонты, заправки картриджей. Нажмите на клиента, чтобы увидеть, что именно сделали."
         actions={
-          <Button variant="secondary" icon={<Download size={18} aria-hidden />} onClick={download} disabled={!report}>
+          <Button
+            variant="secondary"
+            icon={<Download size={18} aria-hidden />}
+            onClick={() => report && downloadCsv(`otchet-${month}.csv`, reportCsv(report, scope))}
+            disabled={!report}
+          >
             Скачать CSV
           </Button>
         }
@@ -91,11 +104,11 @@ export default function ReportsPage() {
 
       <div className={s.bar}>
         <div className={s.month}>
-          <IconButton label="Предыдущий месяц" onClick={() => setMonth(shift(month, -1))}>
+          <IconButton label="Предыдущий месяц" onClick={() => setMonth(monthShift(month, -1))}>
             <ChevronLeft />
           </IconButton>
           <h2 className={s.monthTitle}>{label(month)}</h2>
-          <IconButton label="Следующий месяц" onClick={() => setMonth(shift(month, 1))}>
+          <IconButton label="Следующий месяц" onClick={() => setMonth(monthShift(month, 1))}>
             <ChevronRight />
           </IconButton>
         </div>
@@ -105,7 +118,7 @@ export default function ReportsPage() {
           value={scope}
           onChange={setScope}
           options={[
-            { value: 'all', label: 'Все вместе' },
+            { value: 'all', label: 'Все' },
             { value: 'legal', label: 'Юрлица' },
             { value: 'person', label: 'Физлица' },
           ]}
@@ -116,49 +129,104 @@ export default function ReportsPage() {
       {!report && q.isLoading && <Spinner />}
 
       {report && (
-        <div className="stack">
-          <Card>
-            <h3 className={s.h}>Итого{scope === 'all' ? ': юрлица и физлица вместе' : scope === 'legal' ? ': юрлица' : ': физлица'}</h3>
-            <StatGrid totals={report.totals[scope]} />
-            {scope === 'all' && (
-              <div className={s.split}>
-                <div>
-                  <Pill tone="violet">Юрлица</Pill>
-                  <StatGrid totals={report.totals.legal} />
-                </div>
-                <div>
-                  <Pill tone="blue">Физлица</Pill>
-                  <StatGrid totals={report.totals.person} />
-                </div>
-              </div>
-            )}
-          </Card>
+        <>
+          <Plate className={s.hero}>
+            <HeroStat title="Заявки" field="accepted" totals={report.totals[scope]} legal={report.totals.legal} person={report.totals.person} />
+            <HeroStat
+              title="Ремонтов"
+              field="repaired"
+              totals={report.totals[scope]}
+              legal={report.totals.legal}
+              person={report.totals.person}
+              note={report.totals[scope].declined ? `без ремонта: ${report.totals[scope].declined}` : undefined}
+            />
+            <HeroStat
+              title="Картриджей"
+              field="refills"
+              totals={report.totals[scope]}
+              legal={report.totals.legal}
+              person={report.totals.person}
+              note={report.totals[scope].parts ? `деталей: ${report.totals[scope].parts}` : undefined}
+            />
+            <div className={s.legend} aria-hidden>
+              <span><i className={s.splitLegal} /> юрлица</span>
+              <span><i className={s.splitPerson} /> физлица</span>
+            </div>
+          </Plate>
 
-          {rows.length ? (
-            <ul className={s.rows}>
-              {rows.map((r) => (
-                <li key={r.clientId}>
-                  <Card>
-                    <div className={s.rowHead}>
-                      <Link to={`/clients/${r.clientId}`} className={s.client}>
-                        {r.clientName}
-                        <Link2 size={14} aria-hidden />
-                      </Link>
-                      <Pill tone={r.kind === 'legal' ? 'violet' : 'blue'}>{r.kind === 'legal' ? 'юрлицо' : 'физлицо'}</Pill>
-                      <span className={s.devices}>техники в базе: {r.devices}</span>
-                    </div>
-                    <StatGrid totals={r} />
-                  </Card>
-                </li>
-              ))}
-            </ul>
-          ) : (
+          {groups.length > 0 && (
+            <div className={s.sortRow}>
+              <span className={s.sortLabel}>Сначала</span>
+              <Segmented<SortKey>
+                block
+                label="Порядок клиентов"
+                layoutId="report-sort"
+                value={sort}
+                onChange={setSort}
+                options={[
+                  { value: 'name', label: 'По имени' },
+                  { value: 'accepted', label: 'Заявки' },
+                  { value: 'refills', label: 'Картриджи' },
+                ]}
+              />
+            </div>
+          )}
+
+          {groups.map((g) => (
+            <section key={g.id} className={s.group} aria-label={g.title}>
+              <h3 className={s.groupHead}>
+                <i className={cx(s.dot, g.id === 'legal' ? s.splitLegal : s.splitPerson)} />
+                {g.title}
+                <span className={s.groupCount}>{g.rows.length}</span>
+              </h3>
+              <ul className={s.list}>
+                {g.rows.map((r) => (
+                  <li key={r.clientId}>
+                    <button type="button" className={cx('lg', s.row)} onClick={() => setOpenId(r.clientId)}>
+                      <span className={cx(s.avatar, r.kind === 'legal' ? s.avLegal : s.avPerson)} aria-hidden>
+                        {initials(r.clientName)}
+                      </span>
+                      <span className={s.who}>
+                        <span className={s.name}>{r.clientName}</span>
+                        <span className={s.sub}>техники в базе: {r.devices}</span>
+                        {(r.declined > 0 || r.parts > 0 || r.otherWorks > 0) && (
+                          <span className={s.chips}>
+                            {r.declined > 0 && <span className={s.chip}>без ремонта {r.declined}</span>}
+                            {r.parts > 0 && <span className={s.chip}>замен деталей {r.parts}</span>}
+                            {r.otherWorks > 0 && <span className={s.chip}>прочих работ {r.otherWorks}</span>}
+                          </span>
+                        )}
+                      </span>
+                      <span className={s.metrics}>
+                        <Metric value={r.accepted} name="заявки" />
+                        <Metric value={r.repaired} name="ремонты" />
+                        <Metric value={r.refills} name="картриджи" accent />
+                      </span>
+                      {r.refills > 0 && <i className={s.fillBar} style={{ width: `${Math.max(6, (r.refills / maxRefills) * 100)}%` }} aria-hidden />}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+
+          {!groups.length && (
             <EmptyState icon={<BarChart3 />} title="За этот месяц данных нет">
               Отчёт строится из заявок и журнала техники. Если заправки не записывать, они не попадут в отчёт.
             </EmptyState>
           )}
-        </div>
+        </>
       )}
+
+      <ClientReportSheet clientId={openId} month={month} onClose={() => setOpenId(null)} />
     </>
   );
+}
+
+function reportCsv(report: MonthlyReport, scope: Scope) {
+  const head = ['Клиент', 'Тип', 'Принято заявок', 'Ремонтов', 'Без ремонта', 'Картриджей', 'Замен деталей', 'Прочих работ'];
+  const rows = report.rows
+    .filter((r) => scope === 'all' || r.kind === scope)
+    .map((r) => [r.clientName, r.kind === 'legal' ? 'Юрлицо' : 'Физлицо', r.accepted, r.repaired, r.declined, r.refills, r.parts, r.otherWorks]);
+  return [head, ...rows];
 }

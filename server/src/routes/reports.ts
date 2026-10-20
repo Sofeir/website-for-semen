@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import type { MonthlyReport, ReportRow, ReportTotals } from '@sd/shared';
-import { many } from '../db/pool';
-import { h, HttpError } from '../lib/http';
+import type { ClientReport, ClientReportOrder, ClientReportWork, MonthlyReport, ReportRow, ReportTotals } from '@sd/shared';
+import { many, one } from '../db/pool';
+import { DEVICE_TITLE } from '../services/sql';
+import { h, HttpError, intParam } from '../lib/http';
 import { requirePermission } from '../auth/session';
 
 export const reportsRouter = Router();
@@ -54,6 +55,58 @@ reportsRouter.get(
       }
     }
     const report: MonthlyReport = { month, rows, totals };
+    res.json(report);
+  }),
+);
+
+/** Подробности по одной организации за месяц: что именно сделали. Для выставления счёта. */
+reportsRouter.get(
+  '/reports/client/:id',
+  requirePermission('reports.view'),
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const month = String(req.query.month);
+    const { from, to } = monthRange(month);
+    const client = await one<{ name: string; kind: 'person' | 'legal' }>('SELECT name, kind FROM clients WHERE id = $1', [id]);
+    if (!client) throw new HttpError(404, 'Клиент не найден');
+
+    const works = await many<ClientReportWork>(
+      `SELECT w.id, w.kind, w.title, w.qty, w.counter, w.done_at AS "doneAt",
+              CASE WHEN d.id IS NULL THEN NULL
+                   ELSE concat_ws(' ', nullif(d.inventory_no, ''), ${DEVICE_TITLE}) END AS "deviceTitle"
+         FROM device_works w
+         LEFT JOIN devices d ON d.id = w.device_id
+         LEFT JOIN device_types dt ON dt.id = d.device_type_id
+         LEFT JOIN brands b ON b.id = d.brand_id
+         LEFT JOIN models m ON m.id = d.model_id
+        WHERE w.client_id = $1 AND w.done_at >= $2 AND w.done_at < $3
+        ORDER BY w.done_at, w.id`,
+      [id, from, to],
+    );
+    const orders = await many<ClientReportOrder>(
+      `SELECT o.id, o.number, ${DEVICE_TITLE} AS "deviceTitle", h.outcome, h.started_at AS "doneAt"
+         FROM order_history h
+         JOIN orders o ON o.id = h.order_id
+         JOIN devices d ON d.id = o.device_id
+         JOIN device_types dt ON dt.id = d.device_type_id
+         LEFT JOIN brands b ON b.id = d.brand_id
+         LEFT JOIN models m ON m.id = d.model_id
+        WHERE o.client_id = $1 AND h.kind = 'stage' AND h.outcome IS NOT NULL AND h.started_at >= $2 AND h.started_at < $3
+        ORDER BY h.started_at, o.id`,
+      [id, from, to],
+    );
+
+    const sums = new Map<string, number>();
+    for (const w of works) if (w.kind === 'refill') sums.set(w.title, (sums.get(w.title) ?? 0) + w.qty);
+    const report: ClientReport = {
+      clientId: id,
+      clientName: client.name,
+      kind: client.kind,
+      month,
+      refills: [...sums].map(([title, qty]) => ({ title, qty })),
+      works: works.filter((w) => w.kind !== 'refill'),
+      orders,
+    };
     res.json(report);
   }),
 );
