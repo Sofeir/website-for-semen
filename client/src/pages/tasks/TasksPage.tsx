@@ -6,7 +6,7 @@ import type { TaskListItem } from '@sd/shared';
 import { pluralRu } from '@sd/shared';
 import { useAuth, useMe } from '@/app/auth';
 import { ApiError } from '@/api/http';
-import { useCloseTasks, useTasks, type TaskFilters } from '@/api/queries';
+import { useCloseTasks, useTaskKinds, useTasks, type TaskFilters } from '@/api/queries';
 import { addDays, startOfDay } from '@/lib/dates';
 import { useDebounced, useDocumentTitle } from '@/lib/hooks';
 import { UserSelect } from '@/components/Pickers';
@@ -15,7 +15,7 @@ import { TaskSheet } from '@/components/TaskSheet';
 import { TaskFormSheet } from '@/components/TaskFormSheet';
 import { Button } from '@/ui/Button';
 import { Card, EmptyState, ErrorBox, PageHeader, Spinner, Tabs } from '@/ui/Display';
-import { Checkbox, Field, Input, Segmented, Textarea } from '@/ui/Form';
+import { Checkbox, ChipGroup, Field, Input, Segmented, Textarea } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import s from './Tasks.module.css';
@@ -62,6 +62,8 @@ export default function TasksPage() {
     assignee: assignee ? Number(assignee) : '',
   };
   const tasks = useTasks(filters);
+  const kinds = useTaskKinds();
+  const [kindNames, setKindNames] = useState<string[]>([]);
   const close = useCloseTasks();
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -69,7 +71,12 @@ export default function TasksPage() {
   const [creating, setCreating] = useState(false);
   const openTaskId = Number(params.get('task')) || null;
 
-  const list = tasks.data ?? [];
+  const allTasks = tasks.data ?? [];
+  const list = useMemo(
+    () => (kindNames.length ? allTasks.filter((t) => kindNames.includes(t.kindName ?? '')) : allTasks),
+    [allTasks, kindNames],
+  );
+  const kindOptions = (kinds.data ?? []).filter((k) => k.isActive).map((k) => k.name);
   const groups = useMemo(
     () => (status === 'open' ? groupTasks(list) : [{ key: 'done', title: 'Закрытые', items: list }]),
     [list, status],
@@ -177,6 +184,11 @@ export default function TasksPage() {
             className={s.search}
           />
         </div>
+        {kindOptions.length > 0 && (
+          <div className={s.kindRow}>
+            <ChipGroup label="Виды задач" options={kindOptions} value={kindNames} onChange={setKindNames} />
+          </div>
+        )}
       </div>
 
       {selectable && allIds.length > 0 && (

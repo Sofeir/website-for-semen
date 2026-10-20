@@ -11,7 +11,14 @@ import { downloadCsv, label, monthShift, thisMonth } from './reportUtils';
 import s from './ReportsPage.module.css';
 
 type Scope = 'all' | 'legal' | 'person';
-type SortKey = 'name' | 'accepted' | 'refills';
+type SortKey = 'name' | 'accepted' | 'refills' | 'declined';
+
+const SORT_LABEL: Record<SortKey, string> = {
+  name: 'по имени',
+  accepted: 'по числу заявок',
+  refills: 'по числу картриджей',
+  declined: 'по числу «без ремонта»',
+};
 
 const initials = (name: string) =>
   name
@@ -45,9 +52,9 @@ function HeroStat({ title, field, totals, legal, person, note }: { title: string
   );
 }
 
-function Metric({ value, name, accent }: { value: number; name: string; accent?: boolean }) {
+function Metric({ value, name, title, active }: { value: number; name: string; title?: string; active?: boolean }) {
   return (
-    <span className={cx(s.metric, !value && s.metricZero, accent && value > 0 && s.metricAccent)}>
+    <span className={cx(s.metric, !value && s.metricZero, active && s.metricActive)} title={title}>
       <b>{value}</b>
       <span>{name}</span>
     </span>
@@ -70,8 +77,26 @@ export default function ReportsPage() {
 
   const groups = useMemo(() => {
     if (!report) return [];
+    // По цифре: больше сверху, при равенстве смотрим остальные цифры, затем имя.
     const order = (a: ReportRow, b: ReportRow) =>
-      sort === 'name' ? a.clientName.localeCompare(b.clientName, 'ru') : b[sort] - a[sort] || a.clientName.localeCompare(b.clientName, 'ru');
+      sort === 'name'
+        ? a.clientName.localeCompare(b.clientName, 'ru')
+        : b[sort] - a[sort] ||
+          b.accepted - a.accepted ||
+          b.refills - a.refills ||
+          b.repaired - a.repaired ||
+          a.clientName.localeCompare(b.clientName, 'ru');
+    // Сортировка по цифре идёт одним общим списком: так видно, кто на первом месте, а не только внутри группы.
+    if (sort !== 'name' && scope === 'all') {
+      return [
+        {
+          id: 'all' as const,
+          title: `Все клиенты ${SORT_LABEL[sort]}`,
+          totals: report.totals.all,
+          rows: [...report.rows].sort(order),
+        },
+      ];
+    }
     return (['legal', 'person'] as const)
       .filter((k) => scope === 'all' || scope === k)
       .map((k) => ({
@@ -164,9 +189,10 @@ export default function ReportsPage() {
                 value={sort}
                 onChange={setSort}
                 options={[
-                  { value: 'name', label: 'По имени' },
+                  { value: 'name', label: 'Имя' },
                   { value: 'accepted', label: 'Заявки' },
                   { value: 'refills', label: 'Картриджи' },
+                  { value: 'declined', label: 'Без рем.' },
                 ]}
               />
             </div>
@@ -175,12 +201,12 @@ export default function ReportsPage() {
           {groups.map((g) => (
             <section key={g.id} className={s.group} aria-label={g.title}>
               <h3 className={s.groupHead}>
-                <i className={cx(s.dot, g.id === 'legal' ? s.splitLegal : s.splitPerson)} />
+                <i className={cx(s.dot, g.id === 'legal' ? s.splitLegal : g.id === 'person' ? s.splitPerson : s.dotAll)} />
                 {g.title}
                 <span className={s.groupCount}>{g.rows.length}</span>
               </h3>
               <ul className={s.list}>
-                {g.rows.map((r) => (
+                {g.rows.map((r, i) => (
                   <li key={r.clientId}>
                     <button type="button" className={cx('lg', s.row)} onClick={() => setOpenId(r.clientId)}>
                       <span className={cx(s.avatar, r.kind === 'legal' ? s.avLegal : s.avPerson)} aria-hidden>
@@ -188,19 +214,22 @@ export default function ReportsPage() {
                       </span>
                       <span className={s.who}>
                         <span className={s.name}>{r.clientName}</span>
-                        <span className={s.sub}>техники в базе: {r.devices}</span>
-                        {(r.declined > 0 || r.parts > 0 || r.otherWorks > 0) && (
+                        <span className={s.sub}>
+                          {g.id === 'all' && <b className={s.rank}>{i + 1} место · </b>}
+                          техники в базе: {r.devices}
+                        </span>
+                        {(r.parts > 0 || r.otherWorks > 0) && (
                           <span className={s.chips}>
-                            {r.declined > 0 && <span className={s.chip}>без ремонта {r.declined}</span>}
                             {r.parts > 0 && <span className={s.chip}>замен деталей {r.parts}</span>}
                             {r.otherWorks > 0 && <span className={s.chip}>прочих работ {r.otherWorks}</span>}
                           </span>
                         )}
                       </span>
                       <span className={s.metrics}>
-                        <Metric value={r.accepted} name="заявки" />
+                        <Metric value={r.accepted} name="заявки" active={sort === 'accepted'} />
                         <Metric value={r.repaired} name="ремонты" />
-                        <Metric value={r.refills} name="картриджи" accent />
+                        <Metric value={r.refills} name="картриджи" active={sort === 'refills'} />
+                        <Metric value={r.declined} name="без рем." title="Без ремонта: клиент отказался" active={sort === 'declined'} />
                       </span>
                       {r.refills > 0 && <i className={s.fillBar} style={{ width: `${Math.max(6, (r.refills / maxRefills) * 100)}%` }} aria-hidden />}
                     </button>

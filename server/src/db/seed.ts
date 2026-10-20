@@ -680,11 +680,24 @@ export async function seedDemo() {
         `INSERT INTO device_works (client_id, device_id, kind, title, qty, counter, done_at, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [fleetOrder.client_id, deviceId, kind, title, qty, counter, doneAt, by],
       );
+    await work(fleetOrder.device_id, 'part', 'Блок фотобарабана', 1, 60000, daysAgo(120), semen.id);
     await work(fleetOrder.device_id, 'part', 'Блок фотобарабана', 1, 80000, daysAgo(40), semen.id);
     await work(null, 'refill', 'Картридж CF259A', 8, null, daysAgo(35), olga.id);
     await work(null, 'refill', 'Картридж CF259A', 4, null, daysAgo(9), olga.id);
     await work(null, 'refill', 'Картридж CE505A', 6, null, daysAgo(3), olga.id);
   }
+
+  // Заправки у частных клиентов: чтобы сортировка отчёта по картриджам давала разный порядок.
+  const refillFor = async (namePart: string, title: string, qty: number, daysBack: number) => {
+    const c = await one<{ id: number }>('SELECT id FROM clients WHERE name LIKE $1 LIMIT 1', [`${namePart}%`]);
+    if (!c) return;
+    await pool.query(
+      `INSERT INTO device_works (client_id, kind, title, qty, done_at, created_by) VALUES ($1, 'refill', $2, $3, $4, $5)`,
+      [c.id, title, qty, daysAgo(daysBack), olga.id],
+    );
+  };
+  await refillFor('Дмитрий', 'CE285A', 7, 2);
+  await refillFor('Анна', 'CE285A', 3, 4);
 
   await seedCustomers();
 

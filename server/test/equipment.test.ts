@@ -61,6 +61,18 @@ describe('учёт техники, виды задач и отчёты', () => {
     expect(detail.device.inventoryNo).toBe('ПК-001');
   });
 
+  it('журнал чужой техники закрыт для мастера, свой открыт', async () => {
+    const semen = await loginAs('semen');
+    const { users } = await dict();
+    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-24');
+    const order = (await semen.get(`/api/orders/${orderId}`)).body;
+    const lenya = await loginAs('lenya');
+    expect((await lenya.get(`/api/devices/${order.device.id}/works`)).status).toBe(403);
+    expect((await lenya.put(`/api/devices/${order.device.id}`, { inventoryNo: 'X-1' })).status).toBe(403);
+    const stas = await loginAs('stas');
+    expect((await stas.get(`/api/devices/${order.device.id}/works`)).status).toBe(200);
+  });
+
   it('отчёты закрыты для мастера', async () => {
     const lenya = await loginAs('lenya');
     const r = await lenya.get(`/api/reports/monthly?month=${thisMonth()}`);

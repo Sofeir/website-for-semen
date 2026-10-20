@@ -375,7 +375,7 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
     type: 'order_handover',
     title: `Заявку №${order.number} передали`,
     body: [
-      `${handoverTitle}. ${actor.fullName} передал сотруднику ${responsible.full_name}.`,
+      `${handoverTitle}. От: ${actor.fullName}. Кому: ${responsible.full_name}.`,
       `Причина и что сделано: ${input.comment}`,
     ].join('\n'),
     link: `/orders/${orderId}`,
