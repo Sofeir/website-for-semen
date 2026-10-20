@@ -211,7 +211,7 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
   await notifyHandover(db, outbox, [t.creator_id, t.assignee_id], [actor.id, input.assigneeId], {
     type: 'task_handover',
     title: `Задачу передали: ${t.title}`,
-    body: [`${actor.fullName} передал задачу сотруднику ${next.full_name}.`, `Причина и что сделано: ${input.comment}`].join('\n'),
+    body: [`От: ${actor.fullName}. Кому: ${next.full_name}.`, `Причина и что сделано: ${input.comment}`].join('\n'),
     link: `/tasks?task=${id}`,
   });
   outbox.touch('tasks');

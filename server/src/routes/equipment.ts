@@ -4,7 +4,7 @@ import { many, one, pool } from '../db/pool';
 import { forbidden, h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { broadcast } from '../notify/hub';
-import { assertOrderVisible } from '../services/access';
+import { assertClientWorksVisible, assertDeviceVisible, assertOrderVisible } from '../services/access';
 
 export const equipmentRouter = Router();
 
@@ -21,6 +21,7 @@ equipmentRouter.put(
   requirePermission('workspace.view'),
   h(async (req, res) => {
     const id = intParam(req.params.id);
+    await assertDeviceVisible(req.user!, id);
     const input = parse(deviceInfoSchema, req.body);
     const dup = input.inventoryNo
       ? await one(
@@ -45,6 +46,7 @@ equipmentRouter.get(
   requirePermission('workspace.view'),
   h(async (req, res) => {
     const id = intParam(req.params.id);
+    await assertDeviceVisible(req.user!, id);
     res.json(await many<DeviceWork>(`${WORK_SELECT} WHERE w.device_id = $1 ORDER BY w.done_at DESC, w.id DESC`, [id]));
   }),
 );
@@ -55,6 +57,7 @@ equipmentRouter.get(
   requirePermission('workspace.view'),
   h(async (req, res) => {
     const id = intParam(req.params.id);
+    await assertClientWorksVisible(req.user!, id);
     res.json(await many<DeviceWork>(`${WORK_SELECT} WHERE w.client_id = $1 ORDER BY w.done_at DESC, w.id DESC LIMIT 200`, [id]));
   }),
 );
@@ -77,6 +80,7 @@ equipmentRouter.post(
     if (deviceId) {
       const d = await one<{ client_id: number }>('SELECT client_id FROM devices WHERE id = $1', [deviceId]);
       if (!d) throw new HttpError(404, 'Техника не найдена');
+      await assertDeviceVisible(req.user!, deviceId);
       if (clientId && d.client_id !== clientId) throw new HttpError(400, 'Эта техника принадлежит другому клиенту');
       clientId = d.client_id;
     }

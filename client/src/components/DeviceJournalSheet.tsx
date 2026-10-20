@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { WORK_KINDS, WORK_KIND_LABELS, type Device, type WorkKind } from '@sd/shared';
 import { api, ApiError } from '@/api/http';
@@ -41,6 +41,24 @@ export function DeviceJournalSheet({
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  /** Замены деталей с пробегом: когда менялось и когда ждать следующую замену. */
+  const forecasts = useMemo(() => {
+    const parts = (works.data ?? []).filter((w) => w.kind === 'part' && w.counter !== null);
+    const current = Math.max(0, ...(works.data ?? []).map((w) => w.counter ?? 0));
+    const byTitle = new Map<string, number[]>();
+    for (const w of parts) {
+      const key = w.title.trim().toLowerCase();
+      byTitle.set(key, [...(byTitle.get(key) ?? []), w.counter as number]);
+    }
+    return [...byTitle].map(([key, counters]) => {
+      const sorted = [...counters].sort((a, b) => a - b);
+      const last = sorted[sorted.length - 1];
+      const title = parts.find((w) => w.title.trim().toLowerCase() === key)!.title;
+      const step = sorted.length >= 2 ? Math.round((last - sorted[0]) / (sorted.length - 1)) : null;
+      return { title, last, step, next: step ? last + step : null, current };
+    });
+  }, [works.data]);
 
   useEffect(() => {
     if (!device) return;
@@ -140,6 +158,30 @@ export function DeviceJournalSheet({
               </Button>
             </div>
           </section>
+
+          {forecasts.length > 0 && (
+            <section className="stack" aria-label="Когда менять">
+              <h3 className={s.h}>Когда менять</h3>
+              <ul className={s.list}>
+                {forecasts.map((f) => (
+                  <li key={f.title} className={s.item}>
+                    <div className={s.itemMain}>
+                      <b>{f.title}</b>
+                      <span className={s.meta}>
+                        Последняя замена на {f.last.toLocaleString('ru-RU')} стр.
+                        {f.current > f.last && `, с тех пор напечатано ещё ${(f.current - f.last).toLocaleString('ru-RU')}`}
+                      </span>
+                      <span className={s.note}>
+                        {f.next
+                          ? `Ждать следующую замену около ${f.next.toLocaleString('ru-RU')} стр. (обычно каждые ${f.step!.toLocaleString('ru-RU')})`
+                          : 'Чтобы появился прогноз, запишите ещё одну замену с пробегом.'}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section className="stack" aria-label="История работ">
             <h3 className={s.h}>История работ{works.data ? ` (${works.data.length})` : ''}</h3>

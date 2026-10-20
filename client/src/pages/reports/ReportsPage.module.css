@@ -123,6 +123,10 @@
   min-width: 0;
 }
 
+.sortRow [role='radio'] {
+  padding: 0 10px;
+}
+
 .sortLabel {
   display: none;
   font-size: var(--fs-sm);
@@ -266,15 +270,15 @@
 .metrics {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--s-2);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .metric {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: var(--s-2) var(--s-3);
+  padding: var(--s-2) 10px;
   border-radius: var(--r-md);
   background: rgba(255, 255, 255, 0.55);
 }
@@ -296,8 +300,23 @@
   opacity: 0.55;
 }
 
-.metricAccent b {
+.metricActive {
+  background: rgba(31, 122, 240, 0.16);
+  box-shadow: inset 0 0 0 1.5px rgba(31, 122, 240, 0.45);
+}
+
+.metricActive b {
   color: var(--primary-text);
+  opacity: 1;
+}
+
+.dotAll {
+  background: var(--primary);
+}
+
+.rank {
+  color: var(--primary-text);
+  font-weight: 600;
 }
 
 .fillBar {
@@ -321,7 +340,7 @@
   }
 
   .metric {
-    min-width: 92px;
+    min-width: 84px;
   }
 
   .hero {

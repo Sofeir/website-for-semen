@@ -5,6 +5,10 @@
   margin-bottom: var(--s-3);
 }
 
+.kindRow {
+  margin-top: var(--s-2);
+}
+
 .filters {
   display: grid;
   gap: var(--s-2);
