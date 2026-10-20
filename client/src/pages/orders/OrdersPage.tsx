@@ -85,7 +85,7 @@ export default function OrdersPage() {
         <Input
           icon={<Search aria-hidden />}
           type="search"
-          placeholder="Номер, клиент, телефон, модель, серийный №"
+          placeholder="Номер техники, организация, ФИО, модель, серийный №"
           aria-label="Поиск заявок"
           value={q}
           onChange={(e) => {

@@ -1,17 +1,20 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Download, LineChart, TrendingDown, TrendingUp, Minus } from 'lucide-react';
-import type { Analytics, AnalyticsTotals } from '@sd/shared';
-import { useAnalytics } from '@/api/queries';
-import { useDocumentTitle } from '@/lib/hooks';
-import { Avatar, Card, CardHead, EmptyState, ErrorBox, PageHeader, Pill, Plate, Spinner } from '@/ui/Display';
+import { WORK_KIND_LABELS, REFILL_OP_LABELS, type Analytics, type AnalyticsMaster, type AnalyticsTotals, type RefillOp } from '@sd/shared';
+import { useAnalytics, useMasterWorks } from '@/api/queries';
+import { fmtWhen } from '@/lib/dates';
+import { useDocumentTitle, useIsMobile } from '@/lib/hooks';
+import { Avatar, Card, CardHead, EmptyState, ErrorBox, PageHeader, Pill, Plate, Spinner, Tabs } from '@/ui/Display';
 import { Button, IconButton, cx } from '@/ui/Button';
 import { Segmented, Select } from '@/ui/Form';
+import { Sheet } from '@/ui/Sheet';
 import { downloadCsv, label, monthShift, thisMonth } from './reportUtils';
 import s from './Analytics.module.css';
 
 type MetricKey = keyof AnalyticsTotals;
 type Mode = 'prev' | 'year' | 'custom';
+type Tab = 'overview' | 'engineers' | 'money' | 'early';
 
 const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
 const rub = (n: number) => `${nf.format(Math.round(n))} ₽`;
@@ -132,7 +135,7 @@ function Compare({ a }: { a: Analytics }) {
 }
 
 /** Динамика за год: столбцы по месяцам, выбранный и сравниваемый подсвечены. */
-function Trend({ a }: { a: Analytics }) {
+function Trend({ a, onPick }: { a: Analytics; onPick: (month: string) => void }) {
   const [metric, setMetric] = useState<MetricKey>('revenue');
   const m = byKey(metric);
   const values = a.trend.map((p) => p[metric] ?? 0);
@@ -141,6 +144,7 @@ function Trend({ a }: { a: Analytics }) {
   return (
     <Card>
       <CardHead title="Динамика за год" />
+      <p className={s.muted}>Нажмите на столбец, чтобы открыть этот месяц.</p>
       <div className={s.metricTabs} role="radiogroup" aria-label="Показатель">
         {TREND_METRICS.map((k) => (
           <button
@@ -164,11 +168,19 @@ function Trend({ a }: { a: Analytics }) {
           const sel = p.month === a.month;
           const cmp = p.month === a.compare;
           return (
-            <div key={p.month} className={cx(s.col, sel && s.colSel, cmp && s.colCmp)} title={`${label(p.month)}: ${m.fmt(v)}`}>
+            <button
+              key={p.month}
+              type="button"
+              className={cx(s.col, sel && s.colSel, cmp && s.colCmp)}
+              title={`${label(p.month)}: ${m.fmt(v)}`}
+              aria-label={`${label(p.month)}: ${m.fmt(v)}. Открыть этот месяц`}
+              aria-pressed={sel}
+              onClick={() => onPick(p.month)}
+            >
               <span className={s.colVal}>{sel || cmp ? (metric === 'revenue' ? nf.format(Math.round(v / 1000)) + 'к' : v) : ''}</span>
               <i className={s.colBar} style={{ height: `${Math.max((v / max) * 100, v ? 3 : 1)}%` }} />
               <span className={s.colLabel}>{shortMonth(p.month)}</span>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -176,34 +188,144 @@ function Trend({ a }: { a: Analytics }) {
   );
 }
 
-function Masters({ a }: { a: Analytics }) {
-  const max = Math.max(...a.masters.map((m) => m.revenue), 1);
+/** Работы выбранного инженера за месяц: что сделал и на какую сумму. */
+function EngineerWorks({ userId, month, onClose }: { userId: number; month: string; onClose?: () => void }) {
+  const q = useMasterWorks(userId, month);
+  const d = q.data;
+  if (q.isLoading && !d) return <Spinner />;
+  if (q.isError || !d) return <ErrorBox error={q.error} />;
+  const refills = d.works.filter((w) => w.kind === 'refill').reduce((x, w) => x + w.qty, 0);
   return (
-    <Card>
-      <CardHead title="Инженеры за месяц" count={a.masters.length} />
-      {a.masters.length ? (
-        <ul className={s.people}>
-          {a.masters.map((m) => (
-            <li key={m.userId} className={s.person}>
-              <Avatar name={m.name} size={40} />
-              <div className={s.personMain}>
-                <div className={s.personHead}>
-                  <b>{m.name}</b>
-                  <span className={s.personSum}>{rub(m.revenue)}</span>
+    <div className={s.detail}>
+      <div className={s.detailHead}>
+        <Avatar name={d.name} size={44} />
+        <div className={s.detailTitle}>
+          <b>{d.name}</b>
+          <span className={s.muted}>
+            {d.position ? `${d.position}, ` : ''}
+            {label(month)}
+          </span>
+        </div>
+        {onClose && (
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Закрыть
+          </Button>
+        )}
+      </div>
+      <div className={s.detailStats}>
+        <div>
+          <b>{rub(d.total)}</b>
+          <span>сумма работ</span>
+        </div>
+        <div>
+          <b>{d.works.length}</b>
+          <span>записей</span>
+        </div>
+        <div>
+          <b>{refills}</b>
+          <span>картриджей</span>
+        </div>
+      </div>
+      {d.works.length ? (
+        <ul className={s.workList}>
+          {d.works.map((w) => {
+            const part = [w.partBrand, w.partSpec].filter(Boolean).join(' ');
+            return (
+              <li key={w.id} className={s.workRow}>
+                <div className={s.workMain}>
+                  <b>
+                    {w.title}
+                    {w.qty > 1 ? ` × ${w.qty}` : ''}
+                  </b>
+                  <span className={s.muted}>
+                    {WORK_KIND_LABELS[w.kind]}, {fmtWhen(w.doneAt)}
+                  </span>
+                  <span className={s.muted}>
+                    <Link to={`/clients/${w.clientId}`}>{w.clientName}</Link>
+                    {w.deviceTitle ? `, ${w.inventoryNo ? w.inventoryNo + ' ' : ''}${w.deviceTitle}` : ''}
+                    {w.orderId && w.orderNumber && (
+                      <>
+                        {', '}
+                        <Link to={`/orders/${w.orderId}`}>заявка №{w.orderNumber}</Link>
+                      </>
+                    )}
+                  </span>
+                  {(part || w.warrantyMonths || w.ops.length > 0) && (
+                    <span className={s.muted}>
+                      {[
+                        part,
+                        w.warrantyMonths ? `гарантия ${w.warrantyMonths} мес.` : '',
+                        w.ops.map((o) => REFILL_OP_LABELS[o as RefillOp] ?? o).join(', '),
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </span>
+                  )}
                 </div>
-                {m.position && <span className={s.muted}>{m.position}</span>}
-                <i className={s.personBar} style={{ width: `${Math.max((m.revenue / max) * 100, m.revenue ? 4 : 0)}%` }} />
-                <span className={s.personStats}>
-                  работ {m.works} · заявок {m.orders} · картриджей {m.refills} · этапов {m.stages}
-                </span>
-              </div>
-            </li>
-          ))}
+                <b className={s.workSum}>{w.amount !== null ? rub(w.amount) : '—'}</b>
+              </li>
+            );
+          })}
         </ul>
       ) : (
-        <p className="muted">За этот месяц никто не записал работы.</p>
+        <p className="muted">В этом месяце записей нет.</p>
       )}
-    </Card>
+    </div>
+  );
+}
+
+/** Инженеры за месяц: нажали на человека, справа (на телефоне в окне) список его работ с суммами. */
+function Engineers({ a }: { a: Analytics }) {
+  const mobile = useIsMobile();
+  const [picked, setPicked] = useState<number | null>(null);
+  const list: AnalyticsMaster[] = a.masters;
+  const sel = picked ?? (mobile ? null : (list[0]?.userId ?? null));
+  const max = Math.max(...list.map((m) => m.revenue), 1);
+  return (
+    <div className={s.split2}>
+      <Card>
+        <CardHead title="Инженеры" count={list.length} />
+        {list.length ? (
+          <ul className={s.people}>
+            {list.map((m) => (
+              <li key={m.userId}>
+                <button
+                  type="button"
+                  className={cx(s.person, sel === m.userId && s.personOn)}
+                  aria-pressed={sel === m.userId}
+                  onClick={() => setPicked(m.userId)}
+                >
+                  <Avatar name={m.name} size={40} />
+                  <span className={s.personMain}>
+                    <span className={s.personHead}>
+                      <b>{m.name}</b>
+                      <span className={s.personSum}>{rub(m.revenue)}</span>
+                    </span>
+                    {m.position && <span className={s.muted}>{m.position}</span>}
+                    <i className={s.personBar} style={{ width: `${Math.max((m.revenue / max) * 100, m.revenue ? 4 : 0)}%` }} />
+                    <span className={s.personStats}>
+                      работ {m.works} · заявок {m.orders} · картриджей {m.refills}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">За этот месяц никто не записал работы.</p>
+        )}
+      </Card>
+      {!mobile && (
+        <Card>
+          {sel ? <EngineerWorks userId={sel} month={a.month} /> : <p className="muted">Выберите инженера слева.</p>}
+        </Card>
+      )}
+      {mobile && (
+        <Sheet open={Boolean(picked)} onClose={() => setPicked(null)} title="Работы инженера" subtitle={label(a.month)} full width={560}>
+          {picked && <EngineerWorks userId={picked} month={a.month} />}
+        </Sheet>
+      )}
+    </div>
   );
 }
 
@@ -332,6 +454,7 @@ export default function AnalyticsPage() {
   const [mode, setMode] = useState<Mode>('prev');
   const [custom, setCustom] = useState(() => monthShift(thisMonth(), -2));
   const [span, setSpan] = useState<'3' | '6' | '12'>('12');
+  const [tab, setTab] = useState<Tab>('overview');
   const compare = mode === 'prev' ? monthShift(month, -1) : mode === 'year' ? monthShift(month, -12) : custom;
   const q = useAnalytics(month, compare, Number(span));
   const a = q.data;
@@ -359,19 +482,29 @@ export default function AnalyticsPage() {
             <ChevronRight />
           </IconButton>
         </div>
+        {tab === 'overview' && (
         <div className={s.compareBar}>
           <span className={s.muted}>Сравнить с</span>
-          <Segmented<Mode>
-            label="С чем сравнить"
-            layoutId="analytics-mode"
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: 'prev', label: 'Прошлым' },
-              { value: 'year', label: 'Годом назад' },
-              { value: 'custom', label: 'Другим' },
-            ]}
-          />
+          <div className={s.metricTabs} role="radiogroup" aria-label="С чем сравнить">
+            {(
+              [
+                ['prev', 'Прошлым месяцем'],
+                ['year', 'Годом назад'],
+                ['custom', 'Другим'],
+              ] as [Mode, string][]
+            ).map(([v, text]) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={mode === v}
+                className={cx(s.metricTab, mode === v && s.metricTabOn)}
+                onClick={() => setMode(v)}
+              >
+                {text}
+              </button>
+            ))}
+          </div>
           {mode === 'custom' && (
             <Select aria-label="Месяц для сравнения" value={custom} onChange={(e) => setCustom(e.target.value)}>
               {options.map((m) => (
@@ -382,40 +515,65 @@ export default function AnalyticsPage() {
             </Select>
           )}
         </div>
+        )}
+      </div>
+
+      <div className={s.tabs}>
+        <Tabs<Tab>
+          label="Разделы аналитики"
+          value={tab}
+          onChange={setTab}
+          items={[
+            { value: 'overview', label: 'Обзор' },
+            { value: 'engineers', label: 'Инженеры' },
+            { value: 'money', label: 'Техника и клиенты' },
+            { value: 'early', label: 'Замены раньше срока', count: a?.early.length },
+          ]}
+        />
       </div>
 
       {q.isLoading && !a && <Spinner />}
       {q.isError && <ErrorBox error={q.error} />}
       {a && (
         <>
-          <Hero a={a} />
-          {a.current.requests + a.current.works === 0 && (
-            <EmptyState icon={<LineChart />} title="В этом месяце пока пусто">Выберите другой месяц стрелками. Цифры появятся, когда будут заявки и записи работ.</EmptyState>
+          {tab === 'overview' && (
+            <>
+              <Hero a={a} />
+              {a.current.requests + a.current.works === 0 && (
+                <EmptyState icon={<LineChart />} title="В этом месяце пока пусто">
+                  Выберите другой месяц стрелками или нажмите на столбец в динамике. Цифры появятся, когда будут заявки и записи работ.
+                </EmptyState>
+              )}
+              <div className={s.grid}>
+                <Compare a={a} />
+                <Trend a={a} onPick={setMonth} />
+              </div>
+            </>
           )}
-          <div className={s.grid}>
-            <Compare a={a} />
-            <Trend a={a} />
-          </div>
-          <div className={s.spanBar}>
-            <span className={s.muted}>Техника и клиенты за</span>
-            <Segmented<'3' | '6' | '12'>
-              label="Период для техники и клиентов"
-              layoutId="analytics-span"
-              value={span}
-              onChange={setSpan}
-              options={[
-                { value: '3', label: '3 мес.' },
-                { value: '6', label: '6 мес.' },
-                { value: '12', label: 'Год' },
-              ]}
-            />
-          </div>
-          <div className={s.grid}>
-            <Masters a={a} />
-            <Devices a={a} />
-            <Early a={a} />
-            <Clients a={a} />
-          </div>
+          {tab === 'engineers' && <Engineers a={a} />}
+          {(tab === 'money' || tab === 'early') && (
+            <div className={s.spanBar}>
+              <span className={s.muted}>{tab === 'money' ? 'Техника и клиенты за' : 'Замены за'}</span>
+              <Segmented<'3' | '6' | '12'>
+                label="Период"
+                layoutId="analytics-span"
+                value={span}
+                onChange={setSpan}
+                options={[
+                  { value: '3', label: '3 мес.' },
+                  { value: '6', label: '6 мес.' },
+                  { value: '12', label: 'Год' },
+                ]}
+              />
+            </div>
+          )}
+          {tab === 'money' && (
+            <div className={s.grid}>
+              <Devices a={a} />
+              <Clients a={a} />
+            </div>
+          )}
+          {tab === 'early' && <Early a={a} />}
         </>
       )}
     </>

@@ -496,6 +496,35 @@ export interface EarlyReplacement {
   doneAt: string;
 }
 
+/** Одна запись из журнала работ инженера за месяц. */
+export interface AnalyticsMasterWork {
+  id: number;
+  kind: 'refill' | 'part' | 'repair' | 'service';
+  title: string;
+  qty: number;
+  amount: number | null;
+  doneAt: string;
+  orderId: number | null;
+  orderNumber: string | null;
+  deviceTitle: string | null;
+  inventoryNo: string | null;
+  clientId: number;
+  clientName: string;
+  partBrand: string | null;
+  partSpec: string | null;
+  warrantyMonths: number | null;
+  ops: string[];
+}
+
+export interface AnalyticsMasterDetail {
+  userId: number;
+  name: string;
+  position: string | null;
+  month: string;
+  total: number;
+  works: AnalyticsMasterWork[];
+}
+
 export interface Analytics {
   month: string;
   compare: string;

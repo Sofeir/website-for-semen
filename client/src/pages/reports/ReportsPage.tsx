@@ -108,7 +108,6 @@ export default function ReportsPage() {
       .filter((g) => g.rows.length);
   }, [report, scope, sort]);
 
-  const maxRefills = Math.max(1, ...(report?.rows.map((r) => r.refills) ?? [0]));
 
   return (
     <>
@@ -231,7 +230,6 @@ export default function ReportsPage() {
                         <Metric value={r.refills} name="картриджи" active={sort === 'refills'} />
                         <Metric value={r.declined} name="без рем." title="Без ремонта: клиент отказался" active={sort === 'declined'} />
                       </span>
-                      {r.refills > 0 && <i className={s.fillBar} style={{ width: `${Math.max(6, (r.refills / maxRefills) * 100)}%` }} aria-hidden />}
                     </button>
                   </li>
                 ))}

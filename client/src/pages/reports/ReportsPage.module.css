@@ -319,15 +319,6 @@
   font-weight: 600;
 }
 
-.fillBar {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 4px;
-  border-radius: 0 4px 0 0;
-  background: linear-gradient(90deg, var(--c-person), var(--c-legal));
-}
-
 @media (min-width: 720px) {
   .row {
     grid-template-columns: 44px minmax(0, 1fr) auto;

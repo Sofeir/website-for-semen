@@ -5,6 +5,7 @@ import type {
   ActInput,
   AdvanceOrderInput,
   Analytics,
+  AnalyticsMasterDetail,
   ClientDetail,
   Contact,
   ContactHit,
@@ -136,6 +137,13 @@ export const useAnalytics = (month: string, compare: string, span: number) =>
     queryKey: ['analytics', month, compare, span],
     queryFn: () => api.get<Analytics>(`/analytics?month=${month}&compare=${compare}&span=${span}`),
     placeholderData: keepPreviousData,
+  });
+
+export const useMasterWorks = (userId: number | null, month: string) =>
+  useQuery({
+    queryKey: ['analytics', 'master', userId, month],
+    queryFn: () => api.get<AnalyticsMasterDetail>(`/analytics/master/${userId}?month=${month}`),
+    enabled: Boolean(userId),
   });
 
 export const useMonthlyReport = (month: string) =>

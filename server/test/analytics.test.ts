@@ -44,6 +44,20 @@ describe('аналитика', () => {
     expect(a.early[0].passed).toBeLessThan(a.early[0].resource);
   });
 
+  it('в инженерах нет директора, у инженера открывается список его работ с суммой', async () => {
+    const semen = await loginAs('semen');
+    const month = monthKey(new Date());
+    const a = (await semen.get(`/api/analytics?month=${month}`)).body;
+    expect(a.masters.some((m: any) => m.userId === semen.user.id)).toBe(false);
+    const engineer = a.masters[0];
+    const d = await semen.get(`/api/analytics/master/${engineer.userId}?month=${month}`);
+    expect(d.status).toBe(200);
+    expect(d.body.works.length).toBe(engineer.works);
+    expect(Math.round(d.body.total)).toBe(Math.round(engineer.revenue));
+    const lenya = await loginAs('lenya');
+    expect((await lenya.get(`/api/analytics/master/${engineer.userId}?month=${month}`)).status).toBe(403);
+  });
+
   it('аналитику видят только директор и руководитель системного администрирования', async () => {
     expect((await (await loginAs('admin')).get('/api/analytics')).status).toBe(200);
     expect((await (await loginAs('lenya')).get('/api/analytics')).status).toBe(403);
