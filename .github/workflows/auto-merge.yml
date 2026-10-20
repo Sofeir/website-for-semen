@@ -56,7 +56,8 @@ jobs:
             echo "В ветке нет новых коммитов относительно main, вливать нечего."
             exit 0
           fi
-          if ! gh pr view "$branch" --json number >/dev/null 2>&1; then
+          # Смотрим только открытые PR: у ветки может остаться старый, уже влитый, и тогда новый нужен.
+          if [ "$(gh pr list --head "$branch" --state open --json number --jq length)" = "0" ]; then
             gh pr create --base main --head "$branch" \
               --title "$(git log -1 --pretty=%s)" \
               --body "Создан автоматически после проверки: типы и сборка демо прошли."
