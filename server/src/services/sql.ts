@@ -49,11 +49,23 @@ export const DEVICE_SELECT = `
   SELECT d.id, d.client_id AS "clientId", d.device_type_id AS "deviceTypeId", dt.name AS "deviceType",
          d.brand_id AS "brandId", coalesce(b.name, d.brand_text) AS brand,
          d.model_id AS "modelId", coalesce(m.name, d.model_text) AS model,
-         d.serial, ${DEVICE_TITLE} AS title, d.inventory_no AS "inventoryNo", d.location
+         d.serial, ${DEVICE_TITLE} AS title, d.inventory_no AS "inventoryNo", d.location, d.parent_id AS "parentId"
     FROM devices d
     JOIN device_types dt ON dt.id = d.device_type_id
     LEFT JOIN brands b ON b.id = d.brand_id
     LEFT JOIN models m ON m.id = d.model_id`;
+
+/** Запись журнала работ: кто делал, сколько стоило, какая деталь и гарантия. */
+export const WORK_SELECT = `
+  SELECT w.id, w.client_id AS "clientId", w.device_id AS "deviceId", w.order_id AS "orderId", o.number AS "orderNumber",
+         w.kind, w.title, w.qty, w.counter, w.note, w.done_at AS "doneAt", u.full_name AS "createdByName",
+         w.performer_id AS "performerId", coalesce(pu.full_name, u.full_name) AS "performerName",
+         w.amount::float8 AS amount, w.part_brand AS "partBrand", w.part_spec AS "partSpec",
+         w.warranty_months AS "warrantyMonths", w.resource, w.ops
+    FROM device_works w
+    LEFT JOIN orders o ON o.id = w.order_id
+    LEFT JOIN users u ON u.id = w.created_by
+    LEFT JOIN users pu ON pu.id = w.performer_id`;
 
 export const CLIENT_FIELDS = `
   c.id, c.kind, c.name, c.phone, c.phone2, c.email, c.address, c.inn, c.kpp,

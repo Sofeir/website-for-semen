@@ -67,9 +67,6 @@ export const clientSchema = z
     if (v.kind === 'person' && (digits.length < 10 || digits.length > 11)) {
       ctx.addIssue({ code: 'custom', path: ['phone'], message: 'Телефон: 10–11 цифр' });
     }
-    if (v.kind === 'legal' && !v.contactPerson) {
-      ctx.addIssue({ code: 'custom', path: ['contactPerson'], message: 'Кто контактное лицо?' });
-    }
   });
 export type ClientInput = z.infer<typeof clientSchema>;
 
@@ -122,6 +119,8 @@ export const intakeSchema = z
     /** Филиал и сотрудник организации, от которого пришла заявка. */
     branch: optionalText(200),
     requesterName: optionalText(200),
+    /** Человек из организации, от которого пришла заявка (из подсказок или добавленный на месте). */
+    contactId: optionalId,
     attachmentIds: z.array(id).max(20).default([]),
     fleet: z.array(fleetRowSchema).max(200).optional().nullable(),
   })
@@ -139,6 +138,25 @@ export type IntakeInput = z.infer<typeof intakeSchema>;
 
 // ---------- Учёт техники ----------
 
+/** Человек организации: ФИО и телефон обязательны, должность нет. */
+export const contactSchema = z.object({
+  fullName: text(120).min(2, 'Укажите ФИО'),
+  phone: text(32).min(5, 'Укажите телефон'),
+  position: optionalText(120),
+});
+export type ContactInput = z.infer<typeof contactSchema>;
+
+/** Из чего состояла заправка картриджа. */
+export const REFILL_OPS = ['refill', 'drum', 'roller', 'chip', 'blade'] as const;
+export type RefillOp = (typeof REFILL_OPS)[number];
+export const REFILL_OP_LABELS: Record<RefillOp, string> = {
+  refill: 'Заправка',
+  drum: 'Замена фотобарабана',
+  roller: 'Замена ролика заряда',
+  chip: 'Замена чипа',
+  blade: 'Замена ракеля',
+};
+
 export const WORK_KINDS = ['refill', 'part', 'repair', 'service'] as const;
 export type WorkKind = (typeof WORK_KINDS)[number];
 export const WORK_KIND_LABELS: Record<WorkKind, string> = {
@@ -152,6 +170,8 @@ export const deviceInfoSchema = z.object({
   inventoryNo: optionalText(60),
   location: optionalText(200),
   serial: optionalText(100),
+  /** Системный блок или ноутбук, в состав рабочего места которого входит эта техника. */
+  parentId: optionalId,
 });
 export type DeviceInfoInput = z.infer<typeof deviceInfoSchema>;
 
@@ -166,6 +186,14 @@ export const deviceWorkSchema = z
     counter: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().int().min(0).max(100_000_000).nullable()).optional(),
     note: optionalText(1000),
     doneAt: isoDate.optional().nullable(),
+    /** Кто делал (по умолчанию тот, кто записывает). */
+    performerId: optionalId,
+    amount: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().min(0).max(10_000_000).nullable()).optional(),
+    partBrand: optionalText(100),
+    partSpec: optionalText(100),
+    warrantyMonths: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().int().min(0).max(120).nullable()).optional(),
+    resource: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().int().min(1).max(100_000_000).nullable()).optional(),
+    ops: z.array(z.enum(REFILL_OPS)).max(REFILL_OPS.length).default([]),
   })
   .superRefine((v, ctx) => {
     if (!v.clientId && !v.deviceId && !v.orderId) {
@@ -175,6 +203,13 @@ export const deviceWorkSchema = z
 export type DeviceWorkInput = z.infer<typeof deviceWorkSchema>;
 
 // ---------- Заявки ----------
+
+/** Что согласовали с клиентом: срок текстом и сумма. */
+export const agreedSchema = z.object({
+  agreedTerm: optionalText(200),
+  agreedSum: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().min(0).max(10_000_000).nullable()).optional(),
+});
+export type AgreedInput = z.infer<typeof agreedSchema>;
 
 export const advanceOrderSchema = z.object({
   toStageId: id,
@@ -311,6 +346,7 @@ export const userCreateSchema = z.object({
   fullName: text(120).min(2, 'Имя и фамилия'),
   role: z.enum(STAFF_ROLES),
   phone: optionalText(32),
+  position: optionalText(120),
   password: z.string().min(8, 'Пароль от 8 символов').max(200),
 });
 export type UserCreateInput = z.infer<typeof userCreateSchema>;
@@ -320,6 +356,7 @@ export const userUpdateSchema = z.object({
   role: z.enum(STAFF_ROLES).optional(),
   roleConfirmed: z.boolean().optional(),
   phone: optionalText(32),
+  position: optionalText(120),
   isActive: z.boolean().optional(),
   password: z.union([z.literal(''), z.string().min(8, 'Пароль от 8 символов').max(200)]).optional(),
 });

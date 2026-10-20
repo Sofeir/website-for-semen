@@ -49,7 +49,7 @@ describe('выезд к клиенту: чек-лист работ', () => {
     expect((await lenya.post(`/api/tasks/${id}/checklist/999999`, { done: true })).status).toBe(404);
 
     const after = await lenya.get(`/api/tasks/${id}`);
-    expect(after.body.checklist[0]).toMatchObject({ done: true, doneByName: 'Лёня' });
+    expect(after.body.checklist[0]).toMatchObject({ done: true, doneByName: 'Катаев Артем Дмитриевич' });
     expect(after.body).toMatchObject({ checklistTotal: 2, checklistDone: 1 });
 
     const list = await lenya.get('/api/tasks?scope=mine&status=open');
@@ -96,7 +96,7 @@ describe('выезд к клиенту: чек-лист работ', () => {
     expect(await runServicePlans()).toBe(0);
     const list = await semen.get('/api/visits');
     expect(list.body.plans).toHaveLength(1);
-    expect(list.body.plans[0].assigneeName).toBe('Лёня');
+    expect(list.body.plans[0].assigneeName).toBe('Катаев Артем Дмитриевич');
   });
 
   it('раздел «Выезды»: руководитель видит все, исполнитель — свои, посторонний — ничего', async () => {

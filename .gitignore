@@ -24,3 +24,7 @@ Thumbs.db
 !.claude/settings.json
 !.claude/launch.json
 .playwright-mcp/
+
+# настоящие данные сотрудников (ФИО, телефоны): только на своём компьютере и сервере
+staff.local.json
+staff.passwords.local.txt

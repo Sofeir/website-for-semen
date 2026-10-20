@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Building2,
@@ -12,17 +12,20 @@ import {
   Plus,
   Printer,
   Save,
+  Trash2,
   UserRound,
+  Users,
 } from 'lucide-react';
-import { formatPhone, type FleetRowDto } from '@sd/shared';
+import { formatPhone, type Contact, type FleetRowDto } from '@sd/shared';
 import { useAuth } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
-import { useClient, useInvalidate, useServiceChecklist } from '@/api/queries';
+import { useClient, useContacts, useInvalidate, useServiceChecklist } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
 import { useDocumentTitle } from '@/lib/hooks';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
 import { ChecklistEditor } from '@/components/ChecklistEditor';
 import { ClientFormSheet } from '@/components/ClientFormSheet';
+import { ContactFormSheet, contactLine } from '@/components/ContactPicker';
 import { DeviceJournalSheet } from '@/components/DeviceJournalSheet';
 import { RefillSheet } from '@/components/RefillSheet';
 import { FleetEditor, emptyFleetRow, fleetTotals } from '@/components/FleetEditor';
@@ -31,12 +34,12 @@ import { ServicePlanCard } from '@/components/ServicePlanCard';
 import { TaskFormSheet } from '@/components/TaskFormSheet';
 import { TaskRow } from '@/components/TaskRow';
 import { TaskSheet } from '@/components/TaskSheet';
-import { Button, ButtonLink } from '@/ui/Button';
+import { Button, ButtonLink, IconButton } from '@/ui/Button';
 import { Card, CardHead, EmptyState, ErrorBox, Pill, Spinner, Tabs } from '@/ui/Display';
 import { useToast } from '@/ui/Toast';
 import s from './ClientPage.module.css';
 
-type Tab = 'orders' | 'devices' | 'docs' | 'tasks' | 'fleet' | 'service';
+type Tab = 'orders' | 'devices' | 'people' | 'docs' | 'tasks' | 'fleet' | 'service';
 
 export default function ClientPage() {
   const id = Number(useParams().id);
@@ -45,6 +48,7 @@ export default function ClientPage() {
   const { can } = useAuth();
   const inv = useInvalidate();
   const toast = useToast();
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [params] = useSearchParams();
   const [tab, setTab] = useState<Tab>(params.get('tab') === 'service' ? 'service' : 'orders');
@@ -57,6 +61,8 @@ export default function ClientPage() {
   const [visit, setVisit] = useState(false);
   const [journalFor, setJournalFor] = useState<number | null>(null);
   const [refillOpen, setRefillOpen] = useState(false);
+  const people = useContacts(id, '', true);
+  const [contactForm, setContactForm] = useState<{ open: boolean; contact: Contact | null }>({ open: false, contact: null });
   useEffect(() => {
     if (service.data) setWorks(service.data.items);
   }, [service.data]);
@@ -72,6 +78,28 @@ export default function ClientPage() {
   const legal = c.kind === 'legal';
   const active = c.orders.filter((o) => !o.issuedAt);
   const totals = fleetTotals(c.fleet);
+  const canPeople = legal && can('clients.edit');
+
+  const removeContact = async (contact: Contact) => {
+    try {
+      await api.del(`/contacts/${contact.id}`);
+      inv('contacts', 'order', 'orders');
+      toast.success('Сотрудник удалён');
+    } catch (e) {
+      toast.error('Не получилось', (e as ApiError).message);
+    }
+  };
+
+  const asPerson = async (contact: Contact) => {
+    try {
+      const r = await api.post<{ id: number }>(`/contacts/${contact.id}/person`);
+      inv('contacts', 'clients');
+      toast.success('Карточка частного клиента готова', 'Личную технику принимайте на неё.');
+      navigate(`/clients/${r.id}`);
+    } catch (e) {
+      toast.error('Не получилось', (e as ApiError).message);
+    }
+  };
 
   const saveFleet = async () => {
     setSavingFleet(true);
@@ -105,6 +133,7 @@ export default function ClientPage() {
     { value: 'docs', label: 'Документы', count: c.documents.length + c.attachments.length },
     { value: 'tasks', label: 'Задачи', count: c.tasks.filter((t) => t.status === 'open').length },
   ];
+  if (legal && can('clients.edit')) tabs.splice(2, 0, { value: 'people', label: 'Сотрудники', count: people.data?.length });
   if (legal) tabs.push({ value: 'fleet', label: 'Парк техники', count: totals.pc + totals.mfu });
   tabs.push({ value: 'service', label: 'Выезд', count: service.data?.items.length });
 
@@ -121,6 +150,8 @@ export default function ClientPage() {
           <div className={s.tags}>
             <Pill tone={legal ? 'violet' : 'blue'}>{legal ? 'Юрлицо' : 'Физлицо'}</Pill>
             {active.length > 0 && <Pill tone="amber">в работе: {active.length}</Pill>}
+            <Pill tone="outline">обращений всего: {c.orders.length}</Pill>
+            {c.orders.length >= 5 && <Pill tone="teal">постоянный клиент</Pill>}
           </div>
           <h1 className={s.title}>{c.name}</h1>
           <ul className={s.contacts}>
@@ -193,6 +224,52 @@ export default function ClientPage() {
             c.orders.map((o) => <OrderRow key={o.id} order={o} />)
           ) : (
             <EmptyState icon={<FileText />} title="Заявок ещё не было" />
+          )}
+        </Card>
+      )}
+
+      {tab === 'people' && canPeople && (
+        <Card>
+          <CardHead title="Сотрудники организации" count={people.data?.length}>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<Plus size={16} aria-hidden />}
+              onClick={() => setContactForm({ open: true, contact: null })}
+            >
+              Добавить
+            </Button>
+          </CardHead>
+          {people.data?.length ? (
+            <ul className={s.devices}>
+              {people.data.map((p) => (
+                <li key={p.id} className={s.device}>
+                  <b>{p.fullName}</b>
+                  <span>{contactLine(p) || 'Телефон не указан'}</span>
+                  <span className="row wrap" style={{ gap: 4 }}>
+                    <Button variant="ghost" size="sm" onClick={() => setContactForm({ open: true, contact: p })}>
+                      Изменить
+                    </Button>
+                    {p.personClientId ? (
+                      <ButtonLink to={`/clients/${p.personClientId}`} variant="ghost" size="sm">
+                        Личная карточка
+                      </ButtonLink>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => asPerson(p)}>
+                        Завести как частного клиента
+                      </Button>
+                    )}
+                    <IconButton label="Удалить сотрудника" onClick={() => removeContact(p)}>
+                      <Trash2 />
+                    </IconButton>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState icon={<Users />} title="Сотрудников пока нет">
+              Люди из организации появляются здесь, когда вы выбираете их или добавляете при приёме техники.
+            </EmptyState>
           )}
         </Card>
       )}
@@ -346,6 +423,13 @@ export default function ClientPage() {
       <ClientFormSheet open={editing} onClose={() => setEditing(false)} client={c} />
       <DeviceJournalSheet device={c.devices.find((d) => d.id === journalFor) ?? null} onClose={() => setJournalFor(null)} />
       <RefillSheet clientId={c.id} open={refillOpen} onClose={() => setRefillOpen(false)} />
+      <ContactFormSheet
+        open={contactForm.open}
+        clientId={c.id}
+        contact={contactForm.contact}
+        onClose={() => setContactForm({ open: false, contact: null })}
+        onSaved={() => setContactForm({ open: false, contact: null })}
+      />
       <TaskSheet taskId={taskId} onClose={() => setTaskId(null)} />
     </div>
   );

@@ -3,6 +3,7 @@
 import './polyfills';
 import { Router, dispatch } from 'express';
 import { createUsers, seedCustomers, seedDemo, seedReference } from '../../../server/src/db/seed';
+import { seedHistory } from '../../../server/src/db/seedHistory';
 import { migrate } from '../../../server/src/db/migrate';
 import { one, tx } from '../../../server/src/db/pool';
 import { errorHandler } from '../../../server/src/lib/http';
@@ -15,6 +16,8 @@ import { ordersRouter } from '../../../server/src/routes/orders';
 import { tasksRouter } from '../../../server/src/routes/tasks';
 import { equipmentRouter } from '../../../server/src/routes/equipment';
 import { reportsRouter } from '../../../server/src/routes/reports';
+import { contactsRouter } from '../../../server/src/routes/contacts';
+import { analyticsRouter } from '../../../server/src/routes/analytics';
 import { notificationsRouter } from '../../../server/src/routes/notifications';
 import { actsRouter } from '../../../server/src/routes/acts';
 import { documentsRouter } from '../../../server/src/routes/documents';
@@ -44,6 +47,8 @@ for (const r of [
   tasksRouter,
   equipmentRouter,
   reportsRouter,
+  contactsRouter,
+  analyticsRouter,
   notificationsRouter,
   actsRouter,
   documentsRouter,
@@ -71,6 +76,8 @@ export function bootDemo() {
     }
     // демо-базы, созданные до появления заказчиков, тоже получают демо-заказчиков
     await seedCustomers();
+    // история за год для аналитики; на уже созданных базах догружается один раз
+    await seedHistory();
   })();
   return ready;
 }

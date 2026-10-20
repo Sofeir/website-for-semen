@@ -10,6 +10,7 @@ import {
   type Attachment,
   type Client,
   type ClientKind,
+  type Contact,
   type FleetRowDto,
   type IntakeInput,
   type IntakeResult,
@@ -22,6 +23,7 @@ import { useDocumentTitle } from '@/lib/hooks';
 import { dueDaysFor } from '@/lib/stages';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
 import { ClientPicker } from '@/components/ClientPicker';
+import { ContactPicker } from '@/components/ContactPicker';
 import { FleetEditor, emptyFleetRow, fleetTotals } from '@/components/FleetEditor';
 import { DueInput, UserSelect } from '@/components/Pickers';
 import { Button } from '@/ui/Button';
@@ -66,6 +68,7 @@ export default function IntakePage() {
 
   const [kind, setKind] = useState<ClientKind>('person');
   const [client, setClient] = useState<Client | null>(null);
+  const [contact, setContact] = useState<Contact | null>(null);
   const [mode, setMode] = useState<ClientMode>('search');
   const [files, setFiles] = useState<Attachment[]>([]);
   const [fleet, setFleet] = useState<FleetRowDto[] | null>(null);
@@ -84,6 +87,7 @@ export default function IntakePage() {
       comment: null,
       branch: null,
       requesterName: null,
+      contactId: null,
       attachmentIds: [],
       fleet: null,
     },
@@ -132,6 +136,7 @@ export default function IntakePage() {
   const switchKind = (k: ClientKind) => {
     setKind(k);
     setClient(null);
+    setContact(null);
     setMode('search');
     setValue('clientKind', k);
     setValue('clientId', null);
@@ -139,8 +144,15 @@ export default function IntakePage() {
     if (k === 'person' && devices.fields.length > 1) devices.replace([form.getValues('devices.0')]);
   };
 
+  const pickContact = (c: Contact | null) => {
+    setContact(c);
+    setValue('contactId', c?.id ?? null);
+    setValue('requesterName', c?.fullName ?? null);
+  };
+
   const selectClient = (c: Client | null) => {
     setClient(c);
+    pickContact(null);
     setValue('clientId', c?.id ?? null, { shouldValidate: formState.isSubmitted });
     setValue('newClient', null);
   };
@@ -203,6 +215,8 @@ export default function IntakePage() {
           ...values,
           clientKind: kind,
           newClient: mode === 'new' && values.newClient ? { ...values.newClient, kind } : null,
+          contactId: kind === 'legal' ? (contact?.id ?? null) : null,
+          requesterName: kind === 'legal' ? (contact?.fullName ?? values.requesterName) : null,
           attachmentIds: files.map((f) => f.id),
           fleet: kind === 'legal' && fleet ? fleet.filter((r) => r.department.trim()) : null,
         };
@@ -228,6 +242,7 @@ export default function IntakePage() {
   const reset = () => {
     setResult(null);
     setClient(null);
+    setContact(null);
     setMode('search');
     setFiles([]);
     setFleet(null);
@@ -239,6 +254,7 @@ export default function IntakePage() {
       comment: null,
       branch: null,
       requesterName: null,
+      contactId: null,
       attachmentIds: [],
       fleet: null,
     });
@@ -321,9 +337,6 @@ export default function IntakePage() {
                       </Field>
                       <Field label="КПП" optional error={nc?.kpp?.message}>
                         <Input {...register('newClient.kpp')} inputMode="numeric" maxLength={9} autoComplete="off" />
-                      </Field>
-                      <Field label="Контактное лицо" error={nc?.contactPerson?.message}>
-                        <Input {...register('newClient.contactPerson')} autoComplete="name" placeholder="Имя, должность" />
                       </Field>
                     </>
                   )}
@@ -439,12 +452,18 @@ export default function IntakePage() {
                 </Field>
               </div>
               {kind === 'legal' && (
-                <div className={formStyles.grid2}>
+                <div className="stack">
+                  <Field label="Кто подал заявку" optional group hint="Человек из организации: подсказки из базы по первым буквам ФИО">
+                    <div>
+                      {client ? (
+                        <ContactPicker clientId={client.id} value={contact} onChange={pickContact} />
+                      ) : (
+                        <p className="muted">Сначала выберите или сохраните организацию.</p>
+                      )}
+                    </div>
+                  </Field>
                   <Field label="Филиал" optional hint="Если у организации несколько филиалов">
                     <Input {...register('branch')} placeholder="Например: Красноуральск" />
-                  </Field>
-                  <Field label="Кто подал заявку" optional hint="Сотрудник организации">
-                    <Input {...register('requesterName')} placeholder="Например: Жукова Анна, управляющая" />
                   </Field>
                 </div>
               )}

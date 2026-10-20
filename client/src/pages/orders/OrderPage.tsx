@@ -1,7 +1,22 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, ArrowRightLeft, Eye, EyeOff, FilePlus2, FileText, ListPlus, Phone, Printer, RotateCcw } from 'lucide-react';
-import { formatMoney, formatPhone } from '@sd/shared';
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowRightLeft,
+  Eye,
+  EyeOff,
+  FilePlus2,
+  FileText,
+  ListPlus,
+  Pencil,
+  Phone,
+  Printer,
+  RotateCcw,
+  Wrench,
+} from 'lucide-react';
+import { REFILL_OP_LABELS, WORK_KIND_LABELS, formatMoney, formatPhone, type RefillOp } from '@sd/shared';
+import { api, ApiError } from '@/api/http';
 import { useAuth, useMe } from '@/app/auth';
 import { useDictionaries, useInvalidate, useOrder } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
@@ -10,11 +25,15 @@ import { AdvanceSheet, ReassignSheet, ReopenSheet } from '@/components/AdvanceSh
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
 import { DeviceJournalSheet } from '@/components/DeviceJournalSheet';
 import { StageRail } from '@/components/StageRail';
+import { WorkSheet } from '@/components/WorkSheet';
 import { TaskRow } from '@/components/TaskRow';
 import { TaskSheet } from '@/components/TaskSheet';
 import { TaskFormSheet } from '@/components/TaskFormSheet';
 import { Button, ButtonLink, IconButton, cx } from '@/ui/Button';
 import { Card, CardHead, DescList, EmptyState, ErrorBox, NumberTag, Pill, Plate, Spinner, StagePill } from '@/ui/Display';
+import { Field, Input, formStyles } from '@/ui/Form';
+import { Sheet } from '@/ui/Sheet';
+import { useToast } from '@/ui/Toast';
 import s from './OrderPage.module.css';
 
 export default function OrderPage() {
@@ -28,6 +47,8 @@ export default function OrderPage() {
   const [reassignOpen, setReassignOpen] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
+  const [workOpen, setWorkOpen] = useState(false);
+  const [agreedOpen, setAgreedOpen] = useState(false);
   const [taskId, setTaskId] = useState<number | null>(null);
   const [newTask, setNewTask] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -42,6 +63,7 @@ export default function OrderPage() {
   const canReassign = !isIssued && (can('orders.assign') || o.responsibleId === me.id);
   const target = { ...o, hasAct: o.acts.length > 0 };
   const history = [...o.history].reverse();
+  const canEditAgreed = can('orders.assign') || o.responsibleId === me.id;
 
   return (
     <div className={s.page}>
@@ -133,7 +155,26 @@ export default function OrderPage() {
                 ['Марка и модель', [o.device.brand, o.device.model].filter(Boolean).join(' ') || '—'],
                 ['Серийный номер', o.device.serial || 'не указан'],
                 ['Филиал', o.branch],
-                ['Заявку подал', o.requesterName],
+                [
+                  'Заявку подал',
+                  o.contact ? (
+                    <span>
+                      {o.contact.fullName}
+                      {o.contact.position && `, ${o.contact.position}`}
+                      {o.contact.phone && (
+                        <>
+                          {', '}
+                          <a href={`tel:+${o.contact.phone.replace(/\D/g, '')}`} className={s.tel}>
+                            <Phone size={14} aria-hidden />
+                            {formatPhone(o.contact.phone)}
+                          </a>
+                        </>
+                      )}
+                    </span>
+                  ) : (
+                    o.requesterName
+                  ),
+                ],
                 ['Отдел', o.department],
                 ['Неисправность', o.fault],
                 [
@@ -180,6 +221,57 @@ export default function OrderPage() {
                 ['Техника возвращена', o.deviceReturnedAt && fmtWhen(o.deviceReturnedAt)],
               ]}
             />
+          </Card>
+
+          <Card>
+            <CardHead title="Согласовано с клиентом">
+              {canEditAgreed && (
+                <Button variant="ghost" size="sm" icon={<Pencil size={16} aria-hidden />} onClick={() => setAgreedOpen(true)}>
+                  Изменить
+                </Button>
+              )}
+            </CardHead>
+            {o.agreedTerm || o.agreedSum !== null ? (
+              <DescList items={[['Срок', o.agreedTerm], ['Сумма', o.agreedSum !== null && formatMoney(o.agreedSum)]]} />
+            ) : (
+              <p className="muted">Срок и сумма пока не указаны. Запишите, о чём договорились с клиентом.</p>
+            )}
+          </Card>
+
+          <Card>
+            <CardHead title="Работы по заявке" count={o.works.length}>
+              <Button variant="ghost" size="sm" icon={<Wrench size={16} aria-hidden />} onClick={() => setWorkOpen(true)}>
+                Записать
+              </Button>
+            </CardHead>
+            {o.works.length ? (
+              <ul className={s.docs}>
+                {o.works.map((w) => {
+                  const part = [w.partBrand, w.partSpec].filter(Boolean).join(' ');
+                  return (
+                    <li key={w.id} className={s.doc}>
+                      <Wrench aria-hidden className={s.docIcon} />
+                      <div className={s.docMain}>
+                        <b>
+                          {w.title}
+                          {w.qty > 1 ? ` × ${w.qty}` : ''}
+                          {w.amount !== null ? `, ${formatMoney(w.amount)}` : ''}
+                        </b>
+                        <span>
+                          {WORK_KIND_LABELS[w.kind]}, {fmtWhen(w.doneAt)}
+                          {w.performerName && `, делал ${w.performerName}`}
+                          {part && `, ${part}`}
+                          {w.warrantyMonths ? `, гарантия ${w.warrantyMonths} мес.` : ''}
+                          {w.ops.length > 0 && `, ${w.ops.map((x) => REFILL_OP_LABELS[x as RefillOp] ?? x).join(', ')}`}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="muted">Пока никто не записал, что сделано. Здесь видно, кто что менял и сколько это стоило.</p>
+            )}
           </Card>
 
           <Card>
@@ -298,6 +390,20 @@ export default function OrderPage() {
       <ReassignSheet order={reassignOpen ? target : null} onClose={() => setReassignOpen(false)} />
       <ReopenSheet order={reopenOpen ? target : null} onClose={() => setReopenOpen(false)} />
       <DeviceJournalSheet device={journalOpen ? o.device : null} orderId={o.id} onClose={() => setJournalOpen(false)} />
+      <WorkSheet
+        open={workOpen}
+        onClose={() => setWorkOpen(false)}
+        target={{ clientId: o.clientId, deviceId: o.device.id, orderId: o.id }}
+        defaultKind="part"
+        subtitle={`Заявка №${o.number}`}
+      />
+      <AgreedSheet
+        open={agreedOpen}
+        orderId={o.id}
+        term={o.agreedTerm}
+        sum={o.agreedSum}
+        onClose={() => setAgreedOpen(false)}
+      />
       <TaskSheet taskId={taskId} onClose={() => setTaskId(null)} />
       <TaskFormSheet
         open={newTask}
@@ -307,5 +413,83 @@ export default function OrderPage() {
         presetTitle={`По заявке №${o.number}: `}
       />
     </div>
+  );
+}
+
+/** Что согласовали с клиентом: срок текстом и сумма. */
+function AgreedSheet({
+  open,
+  orderId,
+  term,
+  sum,
+  onClose,
+}: {
+  open: boolean;
+  orderId: number;
+  term: string | null;
+  sum: number | null;
+  onClose: () => void;
+}) {
+  const inv = useInvalidate();
+  const toast = useToast();
+  const [t, setT] = useState('');
+  const [m, setM] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setT(term ?? '');
+    setM(sum === null ? '' : String(sum));
+    setError('');
+  }, [open, term, sum]);
+
+  const save = async () => {
+    setError('');
+    const amount = m.trim() ? Number(m.replace(/\s/g, '').replace(',', '.')) : null;
+    if (amount !== null && (!Number.isFinite(amount) || amount < 0)) return setError('Сумма — неотрицательное число');
+    setBusy(true);
+    try {
+      await api.put(`/orders/${orderId}/agreed`, { agreedTerm: t.trim() || null, agreedSum: amount });
+      inv('order', 'orders');
+      toast.success('Сохранено');
+      onClose();
+    } catch (e) {
+      setError((e as ApiError).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Согласовано с клиентом"
+      subtitle="Срок и сумма, о которых договорились"
+      width={480}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button onClick={save} loading={busy}>
+            Сохранить
+          </Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {error && <ErrorBox>{error}</ErrorBox>}
+        <div className={formStyles.grid2}>
+          <Field label="Срок" optional hint="Можно текстом: до пятницы, 3 рабочих дня">
+            <Input value={t} onChange={(e) => setT(e.target.value)} maxLength={200} data-autofocus />
+          </Field>
+          <Field label="Сумма, ₽" optional>
+            <Input inputMode="decimal" value={m} onChange={(e) => setM(e.target.value)} placeholder="4500" />
+          </Field>
+        </div>
+      </div>
+    </Sheet>
   );
 }

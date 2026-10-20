@@ -7,6 +7,7 @@ export interface Me {
   fullName: string;
   role: Role;
   phone: string | null;
+  position?: string | null;
   onboarded: boolean;
   notifyInApp: boolean;
   notifyTelegram: boolean;
@@ -25,6 +26,8 @@ export interface UserBrief {
   role: Role;
   login?: string;
   phone?: string | null;
+  /** Должность: директор, ведущий инженер и так далее. Может быть пустой. */
+  position?: string | null;
   isActive?: boolean;
   /** false — роль пока предположение, её надо уточнить. Видит только администратор. */
   roleConfirmed?: boolean;
@@ -75,6 +78,22 @@ export interface Device {
   /** Своя нумерация предприятия и где стоит (кабинет, отдел). */
   inventoryNo: string | null;
   location: string | null;
+  /** Системный блок или ноутбук, в состав рабочего места которого входит эта техника. */
+  parentId: number | null;
+}
+
+export interface Contact {
+  id: number;
+  clientId: number;
+  fullName: string;
+  phone: string | null;
+  position: string | null;
+  personClientId: number | null;
+}
+
+/** Человек из любой организации — для подсказок при приёме от физлица. */
+export interface ContactHit extends Contact {
+  clientName: string;
 }
 
 export interface DeviceWork {
@@ -91,6 +110,15 @@ export interface DeviceWork {
   note: string | null;
   doneAt: string;
   createdByName: string | null;
+  performerId: number | null;
+  performerName: string | null;
+  amount: number | null;
+  partBrand: string | null;
+  partSpec: string | null;
+  warrantyMonths: number | null;
+  /** Расчётный ресурс детали, листов. */
+  resource: number | null;
+  ops: string[];
 }
 
 export interface OrderListItem {
@@ -193,6 +221,12 @@ export interface OrderDetail extends OrderListItem {
   /** Филиал и сотрудник организации, от которого пришла заявка. */
   branch: string | null;
   requesterName: string | null;
+  contact: Contact | null;
+  /** Согласовано с клиентом: срок текстом и сумма. */
+  agreedTerm: string | null;
+  agreedSum: number | null;
+  /** Работы по заявке: кто и что делал. */
+  works: DeviceWork[];
   comment: string | null;
   estimatedCost: number | null;
   acceptedByName: string | null;
@@ -395,6 +429,86 @@ export interface ClientReportOrder {
 }
 
 /** Что сделали для одной организации за месяц: основа для счёта. */
+// ---------- Аналитика ----------
+
+export interface AnalyticsTotals {
+  requests: number;
+  repaired: number;
+  declined: number;
+  refills: number;
+  works: number;
+  /** Сумма из журнала работ, ₽. */
+  revenue: number;
+  /** Средний срок от приёма до выдачи, дней. */
+  avgDays: number | null;
+  warrantyReturns: number;
+  activeClients: number;
+}
+
+export interface AnalyticsTrendPoint extends AnalyticsTotals {
+  month: string;
+}
+
+export interface AnalyticsMaster {
+  userId: number;
+  name: string;
+  position: string | null;
+  works: number;
+  orders: number;
+  refills: number;
+  revenue: number;
+  /** Сколько этапов заявок вёл за месяц. */
+  stages: number;
+}
+
+export interface AnalyticsDevice {
+  deviceId: number;
+  title: string;
+  inventoryNo: string | null;
+  clientId: number;
+  clientName: string;
+  works: number;
+  revenue: number;
+  lastWorkAt: string;
+  /** Сколько раз деталь заменили раньше расчётного ресурса. */
+  early: number;
+}
+
+export interface AnalyticsClient {
+  clientId: number;
+  name: string;
+  kind: 'person' | 'legal';
+  requests: number;
+  allTime: number;
+  revenue: number;
+  regular: boolean;
+}
+
+export interface EarlyReplacement {
+  deviceId: number;
+  title: string;
+  clientName: string;
+  part: string;
+  /** Сколько листов прошло с прошлой замены. */
+  passed: number;
+  /** Расчётный ресурс прошлой детали. */
+  resource: number;
+  doneAt: string;
+}
+
+export interface Analytics {
+  month: string;
+  compare: string;
+  span: number;
+  current: AnalyticsTotals;
+  previous: AnalyticsTotals;
+  trend: AnalyticsTrendPoint[];
+  masters: AnalyticsMaster[];
+  devices: AnalyticsDevice[];
+  clients: AnalyticsClient[];
+  early: EarlyReplacement[];
+}
+
 export interface ClientReport {
   clientId: number;
   clientName: string;

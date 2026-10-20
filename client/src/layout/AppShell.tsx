@@ -162,7 +162,7 @@ export function AppShell() {
           <div>
             <b>{me.fullName}</b>
             <div className="muted" style={{ fontSize: 'var(--fs-sm)' }}>
-              {ROLE_LABELS[me.role]}
+              {me.position || ROLE_LABELS[me.role]}
             </div>
           </div>
         </div>
@@ -259,7 +259,7 @@ function UserMenu({ onTour }: { placement: 'side'; onTour: () => void }) {
         <Avatar name={me.fullName} size={40} />
         <span className={s.sideUserName}>
           <b className="truncate">{me.fullName}</b>
-          <span className="truncate">{ROLE_LABELS[me.role]}</span>
+          <span className="truncate">{me.position || ROLE_LABELS[me.role]}</span>
         </span>
       </button>
       <AnimatePresence>
@@ -275,7 +275,7 @@ function UserMenu({ onTour }: { placement: 'side'; onTour: () => void }) {
           >
             <div className={s.menuHead}>
               <b>{me.fullName}</b>
-              <span>{ROLE_LABELS[me.role]}</span>
+              <span>{me.position || ROLE_LABELS[me.role]}</span>
               <span>логин {me.login}</span>
             </div>
             <button type="button" role="menuitem" className={s.menuItem} onClick={() => navigate('/profile')}>

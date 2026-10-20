@@ -263,7 +263,19 @@
 }
 
 .roleSelect {
-  min-width: 220px;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* обёртка выбора роли тоже должна сжиматься, иначе длинное название должности раздвигает страницу */
+.user > div:has(.roleSelect) {
+  flex: 1 1 200px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.userMain input {
+  max-width: 100%;
 }
 
 .days {

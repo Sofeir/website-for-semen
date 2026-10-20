@@ -56,6 +56,9 @@ async function deviceTitle(db: Db, deviceId: number) {
   return r?.title ?? 'Техника';
 }
 
+/** Типы техники, у которых серийный номер обязателен при приёме. Остальным (компьютер, периферия) номер присваивается сам. */
+const SERIAL_REQUIRED = ['Ноутбук', 'Принтеры/МФУ'];
+
 const stageTaskTitle = (stage: Stage, title: string, number: string) => `${stage.name}: ${title}, №${number}`;
 
 /**
@@ -71,6 +74,18 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
     clientId = await createClient(db, actor.id, { ...input.newClient!, kind: input.clientKind });
   }
   const client = (await one<{ name: string; kind: string }>('SELECT name, kind FROM clients WHERE id = $1', [clientId], db))!;
+
+  // Сотрудник организации, от которого пришла заявка: должен принадлежать этой организации.
+  let contact: { id: number; full_name: string } | null = null;
+  if (input.contactId) {
+    contact =
+      (await one<{ id: number; full_name: string }>(
+        'SELECT id, full_name FROM client_contacts WHERE id = $1 AND client_id = $2',
+        [input.contactId, clientId],
+        db,
+      )) ?? null;
+    if (!contact) throw new HttpError(400, 'Этот сотрудник не из выбранной организации');
+  }
 
   if (input.fleet && client.kind === 'legal') await replaceFleet(db, clientId, input.fleet);
 
@@ -101,6 +116,12 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
       deviceId = existing.id;
       if (dv.serial) await db.query('UPDATE devices SET serial = $2 WHERE id = $1 AND serial IS NULL', [deviceId, dv.serial]);
     } else {
+      const type = await one<{ name: string }>('SELECT name FROM device_types WHERE id = $1', [dv.deviceTypeId], db);
+      if (type && SERIAL_REQUIRED.includes(type.name) && !dv.serial) {
+        throw new HttpError(400, `Для техники «${type.name}» серийный номер обязателен`, {
+          fields: { [`devices.${input.devices.indexOf(item)}.device.serial`]: 'Серийный номер обязателен' },
+        });
+      }
       const row = await one<{ id: number }>(
         `INSERT INTO devices (client_id, device_type_id, brand_id, brand_text, model_id, model_text, serial)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
@@ -116,6 +137,10 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
         db,
       );
       deviceId = row!.id;
+      // Системный блок без серийного номера: присваиваем свой номер, чтобы технику можно было найти и вести журнал.
+      if (type?.name === 'Компьютер' && !dv.serial) {
+        await db.query('UPDATE devices SET inventory_no = $2 WHERE id = $1', [deviceId, `ПК-${String(deviceId).padStart(4, '0')}`]);
+      }
     }
 
     const seq = await one<{ n: number }>(`SELECT nextval('order_number_seq') AS n`, [], db);
@@ -123,8 +148,8 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
     const order = await one<{ id: number }>(
       `INSERT INTO orders (number, batch_id, client_id, device_id, stage_id, responsible_id, stage_due_at,
                            fault_ids, fault_text, appearance, appearance_note, kit, kit_note, device_password,
-                           department, comment, accepted_by, branch, requester_name)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id`,
+                           department, comment, accepted_by, branch, requester_name, contact_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING id`,
       [
         number,
         batch!.id,
@@ -144,7 +169,8 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
         input.comment,
         actor.id,
         input.branch,
-        input.requesterName,
+        contact ? contact.full_name : input.requesterName,
+        contact?.id ?? null,
       ],
       db,
     );

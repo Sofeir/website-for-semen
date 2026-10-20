@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth, useMe } from '@/app/auth';
 import { api } from '@/api/http';
 import { keys } from '@/api/queries';
+import { staffFirstName } from '@/lib/names';
 import { Button } from '@/ui/Button';
 import { Sheet } from '@/ui/Sheet';
 import s from './Onboarding.module.css';
@@ -63,7 +64,7 @@ export function Onboarding({ open, onClose }: { open: boolean; onClose: () => vo
     <Sheet
       open={open}
       onClose={finish}
-      title={i === 0 && !me.onboarded ? `Привет, ${me.fullName.split(' ')[0]}!` : 'Как здесь всё устроено'}
+      title={i === 0 && !me.onboarded ? `Привет, ${staffFirstName(me.fullName)}!` : 'Как здесь всё устроено'}
       subtitle="Четыре коротких подсказки. Открыть их снова можно в меню профиля."
       width={520}
       footer={

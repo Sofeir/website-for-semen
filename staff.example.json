@@ -1,0 +1,7 @@
+[
+  { "login": "ivanov.i", "fullName": "Иванов Иван Иванович", "role": "manager", "position": "Директор", "phone": "+7 900 000-00-01" },
+  { "login": "petrov.p", "fullName": "Петров Пётр Петрович", "role": "admin", "position": "Руководитель системного администрирования", "phone": "+7 900 000-00-02" },
+  { "login": "sidorov.s", "fullName": "Сидоров Сидор Сидорович", "role": "diagnostician", "position": "Ведущий инженер", "phone": "+7 900 000-00-03" },
+  { "login": "kuznetsov.k", "fullName": "Кузнецов Кузьма Кузьмич", "role": "master", "position": "Инженер", "phone": "+7 900 000-00-04" },
+  { "login": "smirnova.m", "fullName": "Смирнова Мария Викторовна", "role": "master", "position": null, "phone": "+7 900 000-00-05" }
+]

@@ -46,7 +46,7 @@ test('приём физлица: новый клиент → квитанция 
   await page.getByLabel('Пароль устройства').fill('0000');
 
   // Ответственный за диагностику — Стас.
-  await page.getByLabel('Ответственный').selectOption({ label: 'Стас' });
+  await page.getByLabel('Ответственный').selectOption({ label: 'Исаков Григорий Вячеславович' });
   await page.getByRole('button', { name: 'Сохранить приём' }).click();
 
   const dialog = page.getByRole('dialog', { name: 'Техника принята' });

@@ -15,6 +15,7 @@ const intake = (db: Db, a: Actor, input: unknown, ob: Outbox) => createIntake(db
 import { closeTasks, createTask, transferTask, type Actor } from '../services/tasks';
 import { replaceFleet } from '../services/clients';
 import { defaultDue } from '../services/workTime';
+import { seedHistory } from './seedHistory';
 
 /** Справочники, этапы и настройки. Повторный запуск ничего не дублирует. */
 export async function seedReference(db: Db = pool) {
@@ -100,18 +101,19 @@ export async function seedReference(db: Db = pool) {
   return true;
 }
 
-/** Сотрудники со встречи. roleConfirmed: false — роль наше предположение, руководитель её уточнит. */
-export const DEMO_USERS: { login: string; fullName: string; role: Role; phone?: string; roleConfirmed?: boolean }[] = [
-  { login: 'admin', fullName: 'Администратор', role: 'admin' },
-  { login: 'semen', fullName: 'Семён', role: 'manager' },
-  { login: 'stas', fullName: 'Стас', role: 'diagnostician', roleConfirmed: false },
-  { login: 'olga', fullName: 'Ольга', role: 'diagnostician', roleConfirmed: false },
-  { login: 'lenya', fullName: 'Лёня', role: 'master', roleConfirmed: false },
-  { login: 'artem', fullName: 'Артём', role: 'master', roleConfirmed: false },
-  { login: 'matvey', fullName: 'Матвей', role: 'admin', roleConfirmed: false },
-  { login: 'masha', fullName: 'Маша', role: 'assistant', roleConfirmed: false },
-  // Ване роль «только задачи» назначили на встрече
-  { login: 'vanya', fullName: 'Ваня', role: 'assistant' },
+/**
+ * Сотрудники: только те, кого назвал заказчик (20.10.2026). Телефоны сюда не пишем: репозиторий публичный.
+ * Директор и руководитель системного администрирования — главные аккаунты с полным доступом.
+ * Логины короткие и служебные; на рабочем сервере сотрудников заводят импортом из staff.local.json.
+ */
+export const DEMO_USERS: { login: string; fullName: string; role: Role; position?: string; phone?: string; roleConfirmed?: boolean }[] = [
+  { login: 'semen', fullName: 'Вайнштейн Семён Леонидович', role: 'manager', position: 'Директор' },
+  { login: 'artem', fullName: 'Тафлевич Леонид Беневич', role: 'manager', position: 'Директор' },
+  { login: 'admin', fullName: 'Голенков Григорий Сергеевич', role: 'admin', position: 'Руководитель системного администрирования' },
+  { login: 'matvey', fullName: 'Тафлевич Матвей Леонидович', role: 'admin', position: 'Руководитель системного администрирования' },
+  { login: 'stas', fullName: 'Исаков Григорий Вячеславович', role: 'diagnostician', position: 'Ведущий инженер' },
+  { login: 'lenya', fullName: 'Катаев Артем Дмитриевич', role: 'master', position: 'Инженер' },
+  { login: 'olga', fullName: 'Тафлевич Мария Викторовна', role: 'diagnostician' },
 ];
 
 /** Заводит недостающих сотрудников. Уже существующих не трогает — их роли и пароли могли поменять. */
@@ -122,9 +124,9 @@ export async function createUsers(password: string, db: Db = pool) {
   const hash = await bcrypt.hash(password, 10);
   for (const u of missing) {
     await db.query(
-      `INSERT INTO users (login, password_hash, full_name, role, phone, role_confirmed) VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO users (login, password_hash, full_name, role, phone, position, role_confirmed) VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (login) DO NOTHING`,
-      [u.login, hash, u.fullName, u.role, u.phone ?? null, u.roleConfirmed ?? true],
+      [u.login, hash, u.fullName, u.role, u.phone ?? null, u.position ?? null, u.roleConfirmed ?? true],
     );
   }
 }
@@ -718,6 +720,7 @@ if (isMain) {
       }
       await createUsers(password);
       await seedDemo();
+      await seedHistory();
       console.log(`✓ демо-данные: сотрудники ${DEMO_USERS.map((u) => u.login).join(', ')}; заказчик maria`);
     } else {
       console.log('· сотрудники уже есть, демо-данные не трогаю');

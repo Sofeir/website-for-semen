@@ -1,0 +1,22 @@
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.kind {
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-2);
+  color: var(--ink-700);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+
+.kindOn {
+  background: var(--blue-600);
+  border-color: var(--blue-600);
+  color: var(--white);
+}

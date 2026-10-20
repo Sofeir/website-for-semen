@@ -1,7 +1,7 @@
 // Замена пакета `pg` для демо: Postgres в WebAssembly (PGlite), данные хранятся в IndexedDB браузера.
 import { PGlite } from '@electric-sql/pglite';
 
-const DB_ID = 'asoft-demo-v1';
+const DB_ID = 'asoft-demo-v2';
 
 let dbPromise: Promise<PGlite> | null = null;
 export function getDb() {

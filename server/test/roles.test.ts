@@ -5,9 +5,12 @@ import { pool } from '../src/db/pool';
 import { app, dict, inDays, loginAs, PASSWORD, resetDb } from './helpers';
 
 describe('матрица прав', () => {
-  it('справочники и сотрудники — только администратор', () => {
-    expect(can('admin', 'dictionaries.edit')).toBe(true);
-    for (const r of ['manager', 'diagnostician', 'master'] as const) {
+  it('справочники и сотрудники — директор и руководитель системного администрирования', () => {
+    for (const r of ['admin', 'manager'] as const) {
+      expect(can(r, 'dictionaries.edit')).toBe(true);
+      expect(can(r, 'users.manage')).toBe(true);
+    }
+    for (const r of ['diagnostician', 'master'] as const) {
       expect(can(r, 'dictionaries.edit')).toBe(false);
       expect(can(r, 'users.manage')).toBe(false);
     }
@@ -55,15 +58,13 @@ describe('права на уровне API', () => {
     expect((await stas.post('/api/users', {})).status).toBe(403);
   });
 
-  it('руководитель принимает технику, но справочники не правит', async () => {
-    const semen = await loginAs('semen');
-    expect((await semen.post('/api/dictionaries/device_types', { name: 'Дрон' })).status).toBe(403);
-  });
-
-  it('администратор добавляет тип техники', async () => {
+  it('инженер справочники не правит, директор и руководитель системного администрирования правят', async () => {
+    const stas = await loginAs('stas');
+    expect((await stas.post('/api/dictionaries/device_types', { name: 'Дрон' })).status).toBe(403);
     const admin = await loginAs('admin');
-    const res = await admin.post('/api/dictionaries/device_types', { name: 'Дрон' });
-    expect(res.status).toBe(201);
+    expect((await admin.post('/api/dictionaries/device_types', { name: 'Дрон' })).status).toBe(201);
+    const semen = await loginAs('semen');
+    expect((await semen.post('/api/dictionaries/device_types', { name: 'Квадрокоптер' })).status).toBe(201);
   });
 
   it('мастер не видит логины коллег, администратор видит', async () => {
@@ -73,12 +74,14 @@ describe('права на уровне API', () => {
     expect((await admin.get('/api/users')).body[0].login).toBeDefined();
   });
 
-  it('импорт из Excel — только администратор', async () => {
-    const semen = await loginAs('semen');
-    expect((await semen.post('/api/import/commit', { token: 'x'.repeat(20), kind: 'person', mapping: { name: 0 } })).status).toBe(403);
-    expect((await semen.post('/api/import/preview')).status).toBe(403);
-    const admin = await loginAs('admin');
-    expect((await admin.post('/api/import/commit', { token: 'x'.repeat(20), kind: 'person', mapping: { name: 0 } })).status).toBe(410);
+  it('импорт из Excel — только директор и руководитель системного администрирования', async () => {
+    const stas = await loginAs('stas');
+    expect((await stas.post('/api/import/commit', { token: 'x'.repeat(20), kind: 'person', mapping: { name: 0 } })).status).toBe(403);
+    expect((await stas.post('/api/import/preview')).status).toBe(403);
+    for (const login of ['admin', 'semen']) {
+      const boss = await loginAs(login);
+      expect((await boss.post('/api/import/commit', { token: 'x'.repeat(20), kind: 'person', mapping: { name: 0 } })).status).toBe(410);
+    }
   });
 
   it('после пяти неверных паролей вход блокируется', async () => {

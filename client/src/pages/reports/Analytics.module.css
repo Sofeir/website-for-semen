@@ -1,0 +1,536 @@
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+
+.month {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.monthTitle {
+  min-width: 10ch;
+  white-space: nowrap;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-lg);
+}
+
+.compareBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.spanBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin: var(--s-5) 0 var(--s-3);
+}
+
+.muted {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Главные цифры на тёмной стеклянной плашке */
+.hero {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-4);
+  margin-bottom: var(--s-4);
+}
+
+.heroStat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.heroLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-on-dark-muted);
+  overflow-wrap: anywhere;
+}
+
+.heroNum {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-xl, 28px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.heroNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--text-on-dark-muted);
+}
+
+@media (min-width: 900px) {
+  .hero {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: var(--s-6) var(--s-5);
+  }
+
+  .heroNum {
+    font-size: var(--fs-display);
+  }
+}
+
+/* Изменение к сравниваемому месяцу */
+.delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.good {
+  background: var(--teal-100);
+  color: var(--teal-700);
+}
+
+.bad {
+  background: var(--red-100);
+  color: var(--red-700);
+}
+
+.flat {
+  background: var(--ink-100);
+  color: var(--ink-600);
+}
+
+.onDark.good {
+  background: rgba(120, 224, 190, 0.22);
+  color: #bff5e3;
+}
+
+.onDark.bad {
+  background: rgba(255, 140, 130, 0.26);
+  color: #ffd2cd;
+}
+
+.onDark.flat {
+  background: rgba(255, 255, 255, 0.16);
+  color: #e3ecf7;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-4);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Месяц против месяца */
+.legendRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  margin-bottom: var(--s-3);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.legendRow span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dotNow,
+.dotPrev {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dotNow {
+  background: var(--blue-600);
+}
+
+.dotPrev {
+  background: var(--violet-500);
+  opacity: 0.55;
+}
+
+.cmpList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cmpRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'head nums'
+    'bars bars';
+  gap: 6px var(--s-3);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.cmpRow:first-child {
+  border-top: 0;
+}
+
+.cmpHead {
+  grid-area: head;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px var(--s-2);
+  min-width: 0;
+}
+
+.cmpName {
+  font-weight: 600;
+}
+
+.cmpNums {
+  grid-area: nums;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  font-size: var(--fs-sm);
+}
+
+.cmpNums b {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-md);
+}
+
+.cmpNums span {
+  color: var(--text-muted);
+}
+
+.cmpBars {
+  grid-area: bars;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.barNow,
+.barPrev {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.barNow {
+  background: linear-gradient(90deg, var(--blue-500), var(--blue-600));
+}
+
+.barPrev {
+  background: var(--violet-500);
+  opacity: 0.5;
+}
+
+/* Динамика за год */
+.trendTotal {
+  margin: var(--s-3) 0 var(--s-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.trendTotal b {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-weight: 500;
+}
+
+.chart {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 4px;
+  height: 200px;
+  padding-top: var(--s-2);
+}
+
+.col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
+  min-width: 0;
+  gap: 4px;
+}
+
+.colBar {
+  display: block;
+  border-radius: 6px 6px 3px 3px;
+  background: var(--ink-200);
+  transition:
+    height 0.4s ease,
+    background 0.2s ease;
+}
+
+.colSel .colBar {
+  background: linear-gradient(180deg, var(--blue-500), var(--blue-700));
+}
+
+.colCmp .colBar {
+  background: var(--violet-500);
+  opacity: 0.6;
+}
+
+.colVal {
+  min-height: 14px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+.colLabel {
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: -0.02em;
+  color: var(--text-muted);
+}
+
+.metricTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.metricTab {
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-2);
+  color: var(--ink-700);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+
+.metricTabOn {
+  background: var(--blue-600);
+  border-color: var(--blue-600);
+  color: var(--white);
+}
+
+@media (max-width: 520px) {
+  .col:nth-child(even):not(.colSel):not(.colCmp) .colLabel {
+    visibility: hidden;
+  }
+}
+
+.colSel .colLabel {
+  color: var(--ink-900);
+  font-weight: 600;
+}
+
+/* Инженеры */
+.people {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.person {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.person:first-child {
+  border-top: 0;
+}
+
+.personMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.personHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px var(--s-2);
+}
+
+.personHead b {
+  overflow-wrap: break-word;
+}
+
+.personSum {
+  font-family: var(--font-display);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.personBar {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--teal-500), var(--blue-500));
+  transition: width 0.4s ease;
+}
+
+.personStats {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Рейтинги: техника и клиенты */
+.rank {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rankRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 56px;
+  padding: var(--s-2) 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.rankRow:first-child {
+  border-top: 0;
+}
+
+.rankNo {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--blue-100);
+  color: var(--blue-700);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rankMain {
+  flex: 1 1 150px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rankMain b {
+  overflow-wrap: anywhere;
+}
+
+.rankEnd {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-family: var(--font-display);
+  font-weight: 500;
+}
+
+.rankEnd b {
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .rankEnd {
+    flex-basis: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    padding-left: 40px;
+  }
+}
+
+/* Замены раньше срока */
+.earlyList {
+  display: flex;
+  flex-direction: column;
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.earlyRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.earlyRow:first-child {
+  border-top: 0;
+}
+
+.earlyBar {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--red-100);
+  overflow: hidden;
+}
+
+.earlyBar i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--red-500);
+}
+
+.earlyNote {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--red-700);
+}

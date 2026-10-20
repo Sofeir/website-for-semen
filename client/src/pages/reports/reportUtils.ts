@@ -10,7 +10,7 @@ export function monthShift(month: string, n: number) {
 
 export function label(month: string) {
   const [y, m] = month.split('-').map(Number);
-  const t = monthFmt.format(new Date(y, m - 1, 1));
+  const t = monthFmt.format(new Date(y, m - 1, 1)).replace(/\s*г\.$/, '');
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 

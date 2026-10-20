@@ -9,6 +9,7 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
     "db:reset": "tsx src/db/reset.ts",
+    "staff:import": "tsx src/db/importStaff.ts",
     "test": "vitest run"
   },
   "dependencies": {

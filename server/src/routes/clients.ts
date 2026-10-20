@@ -47,9 +47,15 @@ clientsRouter.get(
       let digits = q.replace(/\D/g, '');
       if (digits.startsWith('8')) digits = '7' + digits.slice(1);
       const parts = [`c.name ILIKE ${like}`, `c.contact_person ILIKE ${like}`, `c.inn ILIKE ${like}`, `c.email ILIKE ${like}`];
+      // Сотрудники организации и техника клиента: по ФИО, серийному и своему номеру
+      parts.push(
+        `EXISTS (SELECT 1 FROM client_contacts cc WHERE cc.client_id = c.id AND cc.full_name ILIKE ${like})`,
+        `EXISTS (SELECT 1 FROM devices dv WHERE dv.client_id = c.id AND (dv.serial ILIKE ${like} OR dv.inventory_no ILIKE ${like}))`,
+      );
       if (digits.length >= 3) {
         params.push(`%${digits}%`);
         parts.push(`c.phone_digits LIKE $${params.length}`);
+        parts.push(`EXISTS (SELECT 1 FROM client_contacts cc WHERE cc.client_id = c.id AND cc.phone_digits LIKE $${params.length})`);
       }
       where.push(`(${parts.join(' OR ')})`);
     }
