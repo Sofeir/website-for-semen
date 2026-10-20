@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Download, LineChart, TrendingDown, TrendingUp, Minus } from 'lucide-react';
 import { WORK_KIND_LABELS, REFILL_OP_LABELS, type Analytics, type AnalyticsMaster, type AnalyticsTotals, type RefillOp } from '@sd/shared';
@@ -469,15 +469,13 @@ export default function AnalyticsPage() {
   const [span, setSpan] = useState<'3' | '6' | '12'>('12');
   const [tab, setTab] = useState<Tab>('overview');
   const custom = mode === 'custom' && tab === 'overview';
-  const ready = !custom || pick.length === 2;
-  const effMonth = custom ? (pick.length === 2 ? pick[0] : thisMonth()) : month;
-  const compare = custom
-    ? pick.length === 2
-      ? pick[1]
-      : monthShift(thisMonth(), -1)
-    : mode === 'year'
-      ? monthShift(month, -12)
-      : monthShift(month, -1);
+  /** Пока выбрана одна из двух месяцев, экран не меняется: остаётся последнее сравнение, только выбор на графике сброшен. */
+  const pending = custom && pick.length < 2;
+  const ready = !pending;
+  const last = useRef({ month: thisMonth(), compare: monthShift(thisMonth(), -1) });
+  const effMonth = pending ? last.current.month : custom ? pick[0] : month;
+  const compare = pending ? last.current.compare : custom ? pick[1] : mode === 'year' ? monthShift(month, -12) : monthShift(month, -1);
+  if (!pending) last.current = { month: effMonth, compare };
   const q = useAnalytics(effMonth, compare, Number(span));
   const a = q.data;
 
@@ -567,14 +565,18 @@ export default function AnalyticsPage() {
         <>
           {tab === 'overview' && (
             <>
-              {ready && <Hero a={a} />}
+              <div className={pending ? s.stale : undefined}>
+                <Hero a={a} />
+              </div>
               {ready && a.current.requests + a.current.works === 0 && (
                 <EmptyState icon={<LineChart />} title="В этом месяце пока пусто">
                   Выберите другой месяц стрелками или нажмите на столбец в динамике. Цифры появятся, когда будут заявки и записи работ.
                 </EmptyState>
               )}
               <div className={s.grid}>
-                {ready && <Compare a={a} />}
+                <div className={pending ? s.stale : undefined}>
+                  <Compare a={a} />
+                </div>
                 <Trend
                   a={a}
                   onPick={pickMonth}

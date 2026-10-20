@@ -421,6 +421,12 @@
   margin-bottom: var(--s-4);
 }
 
+/* Пока выбирают пару месяцев, прежнее сравнение остаётся на месте, но приглушено */
+.stale {
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
 .split2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
