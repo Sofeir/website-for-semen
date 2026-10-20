@@ -11,6 +11,11 @@ const optionalText = (max = 2000) =>
     .optional()
     .nullable()
     .transform((v) => (v ? v : null));
+const optionalEmail = z
+  .union([z.literal(''), z.string().trim().email('Проверьте почту').max(200)])
+  .optional()
+  .nullable()
+  .transform((v) => (v ? v : null));
 const id = z.coerce.number().int().positive();
 const optionalId = z.preprocess(
   (v) => (v === '' || v === 0 || v === '0' ? null : v),
@@ -345,7 +350,9 @@ export const userCreateSchema = z.object({
     .regex(/^[a-zA-Z0-9._-]+$/, 'Латиница, цифры, точка, дефис'),
   fullName: text(120).min(2, 'Имя и фамилия'),
   role: z.enum(STAFF_ROLES),
-  phone: optionalText(32),
+  /** Телефон сотрудника обязателен: на него придут уведомления в мессенджере. */
+  phone: text(32).min(5, 'Укажите телефон'),
+  email: optionalEmail,
   position: optionalText(120),
   password: z.string().min(8, 'Пароль от 8 символов').max(200),
 });
@@ -356,6 +363,7 @@ export const userUpdateSchema = z.object({
   role: z.enum(STAFF_ROLES).optional(),
   roleConfirmed: z.boolean().optional(),
   phone: optionalText(32),
+  email: optionalEmail,
   position: optionalText(120),
   isActive: z.boolean().optional(),
   password: z.union([z.literal(''), z.string().min(8, 'Пароль от 8 символов').max(200)]).optional(),

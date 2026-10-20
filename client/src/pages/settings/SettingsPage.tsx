@@ -162,6 +162,30 @@ function Users() {
                 }}
                 style={{ marginTop: 4 }}
               />
+              <Input
+                aria-label={`Телефон: ${u.fullName}`}
+                type="tel"
+                defaultValue={u.phone ?? ''}
+                placeholder="Телефон"
+                maxLength={32}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v && v !== (u.phone ?? '')) update(u, { phone: v });
+                }}
+                style={{ marginTop: 4 }}
+              />
+              <Input
+                aria-label={`Почта: ${u.fullName}`}
+                type="email"
+                defaultValue={u.email ?? ''}
+                placeholder="Электронная почта"
+                maxLength={200}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v !== (u.email ?? '')) update(u, { email: v || null });
+                }}
+                style={{ marginTop: 4 }}
+              />
               {u.roleConfirmed === false && (
                 <span className="row wrap" style={{ gap: 'var(--s-2)', marginTop: 4 }}>
                   <Pill tone="amber" dot>
@@ -251,7 +275,7 @@ function UserCreateSheet({ open, onClose }: { open: boolean; onClose: () => void
   });
   const e = form.formState.errors;
   useEffect(() => {
-    if (open) form.reset({ login: '', fullName: '', role: 'diagnostician', phone: '', position: '', password: '' });
+    if (open) form.reset({ login: '', fullName: '', role: 'diagnostician', phone: '', email: '', position: '', password: '' });
   }, [open, form]);
   const submit = form.handleSubmit(async (v) => {
     try {
@@ -307,9 +331,14 @@ function UserCreateSheet({ open, onClose }: { open: boolean; onClose: () => void
             <Input {...form.register('password')} type="text" autoComplete="new-password" />
           </Field>
         </div>
-        <Field label="Телефон" optional>
-          <Input {...form.register('phone')} type="tel" inputMode="tel" />
-        </Field>
+        <div className={formStyles.grid2}>
+          <Field label="Телефон" error={e.phone?.message} hint="На него придут уведомления в мессенджере">
+            <Input {...form.register('phone')} type="tel" inputMode="tel" autoComplete="off" placeholder="+7 900 000-00-00" />
+          </Field>
+          <Field label="Электронная почта" optional error={e.email?.message}>
+            <Input {...form.register('email')} type="email" inputMode="email" autoComplete="off" placeholder="name@example.ru" />
+          </Field>
+        </div>
       </form>
     </Sheet>
   );

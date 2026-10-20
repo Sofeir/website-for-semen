@@ -25,6 +25,7 @@ interface StaffEntry {
   role: StaffRole;
   position?: string | null;
   phone?: string | null;
+  email?: string | null;
 }
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -36,7 +37,7 @@ function readEntries(file: string): StaffEntry[] {
     if (!e || typeof e.login !== 'string' || !/^[a-zA-Z0-9._-]{3,64}$/.test(e.login)) throw new Error(`Запись ${i + 1}: неверный login`);
     if (typeof e.fullName !== 'string' || e.fullName.trim().length < 2) throw new Error(`Запись ${i + 1}: нет ФИО`);
     if (!STAFF_ROLES.includes(e.role)) throw new Error(`Запись ${i + 1}: роль должна быть одной из ${STAFF_ROLES.join(', ')}`);
-    return { login: e.login, fullName: e.fullName.trim(), role: e.role, position: e.position?.trim() || null, phone: e.phone?.trim() || null };
+    return { login: e.login, fullName: e.fullName.trim(), role: e.role, position: e.position?.trim() || null, phone: e.phone?.trim() || null, email: e.email?.trim() || null };
   });
 }
 
@@ -53,20 +54,21 @@ function readEntries(file: string): StaffEntry[] {
   for (const e of entries) {
     const have = await one<{ id: number }>('SELECT id FROM users WHERE lower(login) = lower($1)', [e.login]);
     if (have) {
-      await pool.query('UPDATE users SET full_name = $2, role = $3, position = $4, phone = $5, role_confirmed = true, is_active = true WHERE id = $1', [
+      await pool.query('UPDATE users SET full_name = $2, role = $3, position = $4, phone = $5, email = coalesce($6, email), role_confirmed = true, is_active = true WHERE id = $1', [
         have.id,
         e.fullName,
         e.role,
         e.position,
         e.phone,
+        e.email,
       ]);
       console.log(`обновлён: ${e.login} (${e.fullName}), пароль не менялся`);
       continue;
     }
     const password = shared ?? crypto.randomBytes(9).toString('base64url');
     await pool.query(
-      `INSERT INTO users (login, password_hash, full_name, role, phone, position, role_confirmed) VALUES ($1, $2, $3, $4, $5, $6, true)`,
-      [e.login, await bcrypt.hash(password, 10), e.fullName, e.role, e.phone, e.position],
+      `INSERT INTO users (login, password_hash, full_name, role, phone, email, position, role_confirmed) VALUES ($1, $2, $3, $4, $5, $6, $7, true)`,
+      [e.login, await bcrypt.hash(password, 10), e.fullName, e.role, e.phone, e.email, e.position],
     );
     if (!shared) issued.push(`${e.login}\t${e.fullName}\t${password}`);
     console.log(`создан: ${e.login} (${e.fullName}), ${shared ? 'общий пароль из STAFF_PASSWORD' : 'пароль в staff.passwords.local.txt'}`);
