@@ -1,5 +1,5 @@
 # Автоматическая публикация: любая ветка, отправленная в GitHub (в том числе автопушем из Claude Code),
-# проходит проверку (типы и сборка демо), затем для неё создаётся pull request, и он сразу вливается в main.
+# проходит проверку (типы, сборка демо и серверные тесты на PostgreSQL), затем для неё создаётся pull request, и он сразу вливается в main.
 # Сайт на GitHub Pages обновляется после вливания. Если проверка упала, в main ничего не попадает.
 # Разрешено владельцем репозитория (Sofeir) 20.10.2026.
 name: Auto merge to main
@@ -20,6 +20,18 @@ concurrency:
 jobs:
   merge:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: servicedesk_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,6 +43,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build:demo
+      - name: Серверные тесты
+        env:
+          TEST_DATABASE_URL: postgres://postgres@localhost:5432/servicedesk_test
+        run: npm test
       - name: Pull request и слияние
         env:
           GH_TOKEN: ${{ github.token }}
