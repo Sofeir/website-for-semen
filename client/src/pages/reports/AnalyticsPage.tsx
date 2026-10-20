@@ -284,7 +284,7 @@ function Engineers({ a }: { a: Analytics }) {
   return (
     <div className={s.split2}>
       <Card>
-        <CardHead title="Инженеры" count={list.length} />
+        <CardHead title="Сотрудники" count={list.length} />
         {list.length ? (
           <ul className={s.people}>
             {list.map((m) => (
@@ -464,7 +464,7 @@ export default function AnalyticsPage() {
     <>
       <PageHeader
         title="Аналитика"
-        subtitle="Месяц против месяца, деньги, инженеры, техника и клиенты. Суммы берутся из записей работ."
+        subtitle="Итоги месяца и сравнение с другим месяцем, работа сотрудников, расходы на технику, клиенты. Суммы берутся из записей работ."
         actions={
           <Button variant="secondary" icon={<Download size={18} aria-hidden />} onClick={() => a && downloadCsv(`analitika-${month}.csv`, analyticsCsv(a))} disabled={!a}>
             Скачать CSV
@@ -524,8 +524,8 @@ export default function AnalyticsPage() {
           value={tab}
           onChange={setTab}
           items={[
-            { value: 'overview', label: 'Обзор' },
-            { value: 'engineers', label: 'Инженеры' },
+            { value: 'overview', label: 'Итоги месяца' },
+            { value: 'engineers', label: 'Кто что сделал' },
             { value: 'money', label: 'Техника и клиенты' },
             { value: 'early', label: 'Замены раньше срока', count: a?.early.length },
           ]}

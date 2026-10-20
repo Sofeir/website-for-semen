@@ -59,7 +59,10 @@ reportsRouter.get(
   }),
 );
 
-/** Подробности по одной организации за месяц: что именно сделали. Для выставления счёта. */
+/**
+ * Подробности по одному клиенту за месяц. Итоги те же, что в строке отчёта: заявки, ремонты, без ремонта, картриджи.
+ * Каждая запись ведёт на свою заявку: заявки со своими работами, заправки с номером заявки и прочие работы.
+ */
 reportsRouter.get(
   '/reports/client/:id',
   requirePermission('reports.view'),
@@ -70,11 +73,44 @@ reportsRouter.get(
     const client = await one<{ name: string; kind: 'person' | 'legal' }>('SELECT name, kind FROM clients WHERE id = $1', [id]);
     if (!client) throw new HttpError(404, 'Клиент не найден');
 
+    const totals = (await one<ClientReport['totals']>(
+      `SELECT
+         (SELECT count(*) FROM orders o WHERE o.client_id = $1 AND o.created_at >= $2 AND o.created_at < $3)::int AS accepted,
+         (SELECT count(*) FROM order_history h JOIN orders o ON o.id = h.order_id
+           WHERE o.client_id = $1 AND h.kind = 'stage' AND h.outcome = 'repaired' AND h.started_at >= $2 AND h.started_at < $3)::int AS repaired,
+         (SELECT count(*) FROM order_history h JOIN orders o ON o.id = h.order_id
+           WHERE o.client_id = $1 AND h.kind = 'stage' AND h.outcome = 'declined' AND h.started_at >= $2 AND h.started_at < $3)::int AS declined,
+         coalesce((SELECT sum(w.qty) FROM device_works w WHERE w.client_id = $1 AND w.kind = 'refill' AND w.done_at >= $2 AND w.done_at < $3), 0)::int AS refills`,
+      [id, from, to],
+    ))!;
+
+    const orders = await many<Omit<ClientReportOrder, 'works'>>(
+      `SELECT o.id, o.number, ${DEVICE_TITLE} AS "deviceTitle", s.name AS "stageName", o.created_at AS "createdAt",
+              (o.created_at >= $2 AND o.created_at < $3) AS "acceptedInMonth",
+              (SELECT h.outcome FROM order_history h WHERE h.order_id = o.id AND h.kind = 'stage' AND h.outcome IS NOT NULL
+                  AND h.started_at >= $2 AND h.started_at < $3 ORDER BY h.started_at DESC, h.id DESC LIMIT 1) AS outcome,
+              (SELECT h.started_at FROM order_history h WHERE h.order_id = o.id AND h.kind = 'stage' AND h.outcome IS NOT NULL
+                  AND h.started_at >= $2 AND h.started_at < $3 ORDER BY h.started_at DESC, h.id DESC LIMIT 1) AS "outcomeAt"
+         FROM orders o
+         JOIN stages s ON s.id = o.stage_id
+         JOIN devices d ON d.id = o.device_id
+         JOIN device_types dt ON dt.id = d.device_type_id
+         LEFT JOIN brands b ON b.id = d.brand_id
+         LEFT JOIN models m ON m.id = d.model_id
+        WHERE o.client_id = $1
+          AND ((o.created_at >= $2 AND o.created_at < $3)
+               OR EXISTS (SELECT 1 FROM order_history h WHERE h.order_id = o.id AND h.kind = 'stage' AND h.outcome IS NOT NULL
+                            AND h.started_at >= $2 AND h.started_at < $3))
+        ORDER BY o.created_at, o.id`,
+      [id, from, to],
+    );
+
     const works = await many<ClientReportWork>(
-      `SELECT w.id, w.kind, w.title, w.qty, w.counter, w.done_at AS "doneAt",
-              CASE WHEN d.id IS NULL THEN NULL
-                   ELSE concat_ws(' ', nullif(d.inventory_no, ''), ${DEVICE_TITLE}) END AS "deviceTitle"
+      `SELECT w.id, w.kind, w.title, w.qty, w.counter, w.amount::float8 AS amount, w.done_at AS "doneAt", w.ops,
+              w.order_id AS "orderId", o.number AS "orderNumber",
+              CASE WHEN d.id IS NULL THEN NULL ELSE concat_ws(' ', nullif(d.inventory_no, ''), ${DEVICE_TITLE}) END AS "deviceTitle"
          FROM device_works w
+         LEFT JOIN orders o ON o.id = w.order_id
          LEFT JOIN devices d ON d.id = w.device_id
          LEFT JOIN device_types dt ON dt.id = d.device_type_id
          LEFT JOIN brands b ON b.id = d.brand_id
@@ -83,29 +119,24 @@ reportsRouter.get(
         ORDER BY w.done_at, w.id`,
       [id, from, to],
     );
-    const orders = await many<ClientReportOrder>(
-      `SELECT o.id, o.number, ${DEVICE_TITLE} AS "deviceTitle", h.outcome, h.started_at AS "doneAt"
-         FROM order_history h
-         JOIN orders o ON o.id = h.order_id
-         JOIN devices d ON d.id = o.device_id
-         JOIN device_types dt ON dt.id = d.device_type_id
-         LEFT JOIN brands b ON b.id = d.brand_id
-         LEFT JOIN models m ON m.id = d.model_id
-        WHERE o.client_id = $1 AND h.kind = 'stage' AND h.outcome IS NOT NULL AND h.started_at >= $2 AND h.started_at < $3
-        ORDER BY h.started_at, o.id`,
-      [id, from, to],
-    );
 
-    const sums = new Map<string, number>();
-    for (const w of works) if (w.kind === 'refill') sums.set(w.title, (sums.get(w.title) ?? 0) + w.qty);
+    const byOrder = new Map<number, ClientReportWork[]>();
+    const other: ClientReportWork[] = [];
+    const orderIds = new Set(orders.map((o) => o.id));
+    for (const w of works) {
+      if (w.kind === 'refill') continue;
+      if (w.orderId && orderIds.has(w.orderId)) byOrder.set(w.orderId, [...(byOrder.get(w.orderId) ?? []), w]);
+      else other.push(w);
+    }
     const report: ClientReport = {
       clientId: id,
       clientName: client.name,
       kind: client.kind,
       month,
-      refills: [...sums].map(([title, qty]) => ({ title, qty })),
-      works: works.filter((w) => w.kind !== 'refill'),
-      orders,
+      totals,
+      orders: orders.map((o) => ({ ...o, works: byOrder.get(o.id) ?? [] })),
+      refills: works.filter((w) => w.kind === 'refill'),
+      otherWorks: other,
     };
     res.json(report);
   }),

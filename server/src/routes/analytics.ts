@@ -60,7 +60,11 @@ analyticsRouter.get(
     const windowFrom = addMonths(from, -(span - 1));
     if (to.getTime() - windowFrom.getTime() <= 0) throw new HttpError(400, 'Период указан неверно');
 
-    const trendMonths = Array.from({ length: 12 }, (_, i) => addMonths(from, i - 11));
+    // Окно графика не двигается за выбранным месяцем: 12 месяцев до нынешнего. Сдвигаем, только если выбран месяц за его пределами.
+    let trendEnd = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (from < addMonths(trendEnd, -11)) trendEnd = addMonths(from, 11);
+    if (from > trendEnd) trendEnd = from;
+    const trendMonths = Array.from({ length: 12 }, (_, i) => addMonths(trendEnd, i - 11));
     const [current, previous, trend] = await Promise.all([
       totals(from, to),
       totals(cmp.from, cmp.to),

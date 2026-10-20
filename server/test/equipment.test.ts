@@ -43,9 +43,15 @@ describe('учёт техники, виды задач и отчёты', () => {
     await semen.post('/api/works', { clientId: order.clientId, kind: 'refill', title: 'CF259A', qty: 3 });
     await semen.post('/api/works', { orderId, kind: 'part', title: 'Фотобарабан', qty: 1, counter: 90000 });
     const r = (await semen.get(`/api/reports/client/${order.clientId}?month=${thisMonth()}`)).body;
-    expect(r.refills).toEqual([{ title: 'CF259A', qty: 5 }]);
-    expect(r.works).toHaveLength(1);
-    expect(r.works[0].counter).toBe(90000);
+    // итоги те же, что в строке отчёта; каждая заправка отдельной записью
+    expect(r.totals).toMatchObject({ accepted: 1, refills: 5 });
+    expect(r.refills.map((x: any) => x.qty)).toEqual([2, 3]);
+    // работа по заявке лежит внутри своей заявки, и у неё есть ссылка на заявку
+    expect(r.orders).toHaveLength(1);
+    expect(r.orders[0].acceptedInMonth).toBe(true);
+    expect(r.orders[0].works).toHaveLength(1);
+    expect(r.orders[0].works[0]).toMatchObject({ counter: 90000, orderId });
+    expect(r.otherWorks).toHaveLength(0);
     const lenya = await loginAs('lenya');
     expect((await lenya.get(`/api/reports/client/${order.clientId}?month=${thisMonth()}`)).status).toBe(403);
   });

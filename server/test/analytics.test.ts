@@ -44,6 +44,19 @@ describe('аналитика', () => {
     expect(a.early[0].passed).toBeLessThan(a.early[0].resource);
   });
 
+  it('окно динамики не двигается за выбранным месяцем', async () => {
+    const semen = await loginAs('semen');
+    const now = new Date();
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const a = (await semen.get(`/api/analytics?month=${monthKey(prev)}`)).body;
+    expect(a.trend[11].month).toBe(monthKey(now));
+    expect(a.trend.some((p: any) => p.month === monthKey(prev))).toBe(true);
+    // выбран месяц старше окна: окно сдвигается, чтобы он был виден
+    const old = new Date(now.getFullYear(), now.getMonth() - 20, 1);
+    const b = (await semen.get(`/api/analytics?month=${monthKey(old)}`)).body;
+    expect(b.trend.some((p: any) => p.month === monthKey(old))).toBe(true);
+  });
+
   it('в инженерах нет директора, у инженера открывается список его работ с суммой', async () => {
     const semen = await loginAs('semen');
     const month = monthKey(new Date());
@@ -56,6 +69,21 @@ describe('аналитика', () => {
     expect(Math.round(d.body.total)).toBe(Math.round(engineer.revenue));
     const lenya = await loginAs('lenya');
     expect((await lenya.get(`/api/analytics/master/${engineer.userId}?month=${month}`)).status).toBe(403);
+  });
+
+  it('цифры в подробностях клиента совпадают со строкой месячного отчёта', async () => {
+    const semen = await loginAs('semen');
+    const month = monthKey(new Date());
+    const report = (await semen.get(`/api/reports/monthly?month=${month}`)).body;
+    expect(report.rows.length).toBeGreaterThan(2);
+    for (const row of report.rows) {
+      const d = (await semen.get(`/api/reports/client/${row.clientId}?month=${month}`)).body;
+      expect(d.totals).toEqual({ accepted: row.accepted, repaired: row.repaired, declined: row.declined, refills: row.refills });
+      // принятые заявки из списка совпадают с числом «заявок» в строке
+      expect(d.orders.filter((o: any) => o.acceptedInMonth)).toHaveLength(row.accepted);
+      // у каждой записи, привязанной к заявке, есть номер для перехода
+      for (const w of [...d.refills, ...d.otherWorks]) if (w.orderId) expect(w.orderNumber).toBeTruthy();
+    }
   });
 
   it('аналитику видят только директор и руководитель системного администрирования', async () => {

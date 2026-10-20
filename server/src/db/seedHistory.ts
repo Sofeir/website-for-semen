@@ -329,20 +329,36 @@ export async function seedHistory() {
     });
     await bulk(q, 'order_history', ['order_id', 'kind', 'stage_id', 'responsible_id', 'started_at', 'finished_at', 'comment', 'outcome'], history);
 
+    // Заправки идут по заявке: берём заявку клиента, ближайшую по дате (заявки заводят до работы, поэтому не позже даты)
+    const orderFor = (clientId: number, at: Date): number | null => {
+      let best: number | null = null;
+      let bestGap = Infinity;
+      plans.forEach((p, i) => {
+        if (p.clientId !== clientId) return;
+        const gap = at.getTime() - p.created.getTime();
+        if (gap >= 0 && gap < bestGap) {
+          best = orderIds[i];
+          bestGap = gap;
+        }
+      });
+      return best;
+    };
     // Заправки: у организаций каждый месяц, у частных реже
     for (let m = 0; m < 11; m++) {
       for (const [clientId, base] of [[rbeId, 10], [org1, 4], [org2, 3]] as const) {
         const qty = Math.round(base * (0.7 + rand() * 0.8)) || 1;
         const ops = pick([['refill'], ['refill'], ['refill', 'chip'], ['refill', 'drum'], ['refill', 'roller']]) as string[];
         const price = ops.reduce((s, o) => s + REFILL_PRICE[o as keyof typeof REFILL_PRICE], 0);
+        const at = when(m * 30 + 3 + Math.floor(rand() * 20), 14);
         works.push([
-          clientId, null, null, 'refill', pick(['Картридж CF259A', 'Картридж CE505A', 'Картридж 725']), qty,
-          when(m * 30 + 3 + Math.floor(rand() * 20), 14), U('olga'), U('olga'), qty * price, null, null, null, null, null, ops,
+          clientId, null, orderFor(clientId, at), 'refill', pick(['Картридж CF259A', 'Картридж CE505A', 'Картридж 725']), qty,
+          at, U('olga'), U('olga'), qty * price, null, null, null, null, null, ops,
         ]);
       }
     }
     for (const c of persons.slice(0, 3)) {
-      works.push([c, null, null, 'refill', 'Картридж CE285A', 2, when(20 + Math.floor(rand() * 200)), U('olga'), U('olga'), 800, null, null, null, null, null, ['refill']]);
+      const at = when(20 + Math.floor(rand() * 200));
+      works.push([c, null, orderFor(c, at), 'refill', 'Картридж CE285A', 2, at, U('olga'), U('olga'), 800, null, null, null, null, null, ['refill']]);
     }
 
     // Журнал МФУ с ресурсом детали: замена раньше расчётного срока
