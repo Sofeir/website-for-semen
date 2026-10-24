@@ -1,7 +1,7 @@
 import { forwardRef, type SelectHTMLAttributes } from 'react';
 import { ROLE_LABELS, STAFF_ROLES, type Role } from '@sd/shared';
 import { useSettings, useUsers } from '@/api/queries';
-import { defaultDueDate, fromLocalInput, sameDay, startForDue, toLocalInput } from '@/lib/dates';
+import { fromLocalInput, quickDueDates, sameDay, startForDue, toLocalInput } from '@/lib/dates';
 import { cx } from '@/ui/Button';
 import { Input, Select } from '@/ui/Form';
 import s from './Pickers.module.css';
@@ -56,11 +56,7 @@ export function DueInput({
 }) {
   const settings = useSettings();
   const ws = settings.data?.work;
-  const presets = [
-    { label: 'Сегодня', date: defaultDueDate(ws, 0) },
-    { label: 'Завтра', date: defaultDueDate(ws, 1) },
-    { label: 'Послезавтра', date: defaultDueDate(ws, 2) },
-  ];
+  const presets = quickDueDates(ws);
   const current = value ? new Date(value) : null;
   return (
     <div className={s.due}>
