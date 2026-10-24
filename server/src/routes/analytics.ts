@@ -5,6 +5,7 @@ import type {
   AnalyticsDevice,
   AnalyticsMaster,
   AnalyticsMasterDetail,
+  AnalyticsMasterVisit,
   AnalyticsMasterWork,
   AnalyticsTotals,
   EarlyReplacement,
@@ -25,6 +26,7 @@ async function totals(from: Date, to: Date): Promise<AnalyticsTotals> {
   const r = await one<AnalyticsTotals>(
     `SELECT
        (SELECT count(*) FROM orders o WHERE o.created_at >= $1 AND o.created_at < $2)::int AS requests,
+       (SELECT count(*) FROM tasks t WHERE t.is_visit AND t.status = 'done' AND t.closed_at >= $1 AND t.closed_at < $2)::int AS visits,
        (SELECT count(*) FROM order_history h WHERE h.kind = 'stage' AND h.outcome = 'repaired' AND h.started_at >= $1 AND h.started_at < $2)::int AS repaired,
        (SELECT count(*) FROM order_history h WHERE h.kind = 'stage' AND h.outcome = 'declined' AND h.started_at >= $1 AND h.started_at < $2)::int AS declined,
        coalesce((SELECT sum(w.qty) FROM device_works w WHERE w.kind = 'refill' AND w.done_at >= $1 AND w.done_at < $2), 0)::int AS refills,
@@ -75,7 +77,7 @@ analyticsRouter.get(
       `SELECT u.id AS "userId", u.full_name AS name, u.position,
               coalesce(w.works, 0)::int AS works, coalesce(w.orders, 0)::int AS orders,
               coalesce(w.refills, 0)::int AS refills, coalesce(w.revenue, 0)::float8 AS revenue,
-              coalesce(s.stages, 0)::int AS stages
+              coalesce(s.stages, 0)::int AS stages, coalesce(v.visits, 0)::int AS visits
          FROM users u
          LEFT JOIN (
            SELECT coalesce(w.performer_id, w.created_by) AS uid, count(*) AS works, count(DISTINCT w.order_id) AS orders,
@@ -86,9 +88,13 @@ analyticsRouter.get(
            SELECT h.responsible_id AS uid, count(*) AS stages
              FROM order_history h WHERE h.kind = 'stage' AND h.started_at >= $1 AND h.started_at < $2 GROUP BY 1
          ) s ON s.uid = u.id
-        WHERE (u.role IN ('diagnostician', 'master', 'assistant') AND (coalesce(w.works, 0) + coalesce(s.stages, 0)) > 0)
-           OR coalesce(w.works, 0) > 0
-        ORDER BY revenue DESC, works DESC, name`,
+         LEFT JOIN (
+           SELECT coalesce(t.closed_by, t.assignee_id) AS uid, count(*) AS visits
+             FROM tasks t WHERE t.is_visit AND t.status = 'done' AND t.closed_at >= $1 AND t.closed_at < $2 GROUP BY 1
+         ) v ON v.uid = u.id
+        WHERE (u.role IN ('diagnostician', 'master', 'assistant') AND (coalesce(w.works, 0) + coalesce(s.stages, 0) + coalesce(v.visits, 0)) > 0)
+           OR coalesce(w.works, 0) > 0 OR coalesce(v.visits, 0) > 0
+        ORDER BY revenue DESC, works DESC, visits DESC, name`,
       [from, to],
     );
 
@@ -179,6 +185,17 @@ analyticsRouter.get(
         ORDER BY w.done_at DESC, w.id DESC`,
       [id, from, to],
     );
+    const visits = await many<AnalyticsMasterVisit>(
+      `SELECT t.id, t.title, t.closed_at AS "closedAt", c.id AS "clientId", c.name AS "clientName",
+              (SELECT count(*) FROM task_checklist_items ci WHERE ci.task_id = t.id AND ci.done)::int AS "checklistDone",
+              (SELECT count(*) FROM task_checklist_items ci WHERE ci.task_id = t.id)::int AS "checklistTotal"
+         FROM tasks t
+         LEFT JOIN orders o ON o.id = t.order_id
+         LEFT JOIN clients c ON c.id = coalesce(t.client_id, o.client_id)
+        WHERE t.is_visit AND t.status = 'done' AND coalesce(t.closed_by, t.assignee_id) = $1 AND t.closed_at >= $2 AND t.closed_at < $3
+        ORDER BY t.closed_at DESC, t.id DESC`,
+      [id, from, to],
+    );
     const detail: AnalyticsMasterDetail = {
       userId: id,
       name: user.name,
@@ -186,6 +203,7 @@ analyticsRouter.get(
       month,
       total: works.reduce((s, w) => s + (w.amount ?? 0), 0),
       works,
+      visits,
     };
     res.json(detail);
   }),

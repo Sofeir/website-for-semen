@@ -423,6 +423,8 @@ export interface ReportTotals {
   parts: number;
   /** Прочие работы: ремонт и обслуживание в журнале техники. */
   otherWorks: number;
+  /** Выезды: закрытые задачи-выезды за месяц. */
+  visits: number;
 }
 
 export interface ReportRow extends ReportTotals {
@@ -449,6 +451,18 @@ export interface ClientReportWork {
   deviceTitle: string | null;
 }
 
+/** Выезд к клиенту: закрытая задача-выезд. */
+export interface ClientReportVisit {
+  id: number;
+  title: string;
+  closedAt: string;
+  /** Кто закрыл выезд (или исполнитель, если закрыл другой). */
+  performerName: string | null;
+  checklistDone: number;
+  checklistTotal: number;
+  closeComment: string | null;
+}
+
 export interface ClientReportOrder {
   id: number;
   number: string;
@@ -469,6 +483,8 @@ export interface ClientReportOrder {
 
 export interface AnalyticsTotals {
   requests: number;
+  /** Закрытые выезды за период. */
+  visits: number;
   repaired: number;
   declined: number;
   refills: number;
@@ -493,6 +509,8 @@ export interface AnalyticsMaster {
   orders: number;
   refills: number;
   revenue: number;
+  /** Закрытых выездов за месяц. */
+  visits: number;
   /** Сколько этапов заявок вёл за месяц. */
   stages: number;
 }
@@ -552,6 +570,16 @@ export interface AnalyticsMasterWork {
   ops: string[];
 }
 
+export interface AnalyticsMasterVisit {
+  id: number;
+  title: string;
+  closedAt: string;
+  clientId: number | null;
+  clientName: string | null;
+  checklistDone: number;
+  checklistTotal: number;
+}
+
 export interface AnalyticsMasterDetail {
   userId: number;
   name: string;
@@ -559,6 +587,7 @@ export interface AnalyticsMasterDetail {
   month: string;
   total: number;
   works: AnalyticsMasterWork[];
+  visits: AnalyticsMasterVisit[];
 }
 
 export interface Analytics {
@@ -580,8 +609,10 @@ export interface ClientReport {
   kind: 'person' | 'legal';
   month: string;
   /** Те же итоги, что в строке отчёта. */
-  totals: { accepted: number; repaired: number; declined: number; refills: number };
+  totals: { accepted: number; repaired: number; declined: number; refills: number; visits: number };
   orders: ClientReportOrder[];
+  /** Выезды за месяц: когда, кто и сколько пунктов чек-листа отмечено. */
+  visits: ClientReportVisit[];
   /** Каждая заправка отдельной записью, с номером заявки. */
   refills: ClientReportWork[];
   /** Работы без заявки или по заявке не из этого месяца. */

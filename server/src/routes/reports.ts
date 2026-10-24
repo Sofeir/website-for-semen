@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { ClientReport, ClientReportOrder, ClientReportWork, MonthlyReport, ReportRow, ReportTotals } from '@sd/shared';
+import type { ClientReport, ClientReportOrder, ClientReportVisit, ClientReportWork, MonthlyReport, ReportRow, ReportTotals } from '@sd/shared';
 import { many, one } from '../db/pool';
 import { DEVICE_TITLE } from '../services/sql';
 import { h, HttpError, intParam } from '../lib/http';
@@ -7,8 +7,8 @@ import { requirePermission } from '../auth/session';
 
 export const reportsRouter = Router();
 
-const FIELDS = ['accepted', 'repaired', 'declined', 'refills', 'parts', 'otherWorks'] as const;
-const emptyTotals = (): ReportTotals => ({ accepted: 0, repaired: 0, declined: 0, refills: 0, parts: 0, otherWorks: 0 });
+const FIELDS = ['accepted', 'repaired', 'declined', 'refills', 'parts', 'otherWorks', 'visits'] as const;
+const emptyTotals = (): ReportTotals => ({ accepted: 0, repaired: 0, declined: 0, refills: 0, parts: 0, otherWorks: 0, visits: 0 });
 
 export function monthRange(raw: unknown) {
   const m = /^(\d{4})-(\d{2})$/.exec(String(raw ?? ''));
@@ -40,10 +40,12 @@ reportsRouter.get(
            coalesce((SELECT sum(w.qty) FROM device_works w WHERE w.client_id = c.id AND w.kind = 'refill' AND w.done_at >= $1 AND w.done_at < $2), 0)::int AS refills,
            coalesce((SELECT sum(w.qty) FROM device_works w WHERE w.client_id = c.id AND w.kind = 'part' AND w.done_at >= $1 AND w.done_at < $2), 0)::int AS parts,
            (SELECT count(*) FROM device_works w WHERE w.client_id = c.id AND w.kind IN ('repair', 'service') AND w.done_at >= $1 AND w.done_at < $2)::int AS "otherWorks",
+           (SELECT count(*) FROM tasks t LEFT JOIN orders o ON o.id = t.order_id
+             WHERE t.is_visit AND t.status = 'done' AND coalesce(t.client_id, o.client_id) = c.id AND t.closed_at >= $1 AND t.closed_at < $2)::int AS visits,
            (SELECT count(*) FROM devices d WHERE d.client_id = c.id)::int AS devices
            FROM clients c
        ) r
-       WHERE accepted + repaired + declined + refills + parts + "otherWorks" > 0
+       WHERE accepted + repaired + declined + refills + parts + "otherWorks" + visits > 0
        ORDER BY "clientName"`,
       [from, to],
     );
@@ -80,9 +82,25 @@ reportsRouter.get(
            WHERE o.client_id = $1 AND h.kind = 'stage' AND h.outcome = 'repaired' AND h.started_at >= $2 AND h.started_at < $3)::int AS repaired,
          (SELECT count(*) FROM order_history h JOIN orders o ON o.id = h.order_id
            WHERE o.client_id = $1 AND h.kind = 'stage' AND h.outcome = 'declined' AND h.started_at >= $2 AND h.started_at < $3)::int AS declined,
-         coalesce((SELECT sum(w.qty) FROM device_works w WHERE w.client_id = $1 AND w.kind = 'refill' AND w.done_at >= $2 AND w.done_at < $3), 0)::int AS refills`,
+         coalesce((SELECT sum(w.qty) FROM device_works w WHERE w.client_id = $1 AND w.kind = 'refill' AND w.done_at >= $2 AND w.done_at < $3), 0)::int AS refills,
+         (SELECT count(*) FROM tasks t LEFT JOIN orders o ON o.id = t.order_id
+             WHERE t.is_visit AND t.status = 'done' AND coalesce(t.client_id, o.client_id) = $1 AND t.closed_at >= $2 AND t.closed_at < $3)::int AS visits`,
       [id, from, to],
     ))!;
+
+    const visits = await many<ClientReportVisit>(
+      `SELECT t.id, t.title, t.closed_at AS "closedAt", coalesce(uc.full_name, ua.full_name) AS "performerName",
+              (SELECT count(*) FROM task_checklist_items ci WHERE ci.task_id = t.id AND ci.done)::int AS "checklistDone",
+              (SELECT count(*) FROM task_checklist_items ci WHERE ci.task_id = t.id)::int AS "checklistTotal",
+              t.close_comment AS "closeComment"
+         FROM tasks t
+         LEFT JOIN orders o ON o.id = t.order_id
+         LEFT JOIN users ua ON ua.id = t.assignee_id
+         LEFT JOIN users uc ON uc.id = t.closed_by
+        WHERE t.is_visit AND t.status = 'done' AND coalesce(t.client_id, o.client_id) = $1 AND t.closed_at >= $2 AND t.closed_at < $3
+        ORDER BY t.closed_at, t.id`,
+      [id, from, to],
+    );
 
     const orders = await many<Omit<ClientReportOrder, 'works'>>(
       `SELECT o.id, o.number, ${DEVICE_TITLE} AS "deviceTitle", s.name AS "stageName", o.created_at AS "createdAt",
@@ -134,6 +152,7 @@ reportsRouter.get(
       kind: client.kind,
       month,
       totals,
+      visits,
       orders: orders.map((o) => ({ ...o, works: byOrder.get(o.id) ?? [] })),
       refills: works.filter((w) => w.kind === 'refill'),
       otherWorks: other,

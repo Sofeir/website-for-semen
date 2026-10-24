@@ -38,6 +38,7 @@ const METRICS: Metric[] = [
   { key: 'repaired', label: 'Отремонтировано', short: 'Ремонтов', trendLabel: 'Ремонты', fmt: (n) => nf.format(n ?? 0), good: 'up' },
   { key: 'declined', label: 'Без ремонта', short: 'Без ремонта', fmt: (n) => nf.format(n ?? 0), good: 'down' },
   { key: 'refills', label: 'Картриджей заправлено', short: 'Картриджей', trendLabel: 'Картриджи', fmt: (n) => nf.format(n ?? 0), good: 'up' },
+  { key: 'visits', label: 'Выездов к клиентам', short: 'Выездов', trendLabel: 'Выезды', fmt: (n) => nf.format(n ?? 0), good: 'up' },
   { key: 'works', label: 'Работ записано', short: 'Работ', fmt: (n) => nf.format(n ?? 0), good: 'none' },
   { key: 'avgDays', label: 'Средний срок ремонта', short: 'Срок ремонта', fmt: days, good: 'down' },
   { key: 'warrantyReturns', label: 'Возвратов по гарантии', short: 'Возвратов', fmt: (n) => nf.format(n ?? 0), good: 'down' },
@@ -45,7 +46,7 @@ const METRICS: Metric[] = [
 ];
 const byKey = (k: MetricKey) => METRICS.find((m) => m.key === k)!;
 
-const TREND_METRICS: MetricKey[] = ['revenue', 'requests', 'repaired', 'refills'];
+const TREND_METRICS: MetricKey[] = ['revenue', 'requests', 'repaired', 'refills', 'visits'];
 
 const shortMonth = (m: string) => {
   const [y, mo] = m.split('-').map(Number);
@@ -237,7 +238,34 @@ function EngineerWorks({ userId, month, onClose }: { userId: number; month: stri
           <b>{refills}</b>
           <span>картриджей</span>
         </div>
+        <div>
+          <b>{d.visits.length}</b>
+          <span>выездов</span>
+        </div>
       </div>
+      {d.visits.length > 0 && (
+        <section aria-label="Выезды">
+          <h4 className={s.visitsHead}>Выезды</h4>
+          <ul className={s.workList}>
+            {d.visits.map((v) => (
+              <li key={v.id} className={s.workRow}>
+                <div className={s.workMain}>
+                  <b>{v.title}</b>
+                  <span className={s.muted}>
+                    {fmtWhen(v.closedAt)}
+                    {v.checklistTotal > 0 ? `, чек-лист ${v.checklistDone}/${v.checklistTotal}` : ''}
+                  </span>
+                  {v.clientId && v.clientName && (
+                    <span className={s.muted}>
+                      <Link to={`/clients/${v.clientId}`}>{v.clientName}</Link>
+                    </span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {d.works.length ? (
         <ul className={s.workList}>
           {d.works.map((w) => {
@@ -280,7 +308,7 @@ function EngineerWorks({ userId, month, onClose }: { userId: number; month: stri
           })}
         </ul>
       ) : (
-        <p className="muted">В этом месяце записей нет.</p>
+        !d.visits.length && <p className="muted">В этом месяце записей нет.</p>
       )}
     </div>
   );
@@ -316,7 +344,7 @@ function Engineers({ a }: { a: Analytics }) {
                     {m.position && <span className={s.muted}>{m.position}</span>}
                     <i className={s.personBar} style={{ width: `${Math.max((m.revenue / max) * 100, m.revenue ? 4 : 0)}%` }} />
                     <span className={s.personStats}>
-                      работ {m.works} · заявок {m.orders} · картриджей {m.refills}
+                      работ {m.works} · заявок {m.orders} · картриджей {m.refills} · выездов {m.visits}
                     </span>
                   </span>
                 </button>
@@ -445,10 +473,10 @@ function Clients({ a }: { a: Analytics }) {
 function analyticsCsv(a: Analytics): (string | number)[][] {
   const rows: (string | number)[][] = [['Показатель', label(a.month), label(a.compare)]];
   for (const m of METRICS) rows.push([m.label, m.fmt(a.current[m.key]), m.fmt(a.previous[m.key])]);
-  rows.push([], ['Динамика по месяцам', 'Заявок', 'Ремонтов', 'Без ремонта', 'Картриджей', 'Выручка, руб.']);
-  for (const p of a.trend) rows.push([label(p.month), p.requests, p.repaired, p.declined, p.refills, Math.round(p.revenue)]);
-  rows.push([], ['Инженер', 'Должность', 'Работ', 'Заявок', 'Картриджей', 'Выручка, руб.']);
-  for (const m of a.masters) rows.push([m.name, m.position ?? '', m.works, m.orders, m.refills, Math.round(m.revenue)]);
+  rows.push([], ['Динамика по месяцам', 'Заявок', 'Ремонтов', 'Без ремонта', 'Картриджей', 'Выездов', 'Выручка, руб.']);
+  for (const p of a.trend) rows.push([label(p.month), p.requests, p.repaired, p.declined, p.refills, p.visits, Math.round(p.revenue)]);
+  rows.push([], ['Инженер', 'Должность', 'Работ', 'Заявок', 'Картриджей', 'Выездов', 'Выручка, руб.']);
+  for (const m of a.masters) rows.push([m.name, m.position ?? '', m.works, m.orders, m.refills, m.visits, Math.round(m.revenue)]);
   rows.push([], ['Техника', 'Клиент', 'Работ', 'Выручка, руб.', 'Замен раньше срока']);
   for (const d of a.devices) rows.push([`${d.inventoryNo ? d.inventoryNo + ' ' : ''}${d.title}`, d.clientName, d.works, Math.round(d.revenue), d.early]);
   rows.push([], ['Клиент', 'Заявок за период', 'Заявок всего', 'Выручка, руб.']);

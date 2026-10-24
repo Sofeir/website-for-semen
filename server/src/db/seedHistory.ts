@@ -389,3 +389,43 @@ export async function seedHistory() {
     await q(`UPDATE device_works SET ops = '{refill}' WHERE kind = 'refill' AND ops = '{}'`);
   });
 }
+
+/**
+ * Демо-выезды за год: закрытые задачи-выезды с чек-листом, чтобы выезды были видны в отчётах и аналитике.
+ * Идемпотентно: если закрытые выезды старше двух недель уже есть, ничего не делает.
+ */
+export async function seedVisitHistory() {
+  if (await one(`SELECT 1 FROM tasks WHERE is_visit AND status = 'done' AND closed_at < now() - interval '15 days'`)) return;
+  const users = new Map((await many('SELECT id, login FROM users')).map((u) => [u.login as string, u.id as number]));
+  if (['semen', 'stas', 'lenya', 'artem'].some((l) => !users.has(l))) return;
+  const orgs = await many<{ id: number; name: string }>(
+    `SELECT id, name FROM clients WHERE name IN ('ООО «РБЕ Урал»', 'ООО «Уральские технологии»', 'Кафе «Ямал»')`,
+  );
+  if (!orgs.length) return;
+  const rand = rng(20261024);
+  const crew = [users.get('lenya')!, users.get('stas')!, users.get('artem')!];
+  const works = ['Проверить резервное копирование', 'Проверить диски (SMART)', 'Почистить системные блоки от пыли', 'Проверить МФУ: печать и сканирование', 'Обновить антивирус'];
+  await tx(async (db) => {
+    let n = 0;
+    for (const org of orgs) {
+      // РБЕ ездим каждый месяц, остальных реже
+      const every = org.name.includes('РБЕ') ? 1 : org.name.includes('Уральские') ? 2 : 3;
+      for (let m = 0; m < 12; m += every) {
+        const at = when(m * 30 + 2 + Math.floor(rand() * 22), 12);
+        const who = crew[n++ % crew.length];
+        const t = await db.query(
+          `INSERT INTO tasks (title, creator_id, assignee_id, client_id, start_at, due_at, status, closed_at, closed_by, is_visit)
+           VALUES ($1, $2, $3, $4, $5, $5, 'done', $5, $3, true) RETURNING id`,
+          [`Выезд: ${org.name}`, users.get('semen')!, who, org.id, at],
+        );
+        for (const [i, title] of works.entries()) {
+          const done = rand() > 0.12;
+          await db.query(
+            `INSERT INTO task_checklist_items (task_id, title, sort, done, done_at, done_by) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [t.rows[0].id, title, (i + 1) * 10, done, done ? at : null, done ? who : null],
+          );
+        }
+      }
+    }
+  });
+}

@@ -99,4 +99,48 @@ describe('проверка техники на выезде', () => {
     expect(blank.status).toBe(200);
     expect((await semen.get('/api/documents/inspections/client/' + order.clientId + '.pdf?month=2020-01')).status).toBe(404);
   });
+
+  // выезды
+
+  it('закрытый выезд попадает в строку отчёта, подробности клиента и аналитику инженера', async () => {
+    const semen = await loginAs('semen');
+    const lenya = await loginAs('lenya');
+    const { users } = await dict();
+    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-41');
+    const clientId = (await semen.get(`/api/orders/${orderId}`)).body.clientId;
+    const day = new Date();
+    day.setHours(23, 0, 0, 0);
+    const created = await semen.post('/api/tasks', {
+      title: 'Выезд: клиент',
+      assigneeId: users.lenya,
+      clientId,
+      startAt: new Date(Date.now() - 3_600_000).toISOString(),
+      dueAt: day.toISOString(),
+      checklist: ['Проверить резервные копии', 'Почистить ПК'],
+      visit: true,
+    });
+    expect(created.status).toBe(201);
+    const task = (await lenya.get(`/api/tasks/${created.body.id}`)).body;
+    await lenya.post(`/api/tasks/${created.body.id}/checklist/${task.checklist[0].id}`, { done: true }).catch(() => null);
+    const closed = await lenya.post('/api/tasks/close', { ids: [created.body.id], comment: 'Всё проверил' });
+    expect(closed.status).toBe(200);
+
+    const report = (await semen.get(`/api/reports/monthly?month=${thisMonth()}`)).body;
+    expect(report.rows.find((r: any) => r.clientId === clientId).visits).toBe(1);
+    expect(report.totals.all.visits).toBe(1);
+    expect(report.totals.legal.visits + report.totals.person.visits).toBe(report.totals.all.visits);
+
+    const detail = (await semen.get(`/api/reports/client/${clientId}?month=${thisMonth()}`)).body;
+    expect(detail.totals.visits).toBe(1);
+    expect(detail.visits).toHaveLength(1);
+    expect(detail.visits[0]).toMatchObject({ title: 'Выезд: клиент', checklistTotal: 2, closeComment: 'Всё проверил' });
+    expect(detail.visits[0].performerName).toContain('Катаев');
+
+    const an = (await semen.get(`/api/analytics?month=${thisMonth()}`)).body;
+    expect(an.current.visits).toBe(1);
+    expect(an.masters.find((m: any) => m.userId === users.lenya).visits).toBe(1);
+    const master = (await semen.get(`/api/analytics/master/${users.lenya}?month=${thisMonth()}`)).body;
+    expect(master.visits).toHaveLength(1);
+    expect(master.visits[0].clientId).toBe(clientId);
+  });
 });
