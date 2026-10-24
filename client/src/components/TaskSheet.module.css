@@ -109,3 +109,17 @@
   color: var(--text-muted);
   font-size: var(--fs-xs);
 }
+
+.inspectLink {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--tap, 44px);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--primary-text);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  text-decoration: none;
+}

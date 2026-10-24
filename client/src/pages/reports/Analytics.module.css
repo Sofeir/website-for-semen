@@ -692,3 +692,43 @@
   color: var(--text-muted);
   font-weight: 700;
 }
+
+/* Числа в вертикальных списках: чуть крупнее, цифры одной ширины и запас по высоте, чтобы строки не обрезались */
+.cmpNums b,
+.personSum,
+.workSum,
+.rankEnd b,
+.detailStats b {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  padding-block: 2px;
+}
+
+.cmpNums b,
+.detailStats b {
+  font-size: 1.25rem;
+}
+
+.cmpNums span {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--fs-md);
+  line-height: 1.4;
+  padding-block: 1px;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.personSum,
+.workSum,
+.rankEnd b {
+  font-size: var(--fs-lg);
+}
+
+.rankEnd {
+  font-size: var(--fs-md);
+  line-height: 1.4;
+  font-variant-numeric: lining-nums tabular-nums;
+}

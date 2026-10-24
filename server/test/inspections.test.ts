@@ -143,4 +143,23 @@ describe('проверка техники на выезде', () => {
     expect(master.visits).toHaveLength(1);
     expect(master.visits[0].clientId).toBe(clientId);
   });
+
+  it('выезд всегда с чек-листом: у клиента нет списка — стандартный, есть свой — свой', async () => {
+    const semen = await loginAs('semen');
+    const { users } = await dict();
+    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-42');
+    const clientId = (await semen.get(`/api/orders/${orderId}`)).body.clientId;
+    const url = `/api/clients/${clientId}/service-checklist`;
+    const plan = { title: 'Выезд: клиент', assigneeId: users.lenya, clientId, startAt: new Date().toISOString(), dueAt: new Date(Date.now() + 3_600_000).toISOString(), visit: true };
+    const first = await semen.post('/api/tasks', plan);
+    expect(first.status).toBe(201);
+    const std = (await semen.get(`/api/tasks/${first.body.id}`)).body.checklist.map((x: any) => x.title);
+    expect(std).toHaveLength(3);
+    expect(std[0]).toContain('Проверить компьютеры');
+    expect((await semen.get(url)).body).toMatchObject({ isDefault: true, items: std });
+    await semen.put(url, { items: ['Свой пункт'] });
+    const second = await semen.post('/api/tasks', plan);
+    expect((await semen.get(`/api/tasks/${second.body.id}`)).body.checklist.map((x: any) => x.title)).toEqual(['Свой пункт']);
+    expect((await semen.get(url)).body.isDefault).toBe(false);
+  });
 });

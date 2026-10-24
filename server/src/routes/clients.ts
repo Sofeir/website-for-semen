@@ -9,7 +9,7 @@ import {
   type ServicePlan,
   type VisitsData,
 } from '@sd/shared';
-import { many, one, tx } from '../db/pool';
+import { many, one, pool, tx } from '../db/pool';
 import { h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { createClient, replaceFleet, updateClient } from '../services/clients';
@@ -22,7 +22,7 @@ import {
   runServicePlansSoon,
   SERVICE_PLAN_SELECT,
 } from '../services/servicePlans';
-import { assertActiveUser } from '../services/tasks';
+import { assertActiveUser, visitChecklistFor } from '../services/tasks';
 
 export const clientsRouter = Router();
 
@@ -193,11 +193,7 @@ clientsRouter.put(
 clientsRouter.get(
   '/clients/:id/service-checklist',
   h(async (req, res) => {
-    const rows = await many<{ title: string }>(
-      'SELECT title FROM service_checklist_items WHERE client_id = $1 ORDER BY sort, id',
-      [intParam(req.params.id)],
-    );
-    res.json({ items: rows.map((r) => r.title) });
+    res.json(await visitChecklistFor(pool, intParam(req.params.id)));
   }),
 );
 

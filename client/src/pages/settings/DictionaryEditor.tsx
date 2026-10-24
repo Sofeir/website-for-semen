@@ -293,6 +293,7 @@ export function useDictConfigs(): DictConfig[] {
     { name: 'faults', title: 'Неисправности', parent: { label: 'Тип', options: d.deviceTypes, anyLabel: 'Любая техника' } },
     { name: 'appearance', title: 'Внешний вид', hint: 'Чипы в форме приёма' },
     { name: 'kit', title: 'Комплектность', hint: 'Чипы в форме приёма' },
+    { name: 'visit_works', title: 'Работы на выезде', hint: 'Стандартный чек-лист выезда: подставляется, когда у клиента нет своего списка работ' },
     { name: 'inspect_pc', title: 'Проверка ПК', hint: 'Пункты чек-листа при проверке компьютера на выезде' },
     { name: 'inspect_printer', title: 'Проверка МФУ', hint: 'Пункты чек-листа при проверке принтера или МФУ. Пробег вводится отдельным полем.' },
     {

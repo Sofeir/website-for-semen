@@ -456,6 +456,7 @@ export const DICTIONARIES = [
   'stages',
   'inspect_pc',
   'inspect_printer',
+  'visit_works',
 ] as const;
 export type DictionaryName = (typeof DICTIONARIES)[number];
 

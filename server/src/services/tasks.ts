@@ -58,6 +58,16 @@ export async function normalizeDue(db: Db, iso: string | Date): Promise<Date> {
   return clampToWorkEnd(new Date(iso), ws);
 }
 
+/** Чек-лист выезда: свой список работ клиента, а если его нет, стандартный из справочника. */
+export async function visitChecklistFor(db: Db, clientId: number | null | undefined): Promise<{ items: string[]; isDefault: boolean }> {
+  if (clientId) {
+    const own = await db.query('SELECT title FROM service_checklist_items WHERE client_id = $1 ORDER BY sort, id', [clientId]);
+    if (own.rows.length) return { items: own.rows.map((r) => r.title as string), isDefault: false };
+  }
+  const std = await db.query(`SELECT name FROM checklist_items WHERE kind = 'visit' AND is_active ORDER BY sort, id`);
+  return { items: std.rows.map((r) => r.name as string), isDefault: true };
+}
+
 export async function createTask(
   db: Db,
   actor: Actor,
@@ -94,7 +104,9 @@ export async function createTask(
     actor.id,
     due,
   ]);
-  const checklist = (input.checklist ?? []).filter(Boolean);
+  let checklist = (input.checklist ?? []).filter(Boolean);
+  // Выезд всегда с чек-листом: если его не передали, берём список клиента или стандартный
+  if (input.visit && !checklist.length) checklist = (await visitChecklistFor(db, input.clientId)).items;
   for (const [i, title] of checklist.entries()) {
     await db.query('INSERT INTO task_checklist_items (task_id, title, sort) VALUES ($1, $2, $3)', [row!.id, title, (i + 1) * 10]);
   }
