@@ -5,6 +5,7 @@ import { BellOff, CheckCheck } from 'lucide-react';
 import { api } from '@/api/http';
 import { useInvalidate, useNotifications } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
+import { smoothScrollList } from '@/lib/smoothWheel';
 import { Button, cx } from '@/ui/Button';
 import { EmptyState, ErrorBox, Spinner } from '@/ui/Display';
 import s from './NotificationsPanel.module.css';
@@ -14,6 +15,9 @@ export function NotificationsPanel({ variant, onClose }: { variant: 'popover' | 
   const inv = useInvalidate();
   const navigate = useNavigate();
   const ref = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => (listRef.current ? smoothScrollList(listRef.current) : undefined), []);
 
   useEffect(() => {
     if (variant !== 'popover') return;
@@ -97,7 +101,9 @@ export function NotificationsPanel({ variant, onClose }: { variant: 'popover' | 
       transition={{ duration: 0.16 }}
     >
       {head}
-      <div className={s.scroll}>{body}</div>
+      <div className={s.scroll} ref={listRef}>
+        {body}
+      </div>
     </motion.div>
   );
 }
