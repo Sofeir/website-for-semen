@@ -1,7 +1,7 @@
-import { forwardRef, type SelectHTMLAttributes } from 'react';
+import { forwardRef, useState, type SelectHTMLAttributes } from 'react';
 import { ROLE_LABELS, STAFF_ROLES, type Role } from '@sd/shared';
 import { useSettings, useUsers } from '@/api/queries';
-import { fromLocalInput, quickDueDates, sameDay, startForDue, toLocalInput } from '@/lib/dates';
+import { defaultDueDate, fromLocalInput, sameDay, startForDue, toLocalInput } from '@/lib/dates';
 import { cx } from '@/ui/Button';
 import { Input, Select } from '@/ui/Form';
 import s from './Pickers.module.css';
@@ -56,13 +56,24 @@ export function DueInput({
 }) {
   const settings = useSettings();
   const ws = settings.data?.work;
-  const presets = quickDueDates(ws);
+  const presets = [
+    { label: 'Сегодня', date: defaultDueDate(ws, 0) },
+    { label: 'Завтра', date: defaultDueDate(ws, 1) },
+    { label: 'Послезавтра', date: defaultDueDate(ws, 2) },
+  ];
   const current = value ? new Date(value) : null;
+  /**
+   * В выходной и после конца рабочего дня «сегодня» и «завтра» попадают на один рабочий день и дают одну дату.
+   * Поэтому подсвечиваем ту кнопку, которую нажали, а не все с совпавшей датой.
+   */
+  const [picked, setPicked] = useState<number | null>(null);
+  const matches = presets.map((p) => Boolean(current && sameDay(current, p.date) && current.getHours() === p.date.getHours()));
+  const onIndex = picked !== null && matches[picked] ? picked : matches.indexOf(true);
   return (
     <div className={s.due}>
       <div className={s.presets} role="group" aria-label="Быстрый выбор срока">
-        {presets.map((p) => {
-          const on = Boolean(current && sameDay(current, p.date) && current.getHours() === p.date.getHours());
+        {presets.map((p, i) => {
+          const on = i === onIndex;
           return (
             <button
               key={p.label}
@@ -70,6 +81,7 @@ export function DueInput({
               className={cx(s.preset, on && s.presetOn)}
               aria-pressed={on}
               onClick={() => {
+                setPicked(i);
                 onChange(p.date.toISOString());
                 onPreset?.(startForDue(ws, p.date).toISOString(), p.date.toISOString());
               }}

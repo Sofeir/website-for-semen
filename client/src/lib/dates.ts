@@ -83,28 +83,6 @@ export function defaultDueDate(ws: WorkSettingsLike | undefined, days?: number):
   return atEnd(d);
 }
 
-/**
- * Три быстрых срока, которые всегда разные: ближайший рабочий конец дня и два следующих рабочих дня.
- * В выходной и после конца рабочего дня «сегодня» и «завтра» упираются в один и тот же рабочий день,
- * поэтому подписи берутся по календарю: Сегодня, Завтра, Послезавтра, дальше день недели и дата.
- */
-export function quickDueDates(ws: WorkSettingsLike | undefined): { label: string; date: Date }[] {
-  const list: Date[] = [defaultDueDate(ws, 0)];
-  for (let k = 1; list.length < 3 && k < 15; k++) {
-    const d = defaultDueDate(ws, k);
-    if (d.getTime() > list[list.length - 1].getTime()) list.push(d);
-  }
-  const today = startOfDay();
-  return list.map((date) => {
-    const diff = Math.round((startOfDay(date).getTime() - today.getTime()) / 86400_000);
-    if (diff === 0) return { label: 'Сегодня', date };
-    if (diff === 1) return { label: 'Завтра', date };
-    if (diff === 2) return { label: 'Послезавтра', date };
-    const day = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', day: '2-digit', month: '2-digit' }).format(date);
-    return { label: day.charAt(0).toUpperCase() + day.slice(1), date };
-  });
-}
-
 export function isOverdue(d: string | null | undefined) {
   return Boolean(d && new Date(d).getTime() < Date.now());
 }
