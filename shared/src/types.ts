@@ -338,6 +338,27 @@ export interface DictItem {
   isFinal?: boolean;
 }
 
+/** Проверка единицы техники на выезде (чек-лист ПК или МФУ). */
+export interface Inspection {
+  id: number;
+  clientId: number;
+  deviceId: number;
+  kind: 'pc' | 'printer';
+  deviceTitle: string;
+  deviceType: string;
+  inventoryNo: string | null;
+  location: string | null;
+  hostName: string | null;
+  inspectedAt: string;
+  performerId: number | null;
+  performerName: string | null;
+  personName: string | null;
+  personPhone: string | null;
+  counter: number | null;
+  note: string | null;
+  items: { title: string; done: boolean }[];
+}
+
 export interface Dictionaries {
   deviceTypes: DictItem[];
   brands: DictItem[];
@@ -348,6 +369,8 @@ export interface Dictionaries {
   services: DictItem[];
   warranties: DictItem[];
   stages: Stage[];
+  inspectPc: DictItem[];
+  inspectPrinter: DictItem[];
 }
 
 export interface DashboardData {

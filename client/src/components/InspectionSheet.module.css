@@ -1,0 +1,30 @@
+.listHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list li {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+}
+
+.list li + li {
+  border-top: 1px solid var(--border-soft);
+}
+
+.list li > label {
+  width: 100%;
+  padding: var(--s-2) 0;
+}

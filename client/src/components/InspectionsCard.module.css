@@ -1,0 +1,70 @@
+.pdf {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 var(--s-3);
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-2);
+  color: var(--ink-700);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.group + .group {
+  margin-top: var(--s-4);
+}
+
+.place {
+  margin: 0 0 var(--s-1);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  min-height: 56px;
+  padding: var(--s-2) 0;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border-soft);
+}
+
+.main {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--fs-sm);
+}
+
+.main b {
+  font-size: var(--fs-md);
+  overflow-wrap: anywhere;
+}
+
+.side {
+  display: flex;
+  flex: 0 1 auto;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}

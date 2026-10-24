@@ -1,0 +1,102 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { pool } from '../src/db/pool';
+import { intakeLaptop, loginAs, resetDb, dict } from './helpers';
+
+const thisMonth = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+
+describe('проверка техники на выезде', () => {
+  beforeAll(resetDb);
+  afterAll(() => pool.end());
+
+  it('пункты чек-листов лежат в справочнике, правятся и входят в список', async () => {
+    const semen = await loginAs('semen');
+    const d = (await semen.get('/api/dictionaries')).body;
+    expect(d.inspectPc).toHaveLength(7);
+    expect(d.inspectPrinter).toHaveLength(7);
+    const add = await semen.post('/api/dictionaries/inspect_pc', { name: 'Проверка принтера по сети' });
+    expect(add.status).toBe(201);
+    expect((await semen.get('/api/dictionaries')).body.inspectPc).toHaveLength(8);
+    // внешний вид и комплектность не задеты
+    expect(d.appearance.length).toBeGreaterThan(0);
+  });
+
+  it('проверка ноутбука пишется в журнал: очистка отдельной строкой, имя ПК и сотрудник запоминаются', async () => {
+    const semen = await loginAs('semen');
+    const { users } = await dict();
+    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-31');
+    const order = (await semen.get(`/api/orders/${orderId}`)).body;
+    const items = [
+      { title: 'Проверка антивируса', done: true },
+      { title: 'Проверка резервных копий', done: false },
+      { title: 'Очистка устройства от пыли', done: true },
+    ];
+    const r = await semen.post('/api/inspections', {
+      deviceId: order.device.id,
+      hostName: 'BUH-01',
+      personName: 'Иванова Ольга',
+      personPhone: '+7 900 111-22-33',
+      counter: 5000,
+      note: 'Заменить термопасту',
+      items,
+    });
+    expect(r.status).toBe(201);
+
+    const list = (await semen.get(`/api/clients/${order.clientId}/inspections`)).body;
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ kind: 'pc', hostName: 'BUH-01', personName: 'Иванова Ольга', counter: null });
+    expect(list[0].items).toEqual(items);
+
+    const works = (await semen.get(`/api/devices/${order.device.id}/works`)).body;
+    const titles = works.map((w: any) => w.title);
+    expect(titles).toContain('Проверка ПК');
+    expect(titles).toContain('Очистка устройства от пыли');
+    expect(works.find((w: any) => w.title === 'Проверка ПК').note).toContain('Пройдено 2 из 3');
+    expect(works.find((w: any) => w.title === 'Проверка ПК').note).toContain('Проверка резервных копий');
+  });
+
+  it('техника без чек-листа и чужие мастера не проходят', async () => {
+    const semen = await loginAs('semen');
+    const { users } = await dict();
+    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-32');
+    const order = (await semen.get(`/api/orders/${orderId}`)).body;
+    const comp = await semen.post(`/api/devices/${order.device.id}/components`, {
+      deviceTypeId: (await pool.query(`SELECT id FROM device_types WHERE name = 'Мониторы'`)).rows[0].id,
+      modelText: 'Монитор 27" Samsung',
+    });
+    expect(comp.status).toBe(201);
+    const bad = await semen.post('/api/inspections', { deviceId: comp.body.id, items: [] });
+    expect(bad.status).toBe(400);
+    const lenya = await loginAs('lenya');
+    const denied = await lenya.post('/api/inspections', { deviceId: order.device.id, items: [{ title: 'Проверка антивируса', done: true }] });
+    expect(denied.status).toBe(403);
+  });
+
+  it('пробег принтера идёт в журнал, PDF формируется', async () => {
+    const semen = await loginAs('semen');
+    const { users } = await dict();
+    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-33');
+    const order = (await semen.get(`/api/orders/${orderId}`)).body;
+    const printerType = (await pool.query(`SELECT id FROM device_types WHERE name = 'Принтеры/МФУ'`)).rows[0].id;
+    const dev = await semen.post(`/api/devices/${order.device.id}/components`, { deviceTypeId: printerType, modelText: 'Kyocera M2040dn', serial: 'PR1' });
+    const r = await semen.post('/api/inspections', {
+      deviceId: dev.body.id,
+      counter: 81234,
+      items: [{ title: 'Проверка состояния фотобарабана', done: true }],
+    });
+    expect(r.status).toBe(201);
+    const works = (await semen.get(`/api/devices/${dev.body.id}/works`)).body;
+    expect(works[0]).toMatchObject({ title: 'Проверка МФУ / принтера', counter: 81234 });
+
+    const one = await semen.get(`/api/documents/inspection/${r.body.id}.pdf`);
+    expect(one.status).toBe(200);
+    expect(one.headers['content-type']).toContain('application/pdf');
+    const month = await semen.get(`/api/documents/inspections/client/${order.clientId}.pdf?month=${thisMonth()}`);
+    expect(month.status).toBe(200);
+    const blank = await semen.get('/api/documents/inspection-blank/pc.pdf');
+    expect(blank.status).toBe(200);
+    expect((await semen.get('/api/documents/inspections/client/' + order.clientId + '.pdf?month=2020-01')).status).toBe(404);
+  });
+});

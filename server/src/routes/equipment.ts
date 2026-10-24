@@ -1,11 +1,21 @@
 import { Router } from 'express';
-import { can, deviceInfoSchema, deviceWorkSchema, type Device, type DeviceWork } from '@sd/shared';
-import { many, one, pool } from '../db/pool';
+import {
+  can,
+  deviceInfoSchema,
+  deviceWorkSchema,
+  INSPECTION_LABELS,
+  inspectionKindOf,
+  inspectionSchema,
+  type Device,
+  type DeviceWork,
+  type Inspection,
+} from '@sd/shared';
+import { many, one, pool, tx } from '../db/pool';
 import { forbidden, h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { broadcast } from '../notify/hub';
 import { assertClientWorksVisible, assertDeviceVisible, assertOrderVisible } from '../services/access';
-import { DEVICE_SELECT, WORK_SELECT } from '../services/sql';
+import { DEVICE_SELECT, DEVICE_TITLE, WORK_SELECT } from '../services/sql';
 import { assertActiveUser } from '../services/tasks';
 
 export const equipmentRouter = Router();
@@ -156,5 +166,80 @@ equipmentRouter.delete(
     await pool.query('DELETE FROM device_works WHERE id = $1', [id]);
     broadcast('changed', { scopes: ['clients', 'orders'] });
     res.json({ ok: true });
+  }),
+);
+
+// ---------- Проверка техники на выезде ----------
+
+const INSPECTION_SELECT = `
+  SELECT i.id, i.client_id AS "clientId", i.device_id AS "deviceId", i.kind, ${DEVICE_TITLE} AS "deviceTitle", dt.name AS "deviceType",
+         d.inventory_no AS "inventoryNo", d.location, d.host_name AS "hostName", i.inspected_at AS "inspectedAt",
+         i.performer_id AS "performerId", u.full_name AS "performerName", i.person_name AS "personName",
+         i.person_phone AS "personPhone", i.counter, i.note, i.items
+    FROM device_inspections i
+    JOIN devices d ON d.id = i.device_id
+    JOIN device_types dt ON dt.id = d.device_type_id
+    LEFT JOIN brands b ON b.id = d.brand_id
+    LEFT JOIN models m ON m.id = d.model_id
+    LEFT JOIN users u ON u.id = i.performer_id`;
+
+export { INSPECTION_SELECT };
+
+/** Проверки клиента: по ним видно, какая техника уже проверена и кто за ней сидит. */
+equipmentRouter.get(
+  '/clients/:id/inspections',
+  requirePermission('workspace.view'),
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    await assertClientWorksVisible(req.user!, id);
+    res.json(await many<Inspection>(`${INSPECTION_SELECT} WHERE i.client_id = $1 ORDER BY i.inspected_at DESC, i.id DESC LIMIT 500`, [id]));
+  }),
+);
+
+const CLEANING = /очистк|чистк/i;
+
+equipmentRouter.post(
+  '/inspections',
+  requirePermission('workspace.view'),
+  h(async (req, res) => {
+    const input = parse(inspectionSchema, req.body);
+    await assertDeviceVisible(req.user!, input.deviceId);
+    const d = await one<{ client_id: number; type: string }>(
+      `SELECT d.client_id, dt.name AS type FROM devices d JOIN device_types dt ON dt.id = d.device_type_id WHERE d.id = $1`,
+      [input.deviceId],
+    );
+    if (!d) throw new HttpError(404, 'Техника не найдена');
+    const kind = inspectionKindOf(d.type);
+    if (!kind) throw new HttpError(400, 'Для этой техники чек-листа нет. Проверка есть у компьютеров, ноутбуков, принтеров и МФУ.');
+    const counter = kind === 'printer' ? (input.counter ?? null) : null;
+    const done = input.items.filter((i) => i.done).length;
+    const row = await tx(async (db) => {
+      const r = await db.query(
+        `INSERT INTO device_inspections (client_id, device_id, kind, performer_id, person_name, person_phone, counter, note, items)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+        [d.client_id, input.deviceId, kind, req.user!.id, input.personName, input.personPhone, counter, input.note, JSON.stringify(input.items)],
+      );
+      if (input.hostName) await db.query('UPDATE devices SET host_name = $2 WHERE id = $1', [input.deviceId, input.hostName]);
+      // В журнал техники: сама проверка (с пробегом принтера) и отдельной строкой каждая отмеченная очистка.
+      const skipped = input.items.filter((i) => !i.done).map((i) => i.title);
+      const summary = [
+        `Пройдено ${done} из ${input.items.length}`,
+        skipped.length ? `не отмечено: ${skipped.join('; ')}` : null,
+        input.note,
+      ]
+        .filter(Boolean)
+        .join('. ');
+      const insertWork = (title: string, note: string | null, cnt: number | null) =>
+        db.query(
+          `INSERT INTO device_works (client_id, device_id, kind, title, qty, counter, note, created_by, performer_id)
+           VALUES ($1, $2, 'service', $3, 1, $4, $5, $6, $6)`,
+          [d.client_id, input.deviceId, title, cnt, note, req.user!.id],
+        );
+      await insertWork(INSPECTION_LABELS[kind], summary, counter);
+      for (const it of input.items) if (it.done && CLEANING.test(it.title)) await insertWork(it.title, null, null);
+      return r.rows[0] as { id: number };
+    });
+    broadcast('changed', { scopes: ['clients', 'orders'] });
+    res.status(201).json({ id: row.id });
   }),
 );

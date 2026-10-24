@@ -28,6 +28,7 @@ import { ClientFormSheet } from '@/components/ClientFormSheet';
 import { ContactFormSheet, contactLine } from '@/components/ContactPicker';
 import { DeviceJournalSheet } from '@/components/DeviceJournalSheet';
 import { RefillSheet } from '@/components/RefillSheet';
+import { InspectionsCard } from '@/components/InspectionsCard';
 import { FleetEditor, emptyFleetRow, fleetTotals } from '@/components/FleetEditor';
 import { OrderRow } from '@/components/OrderRow';
 import { ServicePlanCard } from '@/components/ServicePlanCard';
@@ -405,6 +406,11 @@ export default function ClientPage() {
           </p>
           <ChecklistEditor items={works} onChange={setWorks} disabled={!can('clients.edit')} />
         </Card>
+      )}
+      {tab === 'service' && (
+        <div style={{ marginTop: 'var(--s-4)' }}>
+          <InspectionsCard clientId={c.id} devices={c.devices} />
+        </div>
       )}
       {tab === 'service' && (
         <div style={{ marginTop: 'var(--s-4)' }}>
