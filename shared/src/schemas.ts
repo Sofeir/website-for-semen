@@ -207,6 +207,37 @@ export const deviceWorkSchema = z
   });
 export type DeviceWorkInput = z.infer<typeof deviceWorkSchema>;
 
+// ---------- Проверка техники на выезде ----------
+
+export const INSPECTION_KINDS = ['pc', 'printer'] as const;
+export type InspectionKind = (typeof INSPECTION_KINDS)[number];
+export const INSPECTION_LABELS: Record<InspectionKind, string> = {
+  pc: 'Проверка ПК',
+  printer: 'Проверка МФУ / принтера',
+};
+
+/** Какой чек-лист подходит технике: по названию её типа. Остальной технике (монитор, мышь) проверка не нужна. */
+export function inspectionKindOf(deviceType: string): InspectionKind | null {
+  const t = deviceType.toLowerCase();
+  if (/принтер|мфу/.test(t)) return 'printer';
+  if (/компьютер|ноутбук|моноблок|системн|(^|[^а-я])пк([^а-я]|$)/.test(t)) return 'pc';
+  return null;
+}
+
+export const inspectionSchema = z.object({
+  deviceId: id,
+  hostName: optionalText(100),
+  /** Сотрудник организации, за чьим устройством проводилась проверка. */
+  personName: optionalText(150),
+  personPhone: optionalText(32),
+  counter: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().int().min(0).max(100_000_000).nullable()).optional(),
+  note: optionalText(1000),
+  items: z
+    .array(z.object({ title: text(200).min(1), done: z.boolean() }))
+    .max(50, 'Слишком много пунктов'),
+});
+export type InspectionInput = z.infer<typeof inspectionSchema>;
+
 // ---------- Заявки ----------
 
 /** Что согласовали с клиентом: срок текстом и сумма. */
@@ -423,6 +454,8 @@ export const DICTIONARIES = [
   'services',
   'warranties',
   'stages',
+  'inspect_pc',
+  'inspect_printer',
 ] as const;
 export type DictionaryName = (typeof DICTIONARIES)[number];
 

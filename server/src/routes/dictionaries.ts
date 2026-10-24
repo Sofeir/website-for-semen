@@ -25,7 +25,7 @@ dictionariesRouter.get(
       many(`SELECT ${base}, device_type_id AS "parentId" FROM brands ORDER BY sort, name`),
       many(`SELECT ${base}, brand_id AS "parentId" FROM models ORDER BY sort, name`),
       many(`SELECT ${base}, device_type_id AS "parentId" FROM faults ORDER BY sort, name`),
-      many(`SELECT ${base}, kind FROM checklist_items ORDER BY sort, name`),
+      many(`SELECT ${base}, kind FROM checklist_items ORDER BY sort, id`),
       many(`SELECT ${base}, price, price_from AS "priceFrom", device_type_id AS "parentId" FROM services ORDER BY sort, name`),
       many(`SELECT ${base}, months, is_default AS "isDefault" FROM warranties ORDER BY months`),
       many(
@@ -40,6 +40,8 @@ dictionariesRouter.get(
       faults,
       appearance: checklist.filter((c) => c.kind === 'appearance'),
       kit: checklist.filter((c) => c.kind === 'kit'),
+      inspectPc: checklist.filter((c) => c.kind === 'inspect_pc'),
+      inspectPrinter: checklist.filter((c) => c.kind === 'inspect_printer'),
       services,
       warranties,
       stages,
@@ -57,6 +59,8 @@ const TABLES: Record<DictionaryName, { table: string; parent?: string; extra?: s
   faults: { table: 'faults', parent: 'device_type_id' },
   appearance: { table: 'checklist_items', where: `kind = 'appearance'` },
   kit: { table: 'checklist_items', where: `kind = 'kit'` },
+  inspect_pc: { table: 'checklist_items', where: `kind = 'inspect_pc'` },
+  inspect_printer: { table: 'checklist_items', where: `kind = 'inspect_printer'` },
   services: { table: 'services', parent: 'device_type_id', extra: ['price', 'price_from'] },
   warranties: { table: 'warranties', extra: ['months', 'is_default'] },
   stages: { table: 'stages', extra: ['color', 'sla_hours'] },
@@ -93,7 +97,7 @@ dictionariesRouter.post(
       throw new HttpError(400, name === 'brands' ? 'Выберите тип техники' : 'Выберите марку');
     }
     const cols = columnsFor(name, input);
-    if (name === 'appearance' || name === 'kit') cols.kind = name;
+    if (name === 'appearance' || name === 'kit' || name === 'inspect_pc' || name === 'inspect_printer') cols.kind = name;
     if (name === 'warranties' && cols.months === undefined) throw new HttpError(400, 'Укажите срок в месяцах');
     if (name === 'stages') {
       cols.code = `stage_${Date.now().toString(36)}`;

@@ -1,13 +1,16 @@
 import { Router } from 'express';
-import { can, formatPhone } from '@sd/shared';
+import { can, formatPhone, type Inspection } from '@sd/shared';
 import { many, one } from '../db/pool';
 import { h, HttpError, intParam } from '../lib/http';
 import { getCompanySettings } from '../services/settings';
 import { DEVICE_TITLE, orderAccess } from '../services/sql';
-import { assertOrderVisible } from '../services/access';
+import { assertClientWorksVisible, assertDeviceVisible, assertOrderVisible } from '../services/access';
 import { renderPdf } from '../documents/render';
 import { receiptTemplate } from '../documents/templates/receipt';
 import { actTemplate } from '../documents/templates/act';
+import { inspectionTemplate, type InspectionSheetData } from '../documents/templates/inspection';
+import { INSPECTION_SELECT } from './equipment';
+import { monthRange } from './reports';
 import { loadAct } from './acts';
 
 export const documentsRouter = Router();
@@ -115,5 +118,84 @@ documentsRouter.get(
       }),
     );
     sendPdf(res, pdf, `Акт ${act.number}.pdf`, req.query.download === '1');
+  }),
+);
+
+// ---------- Проверка техники ----------
+
+const toSheet = (i: Inspection): InspectionSheetData => ({
+  kind: i.kind,
+  deviceTitle: i.deviceTitle,
+  inventoryNo: i.inventoryNo,
+  hostName: i.hostName,
+  personName: i.personName,
+  personPhone: i.personPhone,
+  counter: i.counter,
+  note: i.note,
+  items: i.items,
+  performer: i.performerName,
+  inspectedAt: i.inspectedAt,
+});
+
+/** Все проверки клиента за месяц одним бланком: сначала ПК, потом МФУ. */
+documentsRouter.get(
+  '/documents/inspections/client/:clientId.pdf',
+  h(async (req, res) => {
+    const clientId = intParam(req.params.clientId);
+    await assertClientWorksVisible(req.user!, clientId);
+    const client = await one<{ name: string }>('SELECT name FROM clients WHERE id = $1', [clientId]);
+    if (!client) throw new HttpError(404, 'Клиент не найден');
+    const { from, to } = monthRange(req.query.month ?? new Date().toISOString().slice(0, 7));
+    // последняя проверка каждой единицы за месяц
+    const list = await many<Inspection>(
+      `${INSPECTION_SELECT}
+        WHERE i.client_id = $1 AND i.inspected_at >= $2 AND i.inspected_at < $3
+          AND i.id = (SELECT max(x.id) FROM device_inspections x WHERE x.device_id = i.device_id AND x.inspected_at >= $2 AND x.inspected_at < $3)
+        ORDER BY i.kind, d.location NULLS LAST, d.inventory_no NULLS LAST, i.id`,
+      [clientId, from, to],
+    );
+    if (!list.length) throw new HttpError(404, 'За этот месяц проверок нет');
+    const pdf = await renderPdf(inspectionTemplate({ company: await getCompanySettings(), clientName: client.name, sheets: list.map(toSheet) }));
+    sendPdf(res, pdf, `Проверка техники ${client.name}.pdf`, req.query.download === '1');
+  }),
+);
+
+documentsRouter.get(
+  '/documents/inspection/:id.pdf',
+  h(async (req, res) => {
+    const i = await one<Inspection>(`${INSPECTION_SELECT} WHERE i.id = $1`, [intParam(req.params.id)]);
+    if (!i) throw new HttpError(404, 'Проверка не найдена');
+    await assertDeviceVisible(req.user!, i.deviceId);
+    const client = await one<{ name: string }>('SELECT name FROM clients WHERE id = $1', [i.clientId]);
+    const pdf = await renderPdf(inspectionTemplate({ company: await getCompanySettings(), clientName: client?.name ?? null, sheets: [toSheet(i)] }));
+    sendPdf(res, pdf, `Проверка ${i.deviceTitle}.pdf`, req.query.download === '1');
+  }),
+);
+
+/** Пустой бланк для заполнения от руки: пункты берутся из справочника. */
+documentsRouter.get(
+  '/documents/inspection-blank/:kind.pdf',
+  h(async (req, res) => {
+    const kind = String(req.params.kind);
+    if (kind !== 'pc' && kind !== 'printer') throw new HttpError(404, 'Нет такого бланка');
+    const items = await many<{ name: string }>(
+      `SELECT name FROM checklist_items WHERE kind = $1 AND is_active ORDER BY sort, id`,
+      [kind === 'pc' ? 'inspect_pc' : 'inspect_printer'],
+    );
+    const sheet: InspectionSheetData = {
+      kind,
+      deviceTitle: null,
+      inventoryNo: null,
+      hostName: null,
+      personName: null,
+      personPhone: null,
+      counter: null,
+      note: null,
+      items: items.map((x) => ({ title: x.name, done: false })),
+      performer: null,
+      inspectedAt: null,
+    };
+    const pdf = await renderPdf(inspectionTemplate({ company: await getCompanySettings(), clientName: null, sheets: [sheet] }));
+    sendPdf(res, pdf, kind === 'pc' ? 'Бланк проверки ПК.pdf' : 'Бланк проверки МФУ.pdf', req.query.download === '1');
   }),
 );

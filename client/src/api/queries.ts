@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import type {
+  Inspection,
   Act,
   ActBrief,
   ActInput,
@@ -70,7 +71,7 @@ export const SCOPE_KEYS: Record<string, string[]> = {
   orders: ['orders', 'order', 'dashboard', 'customerOrders', 'customerOrder', 'deviceWorks', 'clientWorks', 'report'],
   tasks: ['tasks', 'task', 'dashboard', 'order', 'customerTasks', 'visits', 'taskKinds'],
   customers: ['customers'],
-  clients: ['clients', 'client', 'deviceWorks', 'clientWorks', 'report', 'clientDevices', 'serviceChecklist', 'servicePlan', 'servicePlans', 'visits'],
+  clients: ['clients', 'client', 'deviceWorks', 'clientWorks', 'report', 'clientDevices', 'clientInspections', 'serviceChecklist', 'servicePlan', 'servicePlans', 'visits'],
   dashboard: ['dashboard'],
   dictionaries: ['dictionaries'],
   acts: ['acts', 'act', 'order'],
@@ -261,6 +262,13 @@ export const useCustomerCompany = () =>
     queryKey: keys.customerCompany,
     queryFn: () => api.get<CustomerCompany>('/customer/company'),
     staleTime: 10 * 60_000,
+  });
+
+export const useClientInspections = (clientId: number) =>
+  useQuery({
+    queryKey: ['clientInspections', clientId],
+    queryFn: () => api.get<Inspection[]>(`/clients/${clientId}/inspections`),
+    enabled: clientId > 0,
   });
 
 export const useServiceChecklist = (clientId: number) =>
