@@ -45,7 +45,9 @@ function animate(el: Element, run: Run) {
       runs.delete(el);
       return;
     }
-    el.scrollTop += diff * EASE;
+    // scrollTop целочисленный: шаг меньше пикселя терялся, и прокрутка не доезжала до цели
+    const step = diff * EASE;
+    el.scrollTop += Math.abs(step) < 1 ? Math.sign(diff) * Math.min(1, Math.abs(diff)) : step;
     run.raf = requestAnimationFrame(tick);
   };
   cancelAnimationFrame(run.raf);
@@ -66,6 +68,20 @@ function onWheel(e: WheelEvent) {
   run.target = Math.max(0, Math.min(max, run.target + dy * STEP));
   runs.set(el, run);
   animate(el, run);
+}
+
+/**
+ * Плавная прокрутка колесом для одного списка, даже если в системе отключены анимации:
+ * без неё колесо перескакивает на целый шаг, и список листается рывками.
+ */
+export function smoothScrollList(el: HTMLElement): () => void {
+  el.addEventListener('wheel', onWheel, { passive: false });
+  return () => {
+    el.removeEventListener('wheel', onWheel);
+    const run = runs.get(el);
+    if (run) cancelAnimationFrame(run.raf);
+    runs.delete(el);
+  };
 }
 
 /** Включает плавную прокрутку на всём сайте. Возвращает функцию отключения. */
