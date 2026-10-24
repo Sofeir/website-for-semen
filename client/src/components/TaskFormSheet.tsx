@@ -175,7 +175,16 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
         <Field label="Подробности" optional error={errors.description?.message}>
           <Textarea {...form.register('description')} rows={4} />
         </Field>
-        {!task && (
+        {!task && visit && (
+          <Field label="Чек-лист выезда" group hint="Единый для всех выездов, исполнитель отметит пункты на месте">
+            <ul className="stack" style={{ margin: 0, paddingLeft: '1.2em', gap: 4 }}>
+              {(presetChecklist ?? []).map((x) => (
+                <li key={x}>{x}</li>
+              ))}
+            </ul>
+          </Field>
+        )}
+        {!task && !visit && (
           <Field label="Чек-лист" optional group hint="Пункты, которые исполнитель отметит по ходу работы">
             <ChecklistEditor items={checklist} onChange={setChecklist} />
           </Field>
