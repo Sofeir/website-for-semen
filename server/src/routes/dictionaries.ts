@@ -42,6 +42,7 @@ dictionariesRouter.get(
       kit: checklist.filter((c) => c.kind === 'kit'),
       inspectPc: checklist.filter((c) => c.kind === 'inspect_pc'),
       inspectPrinter: checklist.filter((c) => c.kind === 'inspect_printer'),
+      visitWorks: checklist.filter((c) => c.kind === 'visit'),
       services,
       warranties,
       stages,
@@ -61,6 +62,7 @@ const TABLES: Record<DictionaryName, { table: string; parent?: string; extra?: s
   kit: { table: 'checklist_items', where: `kind = 'kit'` },
   inspect_pc: { table: 'checklist_items', where: `kind = 'inspect_pc'` },
   inspect_printer: { table: 'checklist_items', where: `kind = 'inspect_printer'` },
+  visit_works: { table: 'checklist_items', where: `kind = 'visit'` },
   services: { table: 'services', parent: 'device_type_id', extra: ['price', 'price_from'] },
   warranties: { table: 'warranties', extra: ['months', 'is_default'] },
   stages: { table: 'stages', extra: ['color', 'sla_hours'] },
@@ -98,6 +100,7 @@ dictionariesRouter.post(
     }
     const cols = columnsFor(name, input);
     if (name === 'appearance' || name === 'kit' || name === 'inspect_pc' || name === 'inspect_printer') cols.kind = name;
+    if (name === 'visit_works') cols.kind = 'visit';
     if (name === 'warranties' && cols.months === undefined) throw new HttpError(400, 'Укажите срок в месяцах');
     if (name === 'stages') {
       cols.code = `stage_${Date.now().toString(36)}`;

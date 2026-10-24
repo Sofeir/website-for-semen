@@ -274,7 +274,7 @@ export const useClientInspections = (clientId: number) =>
 export const useServiceChecklist = (clientId: number) =>
   useQuery({
     queryKey: ['serviceChecklist', clientId],
-    queryFn: () => api.get<{ items: string[] }>(`/clients/${clientId}/service-checklist`),
+    queryFn: () => api.get<{ items: string[]; isDefault: boolean }>(`/clients/${clientId}/service-checklist`),
     enabled: clientId > 0,
   });
 

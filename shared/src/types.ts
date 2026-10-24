@@ -371,6 +371,8 @@ export interface Dictionaries {
   stages: Stage[];
   inspectPc: DictItem[];
   inspectPrinter: DictItem[];
+  /** Стандартные работы выезда: подставляются, когда у клиента нет своего списка. */
+  visitWorks: DictItem[];
 }
 
 export interface DashboardData {
