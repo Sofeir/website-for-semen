@@ -113,7 +113,7 @@ export default function ReportsPage() {
     <>
       <PageHeader
         title="Отчёты"
-        subtitle="По месяцам: заявки, ремонты, заправки картриджей. Нажмите на клиента, чтобы увидеть, что именно сделали."
+        subtitle="По месяцам: заявки, ремонты, заправки картриджей, выезды. Нажмите на клиента, чтобы увидеть, что именно сделали."
         actions={
           <Button
             variant="secondary"
@@ -171,6 +171,13 @@ export default function ReportsPage() {
               legal={report.totals.legal}
               person={report.totals.person}
             />
+            <HeroStat
+              title="Выездов"
+              field="visits"
+              totals={report.totals[scope]}
+              legal={report.totals.legal}
+              person={report.totals.person}
+            />
             <div className={s.legend} aria-hidden>
               <span><i className={s.splitLegal} /> юрлица</span>
               <span><i className={s.splitPerson} /> физлица</span>
@@ -222,6 +229,7 @@ export default function ReportsPage() {
                         <Metric value={r.repaired} name="ремонты" />
                         <Metric value={r.refills} name="картриджи" active={sort === 'refills'} />
                         <Metric value={r.declined} name="без рем." title="Без ремонта: клиент отказался" active={sort === 'declined'} />
+                        <Metric value={r.visits} name="выезды" title="Закрытые выезды к клиенту" />
                       </span>
                     </button>
                   </li>
@@ -244,9 +252,9 @@ export default function ReportsPage() {
 }
 
 function reportCsv(report: MonthlyReport, scope: Scope) {
-  const head = ['Клиент', 'Тип', 'Принято заявок', 'Ремонтов', 'Без ремонта', 'Картриджей'];
+  const head = ['Клиент', 'Тип', 'Принято заявок', 'Ремонтов', 'Без ремонта', 'Картриджей', 'Выездов'];
   const rows = report.rows
     .filter((r) => scope === 'all' || r.kind === scope)
-    .map((r) => [r.clientName, r.kind === 'legal' ? 'Юрлицо' : 'Физлицо', r.accepted, r.repaired, r.declined, r.refills]);
+    .map((r) => [r.clientName, r.kind === 'legal' ? 'Юрлицо' : 'Физлицо', r.accepted, r.repaired, r.declined, r.refills, r.visits]);
   return [head, ...rows];
 }

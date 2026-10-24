@@ -78,7 +78,8 @@ describe('аналитика', () => {
     expect(report.rows.length).toBeGreaterThan(2);
     for (const row of report.rows) {
       const d = (await semen.get(`/api/reports/client/${row.clientId}?month=${month}`)).body;
-      expect(d.totals).toEqual({ accepted: row.accepted, repaired: row.repaired, declined: row.declined, refills: row.refills });
+      expect(d.totals).toEqual({ accepted: row.accepted, repaired: row.repaired, declined: row.declined, refills: row.refills, visits: row.visits });
+      expect(d.visits).toHaveLength(row.visits);
       // принятые заявки из списка совпадают с числом «заявок» в строке
       expect(d.orders.filter((o: any) => o.acceptedInMonth)).toHaveLength(row.accepted);
       // у каждой записи, привязанной к заявке, есть номер для перехода

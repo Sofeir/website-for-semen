@@ -15,7 +15,7 @@ const intake = (db: Db, a: Actor, input: unknown, ob: Outbox) => createIntake(db
 import { closeTasks, createTask, transferTask, type Actor } from '../services/tasks';
 import { replaceFleet } from '../services/clients';
 import { defaultDue } from '../services/workTime';
-import { seedHistory } from './seedHistory';
+import { seedHistory, seedVisitHistory } from './seedHistory';
 
 /** Справочники, этапы и настройки. Повторный запуск ничего не дублирует. */
 export async function seedReference(db: Db = pool) {
@@ -721,6 +721,7 @@ if (isMain) {
       await createUsers(password);
       await seedDemo();
       await seedHistory();
+      await seedVisitHistory();
       console.log(`✓ демо-данные: сотрудники ${DEMO_USERS.map((u) => u.login).join(', ')}; заказчик maria`);
     } else {
       console.log('· сотрудники уже есть, демо-данные не трогаю');

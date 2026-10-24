@@ -468,7 +468,7 @@
 
 .detailStats {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.1fr);
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: var(--s-2);
 }
 
@@ -684,4 +684,11 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--red-700);
+}
+
+.visitsHead {
+  margin: var(--s-2) 0 var(--s-1);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  font-weight: 700;
 }

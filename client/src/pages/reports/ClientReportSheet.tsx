@@ -45,7 +45,7 @@ function WorkLine({ w, orderId, onClose }: { w: ClientReportWork; orderId: numbe
 export function ClientReportSheet({ clientId, month, onClose }: { clientId: number | null; month: string; onClose: () => void }) {
   const q = useClientReport(clientId, month);
   const r = q.data;
-  const empty = r && !r.orders.length && !r.refills.length && !r.otherWorks.length;
+  const empty = r && !r.orders.length && !r.refills.length && !r.otherWorks.length && !r.visits.length;
 
   const csv = () => {
     if (!r) return;
@@ -59,6 +59,10 @@ export function ClientReportSheet({ clientId, month, onClose }: { clientId: numb
       const status = o.outcome === 'declined' ? 'без ремонта' : o.outcome === 'repaired' ? 'ремонт выполнен' : o.acceptedInMonth ? 'принята' : o.stageName;
       rows.push(['Заявка', o.number, o.deviceTitle, status, 1, '', date(o.outcomeAt ?? o.createdAt)]);
       for (const w of o.works) rows.push(['Работа по заявке', o.number, w.deviceTitle ?? o.deviceTitle, what(w), w.qty, w.amount ?? '', date(w.doneAt)]);
+    }
+    for (const v of r.visits) {
+      const list = v.checklistTotal ? `чек-лист ${v.checklistDone}/${v.checklistTotal}` : '';
+      rows.push(['Выезд', '', '', [v.title, v.performerName, list].filter(Boolean).join(', '), 1, '', date(v.closedAt)]);
     }
     for (const w of r.otherWorks) rows.push(['Прочая работа', w.orderNumber ?? '', w.deviceTitle ?? '', what(w), w.qty, w.amount ?? '', date(w.doneAt)]);
     downloadCsv(`schet-${r.clientName.replace(/[^\p{L}\p{N}]+/gu, '-')}-${r.month}.csv`, rows);
@@ -106,6 +110,10 @@ export function ClientReportSheet({ clientId, month, onClose }: { clientId: numb
               <b>{r.totals.declined}</b>
               <span>без рем.</span>
             </div>
+            <div>
+              <b>{r.totals.visits}</b>
+              <span>выезды</span>
+            </div>
           </div>
           {empty && <p className="muted">За этот месяц по клиенту ничего не записано.</p>}
 
@@ -147,6 +155,24 @@ export function ClientReportSheet({ clientId, month, onClose }: { clientId: numb
                       ))}
                     </div>
                   )}
+                </div>
+              ))}
+            </section>
+          )}
+
+          {r.visits.length > 0 && (
+            <section aria-label="Выезды">
+              <h3 className={s.h}>Выезды: {r.totals.visits}</h3>
+              {r.visits.map((v) => (
+                <div key={v.id} className={s.line}>
+                  <span className={s.what}>
+                    {v.title}
+                    <span className={s.sub}>
+                      {[fmtWhen(v.closedAt), v.performerName, v.checklistTotal > 0 && `чек-лист ${v.checklistDone} из ${v.checklistTotal}`, v.closeComment]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </span>
+                  </span>
                 </div>
               ))}
             </section>

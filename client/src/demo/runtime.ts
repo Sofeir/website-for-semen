@@ -3,7 +3,7 @@
 import './polyfills';
 import { Router, dispatch } from 'express';
 import { createUsers, seedCustomers, seedDemo, seedReference } from '../../../server/src/db/seed';
-import { seedHistory } from '../../../server/src/db/seedHistory';
+import { seedHistory, seedVisitHistory } from '../../../server/src/db/seedHistory';
 import { migrate } from '../../../server/src/db/migrate';
 import { one, tx } from '../../../server/src/db/pool';
 import { errorHandler } from '../../../server/src/lib/http';
@@ -78,6 +78,7 @@ export function bootDemo() {
     await seedCustomers();
     // история за год для аналитики; на уже созданных базах догружается один раз
     await seedHistory();
+    await seedVisitHistory();
   })();
   return ready;
 }
