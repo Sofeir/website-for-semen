@@ -22,7 +22,7 @@ import {
   runServicePlansSoon,
   SERVICE_PLAN_SELECT,
 } from '../services/servicePlans';
-import { assertActiveUser, visitChecklistFor } from '../services/tasks';
+import { assertActiveUser, visitChecklist } from '../services/tasks';
 
 export const clientsRouter = Router();
 
@@ -193,32 +193,10 @@ clientsRouter.put(
 clientsRouter.get(
   '/clients/:id/service-checklist',
   h(async (req, res) => {
-    res.json(await visitChecklistFor(pool, intParam(req.params.id)));
+    res.json({ items: await visitChecklist(pool), isDefault: true });
   }),
 );
 
-clientsRouter.put(
-  '/clients/:id/service-checklist',
-  requirePermission('clients.edit'),
-  h(async (req, res) => {
-    const id = intParam(req.params.id);
-    const { items } = parse(serviceChecklistSchema, req.body);
-    await tx(async (db) => {
-      const c = await one('SELECT 1 FROM clients WHERE id = $1', [id], db);
-      if (!c) throw new HttpError(404, 'Клиент не найден');
-      await db.query('DELETE FROM service_checklist_items WHERE client_id = $1', [id]);
-      for (const [i, title] of items.filter(Boolean).entries()) {
-        await db.query('INSERT INTO service_checklist_items (client_id, title, sort) VALUES ($1, $2, $3)', [
-          id,
-          title,
-          (i + 1) * 10,
-        ]);
-      }
-    });
-    broadcast('changed', { scopes: ['clients'] });
-    res.json({ ok: true });
-  }),
-);
 
 /** Ближайшие даты по графику — для обзора «кто к кому и когда едет». */
 const withUpcoming = (p: ServicePlan): ServicePlan => {

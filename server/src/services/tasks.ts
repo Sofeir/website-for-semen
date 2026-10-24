@@ -58,14 +58,10 @@ export async function normalizeDue(db: Db, iso: string | Date): Promise<Date> {
   return clampToWorkEnd(new Date(iso), ws);
 }
 
-/** Чек-лист выезда: свой список работ клиента, а если его нет, стандартный из справочника. */
-export async function visitChecklistFor(db: Db, clientId: number | null | undefined): Promise<{ items: string[]; isDefault: boolean }> {
-  if (clientId) {
-    const own = await db.query('SELECT title FROM service_checklist_items WHERE client_id = $1 ORDER BY sort, id', [clientId]);
-    if (own.rows.length) return { items: own.rows.map((r) => r.title as string), isDefault: false };
-  }
+/** Чек-лист выезда: один на все выезды, пункты из справочника «Работы на выезде». */
+export async function visitChecklist(db: Db): Promise<string[]> {
   const std = await db.query(`SELECT name FROM checklist_items WHERE kind = 'visit' AND is_active ORDER BY sort, id`);
-  return { items: std.rows.map((r) => r.name as string), isDefault: true };
+  return std.rows.map((r) => r.name as string);
 }
 
 export async function createTask(
@@ -104,9 +100,8 @@ export async function createTask(
     actor.id,
     due,
   ]);
-  let checklist = (input.checklist ?? []).filter(Boolean);
-  // Выезд всегда с чек-листом: если его не передали, берём список клиента или стандартный
-  if (input.visit && !checklist.length) checklist = (await visitChecklistFor(db, input.clientId)).items;
+  // У выезда всегда единый чек-лист, что бы ни передали
+  const checklist = input.visit ? await visitChecklist(db) : (input.checklist ?? []).filter(Boolean);
   for (const [i, title] of checklist.entries()) {
     await db.query('INSERT INTO task_checklist_items (task_id, title, sort) VALUES ($1, $2, $3)', [row!.id, title, (i + 1) * 10]);
   }

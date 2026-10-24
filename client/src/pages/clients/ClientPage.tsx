@@ -23,7 +23,6 @@ import { useClient, useContacts, useInvalidate, useServiceChecklist } from '@/ap
 import { fmtWhen } from '@/lib/dates';
 import { useDocumentTitle } from '@/lib/hooks';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
-import { ChecklistEditor } from '@/components/ChecklistEditor';
 import { ClientFormSheet } from '@/components/ClientFormSheet';
 import { ContactFormSheet, contactLine } from '@/components/ContactPicker';
 import { DeviceJournalSheet } from '@/components/DeviceJournalSheet';
@@ -58,7 +57,6 @@ export default function ClientPage() {
   const [savingFleet, setSavingFleet] = useState(false);
   const service = useServiceChecklist(id);
   const [works, setWorks] = useState<string[]>([]);
-  const [savingWorks, setSavingWorks] = useState(false);
   const [visit, setVisit] = useState(false);
   const [journalFor, setJournalFor] = useState<number | null>(null);
   const [refillOpen, setRefillOpen] = useState(false);
@@ -112,19 +110,6 @@ export default function ClientPage() {
       toast.error('Не сохранилось', (e as ApiError).message);
     } finally {
       setSavingFleet(false);
-    }
-  };
-
-  const saveWorks = async () => {
-    setSavingWorks(true);
-    try {
-      await api.put(`/clients/${c.id}/service-checklist`, { items: works.map((x) => x.trim()).filter(Boolean) });
-      toast.success('Список работ сохранён');
-      inv('serviceChecklist');
-    } catch (e) {
-      toast.error('Не сохранилось', (e as ApiError).message);
-    } finally {
-      setSavingWorks(false);
     }
   };
 
@@ -381,30 +366,21 @@ export default function ClientPage() {
       {tab === 'service' && (
         <Card>
           <CardHead title="Работы на выезде">
-            <div className="row wrap">
-              {can('clients.edit') && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  icon={<Save size={16} aria-hidden />}
-                  loading={savingWorks}
-                  onClick={saveWorks}
-                >
-                  Сохранить список
-                </Button>
-              )}
-              {can('tasks.create') && (
-                <Button size="sm" icon={<CalendarCheck size={16} aria-hidden />} onClick={() => setVisit(true)}>
-                  Назначить выезд
-                </Button>
-              )}
-            </div>
+            {can('tasks.create') && (
+              <Button size="sm" icon={<CalendarCheck size={16} aria-hidden />} onClick={() => setVisit(true)}>
+                Назначить выезд
+              </Button>
+            )}
           </CardHead>
           <p className="muted" style={{ marginBottom: 'var(--s-4)' }}>
-            Что специалист делает у клиента на каждом обслуживании. При назначении выезда этот список становится чек-листом в
-            задаче, и специалист отмечает пункты на месте.
+            Единый список для всех выездов. При назначении выезда он становится чек-листом в задаче, и специалист отмечает пункты
+            на месте. Правится в «Настройки → Справочники → Работы на выезде».
           </p>
-          <ChecklistEditor items={works} onChange={setWorks} disabled={!can('clients.edit')} />
+          <ul className="stack" style={{ margin: 0, paddingLeft: '1.2em', gap: 4 }}>
+            {works.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
         </Card>
       )}
       {tab === 'service' && (

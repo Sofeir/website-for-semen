@@ -78,9 +78,6 @@ export async function runServicePlans(now = new Date()): Promise<number> {
           .split(':')
           .map(Number);
         start.setHours(h || 0, m || 0, 0, 0);
-        const checklist = (
-          await db.query('SELECT title FROM service_checklist_items WHERE client_id = $1 ORDER BY sort, id', [p.client_id])
-        ).rows.map((r) => r.title as string);
         taskId = await createTask(
           db,
           creator,
@@ -92,7 +89,6 @@ export async function runServicePlans(now = new Date()): Promise<number> {
             orderId: null,
             startAt: start.toISOString(),
             dueAt: endOfWorkDay(parseYmd(day), ws).toISOString(),
-            checklist,
             visit: true,
           },
           outbox,
