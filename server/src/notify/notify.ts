@@ -28,13 +28,14 @@ export class Outbox {
     scopes.forEach((s) => this.changed.add(s));
   }
 
-  async flush() {
+  /** `silent`: уведомления только в ленту, без всплывающих окон (начальное наполнение базы). */
+  async flush(opts: { silent?: boolean } = {}) {
     if (this.changed.size) broadcast('changed', { scopes: [...this.changed] });
-    if (this.notices.length) await deliver(this.notices);
+    if (this.notices.length) await deliver(this.notices, opts.silent ?? false);
   }
 }
 
-async function deliver(notices: Notice[]) {
+async function deliver(notices: Notice[], silent: boolean) {
   const userIds = [...new Set(notices.map((n) => n.userId))];
   const users = await many<{
     id: number;
@@ -57,12 +58,16 @@ async function deliver(notices: Notice[]) {
     // Лента и колокольчик есть всегда: настройка notify_inapp отключает только всплывающие сообщения.
     const row = (
       await pool.query<NotificationItem>(
-        `INSERT INTO notifications (user_id, type, title, body, link) VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO notifications (user_id, type, title, body, link, toasted) VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id, type, title, body, link, is_read AS "isRead", created_at AS "createdAt"`,
-        [n.userId, n.type, n.title, n.body ?? null, n.link ?? null],
+        [n.userId, n.type, n.title, n.body ?? null, n.link ?? null, silent],
       )
     ).rows[0];
-    sendTo(n.userId, 'notification', { ...row, toast: u.notify_inapp });
+    if (!silent) {
+      // Если человека нет на сайте, окно ему не показано: при следующем входе его отдаст /notifications/missed
+      const live = sendTo(n.userId, 'notification', { ...row, toast: u.notify_inapp });
+      if (live > 0) await pool.query('UPDATE notifications SET toasted = true WHERE id = $1', [row.id]);
+    }
 
     const url = n.link ? `${config.publicUrl}${n.link}` : null;
     const message = { title: n.title, body: n.body, url };
