@@ -17,8 +17,11 @@ function write(res: Response, event: string, data: unknown) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
+/** Возвращает, скольким открытым вкладкам человека событие ушло. Ноль — его сейчас нет на сайте. */
 export function sendTo(userId: number, event: string, data: unknown) {
-  for (const res of subscribers.get(userId) ?? []) write(res, event, data);
+  const set = subscribers.get(userId);
+  for (const res of set ?? []) write(res, event, data);
+  return set?.size ?? 0;
 }
 
 /** Всем подключённым: «данные изменились, обновите списки». */

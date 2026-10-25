@@ -123,4 +123,4 @@ export function installPdfLinks() {
   });
 }
 
-export { demoEvents } from '../../../server/src/notify/hub';
+export { demoEvents, demoViewer } from '../../../server/src/notify/hub';

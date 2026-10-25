@@ -2,6 +2,7 @@
 declare module '@/demo/runtime' {
   export const DEMO_PASSWORD: string;
   export const demoEvents: EventTarget;
+  export const demoViewer: { userId: number | null };
   export function bootDemo(): Promise<void>;
   export function demoRequest<T>(method: string, url: string, body?: unknown): Promise<{ status: number; data: T }>;
   export function resetDemo(): Promise<void>;

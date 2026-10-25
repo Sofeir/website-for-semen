@@ -28,6 +28,30 @@ notificationsRouter.get(
   }),
 );
 
+/**
+ * Пропущенные всплывающие уведомления: непрочитанные, которые не успели показаться, пока человека не было на сайте.
+ * Отдаём один раз: сразу отмечаем показанными, чтобы вторая вкладка или повторный вход не показали их снова.
+ */
+notificationsRouter.get(
+  '/notifications/missed',
+  h(async (req, res) => {
+    const items = await many(
+      `WITH missed AS (
+         SELECT n.id FROM notifications n JOIN users u ON u.id = n.user_id
+          WHERE n.user_id = $1 AND u.notify_inapp AND NOT n.is_read AND NOT n.toasted
+            AND n.created_at > now() - interval '7 days'
+          ORDER BY n.created_at DESC LIMIT 20
+       )
+       UPDATE notifications n SET toasted = true FROM missed
+        WHERE n.id = missed.id
+       RETURNING n.id, n.type, n.title, n.body, n.link, n.is_read AS "isRead", n.created_at AS "createdAt"`,
+      [req.user!.id],
+    );
+    items.sort((a: any, b: any) => +new Date(a.createdAt) - +new Date(b.createdAt));
+    res.json({ items });
+  }),
+);
+
 notificationsRouter.post(
   '/notifications/read',
   h(async (req, res) => {

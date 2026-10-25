@@ -703,7 +703,7 @@ export async function seedDemo() {
 
   await seedCustomers();
 
-  await ob.flush();
+  await ob.flush({ silent: true });
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
