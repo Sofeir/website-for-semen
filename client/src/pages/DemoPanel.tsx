@@ -13,6 +13,7 @@ const ACCOUNTS = [
 /** Подсказка на экране входа демо-версии: чьим сотрудником войти и как стереть данные. */
 export function DemoPanel({ onPick }: { onPick: (login: string, password: string) => void }) {
   const [ready, setReady] = useState(false);
+  const [exportNote, setExportNote] = useState('');
   const confirm = useConfirm();
 
   useEffect(() => {
@@ -38,6 +39,26 @@ export function DemoPanel({ onPick }: { onPick: (login: string, password: string
         ))}
       </div>
       {!ready && <p className={s.demoWait}>Готовим демо-базу. При первом открытии это занимает около 20 секунд.</p>}
+      {ready && (
+        <button
+          type="button"
+          className={s.demoReset}
+          onClick={async () => {
+            setExportNote('Собираем файл…');
+            try {
+              const { downloadSqlExport } = await import('@/demo/exportData');
+              const counts = await downloadSqlExport();
+              const rows = Object.values(counts).reduce((a, b) => a + b, 0);
+              setExportNote(`Файл скачан. В нём ${rows} записей в ${Object.keys(counts).length} таблицах.`);
+            } catch (e) {
+              setExportNote(`Не получилось: ${(e as Error).message}`);
+            }
+          }}
+        >
+          Скачать все данные для переноса на сервер
+        </button>
+      )}
+      {exportNote && <p className={s.demoWait}>{exportNote}</p>}
       {ready && (
         <button
           type="button"
