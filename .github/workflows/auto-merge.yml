@@ -83,6 +83,13 @@ jobs:
           code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/api/auth/me)
           echo "API после пересоздания приложения: $code"
           [ "$code" = "401" ]
+          echo "--- адрес клиента берётся от Angie: подменить его заголовком нельзя"
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost/api/auth/login -H 'Content-Type: application/json' -H 'Origin: http://localhost' -H "X-Forwarded-For: 10.9.8.$i" -d '{"login":"nobody","password":"wrong-password"}')
+            echo "попытка $i: $code"
+          done
+          # шестая неудачная попытка с одного адреса блокируется, хотя в заголовке каждый раз новый адрес
+          [ "$code" = "429" ]
           echo "--- резервная копия"
           sudo bash deploy/backup.sh
           sudo ls -la /var/backups/servicedesk
