@@ -31,6 +31,8 @@ services:
     environment:
       NODE_ENV: production
       API_PORT: "8431"
+      # перед приложением ровно один прокси (Angie): от него берём настоящий адрес клиента
+      TRUST_PROXY: "1"
       DATABASE_URL: postgres://servicedesk:${DB_PASSWORD:?Задайте DB_PASSWORD в файле .env}@db:5432/servicedesk
       UPLOAD_DIR: /data/uploads
     volumes:

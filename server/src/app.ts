@@ -27,7 +27,7 @@ import { customersRouter } from './routes/customers';
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 'loopback');
+  app.set('trust proxy', config.trustProxy);
 
   app.use(
     helmet({

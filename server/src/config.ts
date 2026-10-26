@@ -43,4 +43,9 @@ export const config = {
   maxApiUrl: process.env.MAX_API_URL || 'https://platform-api.max.ru',
   timezone: process.env.APP_TIMEZONE || 'Asia/Yekaterinburg',
   clientDist: path.join(ROOT_DIR, 'client', 'dist'),
+  /**
+   * Каким прокси доверяем при определении IP клиента. По умолчанию только своему компьютеру (разработка).
+   * В Docker перед приложением стоит один прокси (Angie), там TRUST_PROXY=1. Число считает прокси от приложения.
+   */
+  trustProxy: /^\d+$/.test(process.env.TRUST_PROXY ?? '') ? Number(process.env.TRUST_PROXY) : process.env.TRUST_PROXY || 'loopback',
 };
