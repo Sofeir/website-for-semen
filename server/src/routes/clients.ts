@@ -22,7 +22,7 @@ import {
   runServicePlansSoon,
   SERVICE_PLAN_SELECT,
 } from '../services/servicePlans';
-import { assertActiveUser, visitChecklist } from '../services/tasks';
+import { assertActiveUser } from '../services/tasks';
 
 export const clientsRouter = Router();
 
@@ -186,14 +186,6 @@ clientsRouter.put(
     await tx((db) => replaceFleet(db, id, rows));
     broadcast('changed', { scopes: ['clients'] });
     res.json({ ok: true });
-  }),
-);
-
-/** Список работ на точке клиента: из него собирается чек-лист выезда. */
-clientsRouter.get(
-  '/clients/:id/service-checklist',
-  h(async (req, res) => {
-    res.json({ items: await visitChecklist(pool), isDefault: true });
   }),
 );
 

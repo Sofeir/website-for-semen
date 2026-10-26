@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   can,
+  clientDeviceSchema,
   deviceInfoSchema,
   deviceWorkSchema,
   INSPECTION_LABELS,
@@ -9,16 +10,41 @@ import {
   type Device,
   type DeviceWork,
   type Inspection,
+  type VisitDevice,
 } from '@sd/shared';
 import { many, one, pool, tx } from '../db/pool';
 import { forbidden, h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { broadcast } from '../notify/hub';
-import { assertClientWorksVisible, assertDeviceVisible, assertOrderVisible } from '../services/access';
+import { assertClientWorksVisible, assertDeviceVisible, assertOrderVisible, assertTaskVisible } from '../services/access';
 import { DEVICE_SELECT, DEVICE_TITLE, WORK_SELECT } from '../services/sql';
 import { assertActiveUser } from '../services/tasks';
 
 export const equipmentRouter = Router();
+
+/** Добавить технику в список клиента: компьютер или принтер, которые потом проверяют на выезде. */
+equipmentRouter.post(
+  '/clients/:id/devices',
+  requirePermission('clients.edit'),
+  h(async (req, res) => {
+    const clientId = intParam(req.params.id);
+    const input = parse(clientDeviceSchema, req.body);
+    if (!(await one('SELECT 1 FROM clients WHERE id = $1', [clientId]))) throw new HttpError(404, 'Клиент не найден');
+    const type = await one<{ name: string }>('SELECT name FROM device_types WHERE id = $1', [input.deviceTypeId]);
+    if (!type) throw new HttpError(400, 'Выберите тип техники');
+    if (input.inventoryNo) {
+      const dup = await one('SELECT 1 FROM devices WHERE client_id = $1 AND lower(inventory_no) = lower($2)', [clientId, input.inventoryNo]);
+      if (dup) throw new HttpError(409, 'Этот номер уже занят другой техникой клиента');
+    }
+    const row = await one<{ id: number }>(
+      `INSERT INTO devices (client_id, device_type_id, model_text, serial, inventory_no, location, host_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [clientId, input.deviceTypeId, input.modelText, input.serial, input.inventoryNo, input.location, input.hostName],
+    );
+    broadcast('changed', { scopes: ['clients'] });
+    res.status(201).json({ id: row!.id });
+  }),
+);
 
 /** Паспорт техники: своя нумерация, место, серийный номер. */
 equipmentRouter.put(
@@ -175,7 +201,7 @@ const INSPECTION_SELECT = `
   SELECT i.id, i.client_id AS "clientId", i.device_id AS "deviceId", i.kind, ${DEVICE_TITLE} AS "deviceTitle", dt.name AS "deviceType",
          d.inventory_no AS "inventoryNo", d.location, d.host_name AS "hostName", i.inspected_at AS "inspectedAt",
          i.performer_id AS "performerId", u.full_name AS "performerName", i.person_name AS "personName",
-         i.person_phone AS "personPhone", i.counter, i.note, i.items
+         i.person_phone AS "personPhone", i.counter, i.note, i.items, i.task_id AS "taskId"
     FROM device_inspections i
     JOIN devices d ON d.id = i.device_id
     JOIN device_types dt ON dt.id = d.device_type_id
@@ -196,35 +222,107 @@ equipmentRouter.get(
   }),
 );
 
+/** Задача-выезд, её клиент и открыта ли она. Клиент берётся из задачи или из её заявки. */
+async function visitTask(taskId: number) {
+  const t = await one<{ id: number; isVisit: boolean; status: string; clientId: number | null }>(
+    `SELECT t.id, t.is_visit AS "isVisit", t.status, coalesce(t.client_id, o.client_id) AS "clientId"
+       FROM tasks t LEFT JOIN orders o ON o.id = t.order_id WHERE t.id = $1`,
+    [taskId],
+  );
+  if (!t) throw new HttpError(404, 'Задача не найдена');
+  if (!t.isVisit || !t.clientId) throw new HttpError(400, 'Это не выезд к клиенту');
+  return t as { id: number; isVisit: boolean; status: string; clientId: number };
+}
+
+/**
+ * Техника клиента в выезде: у каждого компьютера и принтера свой бланк. Видна исполнителю и постановщику выезда
+ * (инженеру не нужны права на чужие заявки, чтобы проверить технику на своём выезде).
+ */
+equipmentRouter.get(
+  '/tasks/:id/visit-devices',
+  h(async (req, res) => {
+    const taskId = intParam(req.params.id);
+    await assertTaskVisible(req.user!, taskId);
+    const task = await visitTask(taskId);
+    const devices = await many<Device & { hostName?: string | null }>(
+      `${DEVICE_SELECT} WHERE d.client_id = $1 ORDER BY d.location NULLS LAST, d.inventory_no NULLS LAST, d.id`,
+      [task.clientId],
+    );
+    const hosts = new Map((await many<{ id: number; host: string | null }>('SELECT id, host_name AS host FROM devices WHERE client_id = $1', [task.clientId])).map((r) => [r.id, r.host]));
+    const inspections = await many<Inspection>(`${INSPECTION_SELECT} WHERE i.client_id = $1 ORDER BY i.inspected_at DESC, i.id DESC LIMIT 1000`, [task.clientId]);
+    const out: VisitDevice[] = [];
+    for (const d of devices) {
+      const kind = inspectionKindOf(d.deviceType);
+      if (!kind) continue;
+      const mine = inspections.filter((i) => i.deviceId === d.id);
+      out.push({
+        id: d.id,
+        title: d.title,
+        deviceType: d.deviceType,
+        kind,
+        inventoryNo: d.inventoryNo,
+        location: d.location,
+        hostName: hosts.get(d.id) ?? null,
+        previous: mine[0] ?? null,
+        current: mine.find((i) => i.taskId === taskId) ?? null,
+      });
+    }
+    res.json(out);
+  }),
+);
+
 const CLEANING = /очистк|чистк/i;
 
 equipmentRouter.post(
   '/inspections',
-  requirePermission('workspace.view'),
   h(async (req, res) => {
     const input = parse(inspectionSchema, req.body);
-    await assertDeviceVisible(req.user!, input.deviceId);
     const d = await one<{ client_id: number; type: string }>(
       `SELECT d.client_id, dt.name AS type FROM devices d JOIN device_types dt ON dt.id = d.device_type_id WHERE d.id = $1`,
       [input.deviceId],
     );
     if (!d) throw new HttpError(404, 'Техника не найдена');
+    if (input.taskId) {
+      // Проверка в рамках выезда: можно исполнителю выезда, техника должна быть этого же клиента
+      await assertTaskVisible(req.user!, input.taskId);
+      const task = await visitTask(input.taskId);
+      if (task.status !== 'open') throw new HttpError(409, 'Выезд закрыт. Верните его в работу, чтобы изменить проверку.');
+      if (task.clientId !== d.client_id) throw new HttpError(400, 'Эта техника не относится к клиенту выезда');
+    } else {
+      if (!can(req.user!.role, 'workspace.view')) throw forbidden();
+      await assertDeviceVisible(req.user!, input.deviceId);
+    }
     const kind = inspectionKindOf(d.type);
     if (!kind) throw new HttpError(400, 'Для этой техники чек-листа нет. Проверка есть у компьютеров, ноутбуков, принтеров и МФУ.');
     const counter = kind === 'printer' ? (input.counter ?? null) : null;
-    const done = input.items.filter((i) => i.done).length;
+    // пустые замечания не храним
+    const items = input.items.map((i) => ({ title: i.title, done: i.done, ...(i.comment?.trim() ? { comment: i.comment.trim() } : {}) }));
+    const done = items.filter((i) => i.done).length;
     const row = await tx(async (db) => {
       const r = await db.query(
-        `INSERT INTO device_inspections (client_id, device_id, kind, performer_id, person_name, person_phone, counter, note, items)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-        [d.client_id, input.deviceId, kind, req.user!.id, input.personName, input.personPhone, counter, input.note, JSON.stringify(input.items)],
+        `INSERT INTO device_inspections (client_id, device_id, kind, performer_id, person_name, person_phone, counter, note, items, task_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        [
+          d.client_id,
+          input.deviceId,
+          kind,
+          req.user!.id,
+          input.personName,
+          input.personPhone,
+          counter,
+          input.note,
+          JSON.stringify(items),
+          input.taskId ?? null,
+        ],
       );
       if (input.hostName) await db.query('UPDATE devices SET host_name = $2 WHERE id = $1', [input.deviceId, input.hostName]);
       // В журнал техники: сама проверка (с пробегом принтера) и отдельной строкой каждая отмеченная очистка.
-      const skipped = input.items.filter((i) => !i.done).map((i) => i.title);
+      const skipped = items.filter((i) => !i.done).map((i) => i.title);
+      const remarks = items.filter((i) => i.comment).map((i) => `${i.title}: ${i.comment}`);
       const summary = [
-        `Пройдено ${done} из ${input.items.length}`,
+        `Пройдено ${done} из ${items.length}`,
         skipped.length ? `не отмечено: ${skipped.join('; ')}` : null,
+        remarks.length ? `замечания: ${remarks.join('; ')}` : null,
         input.note,
       ]
         .filter(Boolean)
@@ -236,7 +334,7 @@ equipmentRouter.post(
           [d.client_id, input.deviceId, title, cnt, note, req.user!.id],
         );
       await insertWork(INSPECTION_LABELS[kind], summary, counter);
-      for (const it of input.items) if (it.done && CLEANING.test(it.title)) await insertWork(it.title, null, null);
+      for (const it of items) if (it.done && CLEANING.test(it.title)) await insertWork(it.title, it.comment ?? null, null);
       return r.rows[0] as { id: number };
     });
     broadcast('changed', { scopes: ['clients', 'orders'] });

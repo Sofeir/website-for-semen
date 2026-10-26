@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { taskSchema, type TaskDetail, type TaskInput } from '@sd/shared';
+import { inspectionKindOf, taskSchema, type TaskDetail, type TaskInput } from '@sd/shared';
 import { useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
-import { useInvalidate, useSettings, useTaskKinds } from '@/api/queries';
+import { useClientDevices, useInvalidate, useSettings, useTaskKinds } from '@/api/queries';
 import { defaultDueDate, startForDue } from '@/lib/dates';
 import { Button } from '@/ui/Button';
 import { ErrorBox } from '@/ui/Display';
@@ -21,15 +21,26 @@ interface Props {
   orderId?: number;
   clientId?: number;
   presetTitle?: string;
-  /** Чек-лист работ, например для выезда к клиенту. */
-  presetChecklist?: string[];
   /** Выезд к клиенту — задача попадёт в раздел «Выезды». */
   visit?: boolean;
 }
 
 /** Создание и правка задачи. Рабочее время ограничено настройкой (по умолчанию до 19:00). */
-export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTitle, presetChecklist, visit }: Props) {
+export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTitle, visit }: Props) {
   const [checklist, setChecklist] = useState<string[]>([]);
+  const clientDevices = useClientDevices(open && visit && !task ? (clientId ?? null) : null);
+  const visitPlaces = useMemo(() => {
+    const m = new Map<string, { pc: number; printer: number }>();
+    for (const d of clientDevices.data ?? []) {
+      const kind = inspectionKindOf(d.deviceType);
+      if (!kind) continue;
+      const key = d.location?.trim() || 'Без отдела';
+      const row = m.get(key) ?? { pc: 0, printer: 0 };
+      row[kind]++;
+      m.set(key, row);
+    }
+    return [...m.entries()];
+  }, [clientDevices.data]);
   const me = useMe();
   const settings = useSettings();
   const inv = useInvalidate();
@@ -39,7 +50,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
 
   useEffect(() => {
     if (!open) return;
-    setChecklist(task ? [] : (presetChecklist ?? []));
+    setChecklist([]);
     form.reset(
       task
         ? {
@@ -176,12 +187,18 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
           <Textarea {...form.register('description')} rows={4} />
         </Field>
         {!task && visit && (
-          <Field label="Чек-лист выезда" group hint="Единый для всех выездов, исполнитель отметит пункты на месте">
-            <ul className="stack" style={{ margin: 0, paddingLeft: '1.2em', gap: 4 }}>
-              {(presetChecklist ?? []).map((x) => (
-                <li key={x}>{x}</li>
-              ))}
-            </ul>
+          <Field label="Техника для проверки" group hint="Список появится в задаче. У каждого компьютера и принтера свой бланк, к любому пункту можно оставить комментарий.">
+            {visitPlaces.length ? (
+              <ul className="stack" style={{ margin: 0, paddingLeft: '1.2em', gap: 4 }}>
+                {visitPlaces.map(([place, n]) => (
+                  <li key={place}>
+                    <b>{place}</b>: {[n.pc && `ПК ${n.pc}`, n.printer && `МФУ ${n.printer}`].filter(Boolean).join(', ')}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <span className="muted">У клиента пока нет компьютеров и принтеров. Добавьте их в карточке клиента на вкладке «Выезд».</span>
+            )}
           </Field>
         )}
         {!task && !visit && (

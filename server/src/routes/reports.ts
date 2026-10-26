@@ -92,6 +92,7 @@ reportsRouter.get(
       `SELECT t.id, t.title, t.closed_at AS "closedAt", coalesce(uc.full_name, ua.full_name) AS "performerName",
               (SELECT count(*) FROM task_checklist_items ci WHERE ci.task_id = t.id AND ci.done)::int AS "checklistDone",
               (SELECT count(*) FROM task_checklist_items ci WHERE ci.task_id = t.id)::int AS "checklistTotal",
+              (SELECT count(DISTINCT x.device_id) FROM device_inspections x WHERE x.task_id = t.id)::int AS inspected,
               t.close_comment AS "closeComment"
          FROM tasks t
          LEFT JOIN orders o ON o.id = t.order_id

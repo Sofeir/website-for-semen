@@ -16,15 +16,16 @@ import {
   UserRound,
   Users,
 } from 'lucide-react';
-import { formatPhone, type Contact, type FleetRowDto } from '@sd/shared';
+import { formatPhone, inspectionKindOf, type Contact, type FleetRowDto } from '@sd/shared';
 import { useAuth } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
-import { useClient, useContacts, useInvalidate, useServiceChecklist } from '@/api/queries';
+import { useClient, useContacts, useInvalidate } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
 import { useDocumentTitle } from '@/lib/hooks';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
 import { ClientFormSheet } from '@/components/ClientFormSheet';
 import { ContactFormSheet, contactLine } from '@/components/ContactPicker';
+import { DeviceAddSheet } from '@/components/DeviceAddSheet';
 import { DeviceJournalSheet } from '@/components/DeviceJournalSheet';
 import { RefillSheet } from '@/components/RefillSheet';
 import { InspectionsCard } from '@/components/InspectionsCard';
@@ -55,16 +56,12 @@ export default function ClientPage() {
   const [taskId, setTaskId] = useState<number | null>(null);
   const [fleet, setFleet] = useState<FleetRowDto[]>([]);
   const [savingFleet, setSavingFleet] = useState(false);
-  const service = useServiceChecklist(id);
-  const [works, setWorks] = useState<string[]>([]);
   const [visit, setVisit] = useState(false);
+  const [addDevice, setAddDevice] = useState(false);
   const [journalFor, setJournalFor] = useState<number | null>(null);
   const [refillOpen, setRefillOpen] = useState(false);
   const people = useContacts(id, '', true);
   const [contactForm, setContactForm] = useState<{ open: boolean; contact: Contact | null }>({ open: false, contact: null });
-  useEffect(() => {
-    if (service.data) setWorks(service.data.items);
-  }, [service.data]);
   useDocumentTitle(c?.name ?? 'Клиент');
 
   useEffect(() => {
@@ -121,7 +118,7 @@ export default function ClientPage() {
   ];
   if (legal && can('clients.edit')) tabs.splice(2, 0, { value: 'people', label: 'Сотрудники', count: people.data?.length });
   if (legal) tabs.push({ value: 'fleet', label: 'Парк техники', count: totals.pc + totals.mfu });
-  tabs.push({ value: 'service', label: 'Выезд', count: service.data?.items.length });
+  tabs.push({ value: 'service', label: 'Выезд', count: c.devices.filter((d) => inspectionKindOf(d.deviceType)).length });
 
   return (
     <div>
@@ -365,22 +362,25 @@ export default function ClientPage() {
 
       {tab === 'service' && (
         <Card>
-          <CardHead title="Работы на выезде">
-            {can('tasks.create') && (
-              <Button size="sm" icon={<CalendarCheck size={16} aria-hidden />} onClick={() => setVisit(true)}>
-                Назначить выезд
-              </Button>
-            )}
+          <CardHead title="Выезд к клиенту">
+            <div className="row wrap">
+              {can('clients.edit') && (
+                <Button size="sm" variant="secondary" icon={<Plus size={16} aria-hidden />} onClick={() => setAddDevice(true)}>
+                  Добавить технику
+                </Button>
+              )}
+              {can('tasks.create') && (
+                <Button size="sm" icon={<CalendarCheck size={16} aria-hidden />} onClick={() => setVisit(true)}>
+                  Назначить выезд
+                </Button>
+              )}
+            </div>
           </CardHead>
-          <p className="muted" style={{ marginBottom: 'var(--s-4)' }}>
-            Единый список для всех выездов. При назначении выезда он становится чек-листом в задаче, и специалист отмечает пункты
-            на месте. Правится в «Настройки → Справочники → Работы на выезде».
+          <p className="muted" style={{ margin: 0 }}>
+            В задаче выезда специалист видит технику клиента по отделам: компьютеры и принтеры. Нажимает на устройство, проходит
+            его бланк и оставляет комментарии к пунктам. Устройство с галочками загорается зелёным, с замечанием жёлтым или красным.
+            Пункты бланков правятся в «Настройки → Справочники → Проверка ПК / Проверка МФУ».
           </p>
-          <ul className="stack" style={{ margin: 0, paddingLeft: '1.2em', gap: 4 }}>
-            {works.map((w) => (
-              <li key={w}>{w}</li>
-            ))}
-          </ul>
         </Card>
       )}
       {tab === 'service' && (
@@ -399,8 +399,13 @@ export default function ClientPage() {
         onClose={() => setVisit(false)}
         clientId={c.id}
         presetTitle={`Выезд: ${c.name}`}
-        presetChecklist={works.map((x) => x.trim()).filter(Boolean)}
         visit
+      />
+      <DeviceAddSheet
+        clientId={c.id}
+        open={addDevice}
+        onClose={() => setAddDevice(false)}
+        locations={[...new Set(c.devices.map((d) => d.location?.trim()).filter((x): x is string => Boolean(x)))]}
       />
       <ClientFormSheet open={editing} onClose={() => setEditing(false)} client={c} />
       <DeviceJournalSheet device={c.devices.find((d) => d.id === journalFor) ?? null} onClose={() => setJournalFor(null)} />

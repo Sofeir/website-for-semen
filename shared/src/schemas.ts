@@ -180,6 +180,17 @@ export const deviceInfoSchema = z.object({
 });
 export type DeviceInfoInput = z.infer<typeof deviceInfoSchema>;
 
+/** Новая единица техники в списке клиента (компьютер, принтер) без заявки на ремонт. */
+export const clientDeviceSchema = z.object({
+  deviceTypeId: id,
+  modelText: optionalText(150),
+  inventoryNo: optionalText(60),
+  location: optionalText(200),
+  hostName: optionalText(100),
+  serial: optionalText(100),
+});
+export type ClientDeviceInput = z.infer<typeof clientDeviceSchema>;
+
 export const deviceWorkSchema = z
   .object({
     clientId: optionalId,
@@ -224,8 +235,21 @@ export function inspectionKindOf(deviceType: string): InspectionKind | null {
   return null;
 }
 
+/** Состояние проверенной техники по её пунктам: ок, есть замечания, не сделано что-то с замечанием, проверена не до конца. */
+export type InspectionStatus = 'ok' | 'warn' | 'bad' | 'partial';
+
+export function inspectionStatus(items: { done: boolean; comment?: string | null }[]): InspectionStatus {
+  const remark = (i: { comment?: string | null }) => Boolean(i.comment?.trim());
+  if (items.some((i) => !i.done && remark(i))) return 'bad';
+  if (items.some(remark)) return 'warn';
+  if (items.some((i) => !i.done)) return 'partial';
+  return 'ok';
+}
+
 export const inspectionSchema = z.object({
   deviceId: id,
+  /** Выезд, в рамках которого проведена проверка. */
+  taskId: id.nullish(),
   hostName: optionalText(100),
   /** Сотрудник организации, за чьим устройством проводилась проверка. */
   personName: optionalText(150),
@@ -233,7 +257,7 @@ export const inspectionSchema = z.object({
   counter: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().int().min(0).max(100_000_000).nullable()).optional(),
   note: optionalText(1000),
   items: z
-    .array(z.object({ title: text(200).min(1), done: z.boolean() }))
+    .array(z.object({ title: text(200).min(1), done: z.boolean(), comment: z.string().trim().max(500).nullish() }))
     .max(50, 'Слишком много пунктов'),
 });
 export type InspectionInput = z.infer<typeof inspectionSchema>;

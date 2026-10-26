@@ -9,7 +9,7 @@ export const DEFAULT_WORK: WorkSettings = {
 };
 
 export const DEFAULT_COMPANY: CompanySettings = {
-  name: 'Северный Мост',
+  name: 'Асофт',
   legalName: '',
   inn: '',
   kpp: '',

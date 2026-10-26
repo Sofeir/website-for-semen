@@ -58,11 +58,6 @@ export async function normalizeDue(db: Db, iso: string | Date): Promise<Date> {
   return clampToWorkEnd(new Date(iso), ws);
 }
 
-/** Чек-лист выезда: один на все выезды, пункты из справочника «Работы на выезде». */
-export async function visitChecklist(db: Db): Promise<string[]> {
-  const std = await db.query(`SELECT name FROM checklist_items WHERE kind = 'visit' AND is_active ORDER BY sort, id`);
-  return std.rows.map((r) => r.name as string);
-}
 
 export async function createTask(
   db: Db,
@@ -100,8 +95,8 @@ export async function createTask(
     actor.id,
     due,
   ]);
-  // У выезда всегда единый чек-лист, что бы ни передали
-  const checklist = input.visit ? await visitChecklist(db) : (input.checklist ?? []).filter(Boolean);
+  // У выезда нет общего чек-листа: техника клиента проверяется по одной единице, у каждой свой бланк
+  const checklist = input.visit ? [] : (input.checklist ?? []).filter(Boolean);
   for (const [i, title] of checklist.entries()) {
     await db.query('INSERT INTO task_checklist_items (task_id, title, sort) VALUES ($1, $2, $3)', [row!.id, title, (i + 1) * 10]);
   }

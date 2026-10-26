@@ -61,7 +61,7 @@ export function ClientReportSheet({ clientId, month, onClose }: { clientId: numb
       for (const w of o.works) rows.push(['Работа по заявке', o.number, w.deviceTitle ?? o.deviceTitle, what(w), w.qty, w.amount ?? '', date(w.doneAt)]);
     }
     for (const v of r.visits) {
-      const list = v.checklistTotal ? `чек-лист ${v.checklistDone}/${v.checklistTotal}` : '';
+      const list = v.checklistTotal ? `чек-лист ${v.checklistDone}/${v.checklistTotal}` : v.inspected ? `проверено техники: ${v.inspected}` : '';
       rows.push(['Выезд', '', '', [v.title, v.performerName, list].filter(Boolean).join(', '), 1, '', date(v.closedAt)]);
     }
     for (const w of r.otherWorks) rows.push(['Прочая работа', w.orderNumber ?? '', w.deviceTitle ?? '', what(w), w.qty, w.amount ?? '', date(w.doneAt)]);
@@ -168,7 +168,7 @@ export function ClientReportSheet({ clientId, month, onClose }: { clientId: numb
                   <span className={s.what}>
                     {v.title}
                     <span className={s.sub}>
-                      {[fmtWhen(v.closedAt), v.performerName, v.checklistTotal > 0 && `чек-лист ${v.checklistDone} из ${v.checklistTotal}`, v.closeComment]
+                      {[fmtWhen(v.closedAt), v.performerName, v.checklistTotal > 0 && `чек-лист ${v.checklistDone} из ${v.checklistTotal}`, v.inspected > 0 && `проверено техники: ${v.inspected}`, v.closeComment]
                         .filter(Boolean)
                         .join(', ')}
                     </span>

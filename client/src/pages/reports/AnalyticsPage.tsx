@@ -254,6 +254,7 @@ function EngineerWorks({ userId, month, onClose }: { userId: number; month: stri
                   <span className={s.muted}>
                     {fmtWhen(v.closedAt)}
                     {v.checklistTotal > 0 ? `, чек-лист ${v.checklistDone}/${v.checklistTotal}` : ''}
+                    {v.inspected > 0 ? `, проверено техники: ${v.inspected}` : ''}
                   </span>
                   {v.clientId && v.clientName && (
                     <span className={s.muted}>

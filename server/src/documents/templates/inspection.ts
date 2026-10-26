@@ -12,7 +12,7 @@ export interface InspectionSheetData {
   personPhone: string | null;
   counter: number | null;
   note: string | null;
-  items: { title: string; done: boolean }[];
+  items: { title: string; done: boolean; comment?: string | null }[];
   performer: string | null;
   inspectedAt: string | null;
 }
@@ -73,7 +73,16 @@ function sheet(s: InspectionSheetData, i: number): Content {
   }
   const checks: Content = {
     margin: [0, 8, 0, 0],
-    stack: s.items.map((it) => ({ columns: [box(it.done), { text: it.title, style: 'value', margin: [4, 0, 0, 0] }], margin: [0, 2.5, 0, 2.5] })),
+    stack: s.items.map((it): any => ({
+      margin: [0, 2.5, 0, 2.5],
+      stack: [
+        { columns: [box(it.done), { text: it.title, style: 'value', margin: [4, 0, 0, 0] }] },
+        // замечание: красным, если пункт не сделан, и тёмно-жёлтым, если сделан с оговоркой
+        ...(it.comment
+          ? [{ text: `Замечание: ${it.comment}`, fontSize: 9, italics: true, color: it.done ? '#8a5000' : '#b42318', margin: [18, 1, 0, 0] }]
+          : []),
+      ],
+    })),
   };
   const extra: Content[] = [];
   if (printer) extra.push({ ...line('Пробег, стр.:', s.counter == null ? null : String(s.counter)), margin: [0, 8, 0, 0] });
