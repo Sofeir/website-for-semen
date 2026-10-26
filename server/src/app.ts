@@ -40,8 +40,13 @@ export function createApp() {
           connectSrc: ["'self'"],
           frameSrc: ["'self'"],
           objectSrc: ["'self'"],
+          // Просит браузер переписывать http-адреса на https. Без сертификата сайт тогда не открывается,
+          // поэтому включаем, только когда сервис работает по https (COOKIE_SECURE=true).
+          upgradeInsecureRequests: config.cookieSecure ? [] : null,
         },
       },
+      // То же для HSTS: он запоминает «этот сайт только по https»
+      hsts: config.cookieSecure,
       crossOriginEmbedderPolicy: false,
     }),
   );
