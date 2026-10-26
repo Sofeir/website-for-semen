@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRightLeft, Check, ClipboardCheck, Pencil, RotateCcw } from 'lucide-react';
+import { ArrowRightLeft, Check, Pencil, RotateCcw } from 'lucide-react';
 import { useAuth, useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
 import { useCloseTasks, useInvalidate, useSettings, useTask, useTransferTask } from '@/api/queries';
@@ -12,6 +12,7 @@ import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import { DueInput, UserSelect } from './Pickers';
 import { TaskFormSheet } from './TaskFormSheet';
+import { VisitDevices } from './VisitDevices';
 import s from './TaskSheet.module.css';
 
 type Mode = 'view' | 'close' | 'transfer';
@@ -231,9 +232,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                   ]}
                 />
                 {task.isVisit && task.clientId && (
-                  <Link to={`/clients/${task.clientId}?tab=service`} className={s.inspectLink} onClick={onClose}>
-                    <ClipboardCheck size={18} aria-hidden /> Проверка техники клиента: бланки ПК и МФУ
-                  </Link>
+                  <VisitDevices taskId={task.id} clientId={task.clientId} canEdit={canCheck} />
                 )}
                 {task.checklist.length > 0 && (
                   <section>

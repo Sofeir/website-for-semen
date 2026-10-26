@@ -3,38 +3,14 @@ import { pool } from '../src/db/pool';
 import { nextVisitDate, runServicePlans, ymd } from '../src/services/servicePlans';
 import { dict, inDays, loginAs, resetDb } from './helpers';
 
-describe('выезд к клиенту: чек-лист работ', () => {
+describe('выезд к клиенту', () => {
   beforeAll(resetDb);
   afterAll(() => pool.end());
 
-  const STANDARD = [
-  'Проверка состояния дисков',
-  'Проверка антивируса',
-  'Проверка активации продуктов Microsoft',
-  'Проверка наличия ошибок в системе',
-  'Проверка резервных копий',
-  'Проверка быстродействия системы',
-  'Очистка устройства от пыли',
-  'Проверка качества печати',
-  'Проверка состояния роликов подачи бумаги',
-  'Проверка состояния печки',
-  'Проверка состояния фотобарабана',
-  'Проверка остатка тонера',
-  'Проверка бункера отработанного тонера',
-  'Очистка устройства',
-  'Пробег',
-];
-
-  it('чек-лист выезда один на всех: пункты бланков проверки ПК и МФУ', async () => {
+  it('клиент для выездов заводится', async () => {
     const semen = await loginAs('semen');
     const c = await semen.post('/api/clients', { kind: 'legal', name: 'ООО Точка', contactPerson: 'Анна', phone: '+7 900 100-20-30' });
     expect(c.status).toBe(201);
-    const got = await semen.get(`/api/clients/${c.body.id}/service-checklist`);
-    expect(got.body.items).toEqual(STANDARD);
-    // свой список клиенту больше не задаётся
-    expect((await semen.put(`/api/clients/${c.body.id}/service-checklist`, { items: ['Свой'] })).status).toBe(404);
-    const lenya = await loginAs('lenya');
-    expect((await lenya.get(`/api/clients/${c.body.id}/service-checklist`)).status).toBe(200);
   });
 
   it('задача-выезд с чек-листом: исполнитель отмечает пункты, посторонний — нет', async () => {
@@ -101,7 +77,8 @@ describe('выезд к клиенту: чек-лист работ', () => {
     expect(taskId).toBeTruthy();
     const task = await lenya.get(`/api/tasks/${taskId}`);
     expect(task.body.title).toBe('Выезд: ООО Точка');
-    expect(task.body.checklist.map((x: { title: string }) => x.title)).toEqual(STANDARD);
+    // общего чек-листа у выезда нет: техника клиента проверяется по одной единице
+    expect(task.body.checklist).toEqual([]);
     expect(new Date(task.body.startAt).getHours()).toBe(11);
     expect(await runServicePlans()).toBe(0);
     const list = await semen.get('/api/visits');

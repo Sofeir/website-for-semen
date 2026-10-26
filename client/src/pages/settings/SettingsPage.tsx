@@ -71,7 +71,6 @@ function Dictionaries() {
     faults: dict.data.faults,
     appearance: dict.data.appearance,
     kit: dict.data.kit,
-    visit_works: dict.data.visitWorks,
     inspect_pc: dict.data.inspectPc,
     inspect_printer: dict.data.inspectPrinter,
     services: dict.data.services,

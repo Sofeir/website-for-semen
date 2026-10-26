@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CalendarCheck, CalendarPlus, Truck } from 'lucide-react';
 import { useAuth } from '@/app/auth';
-import { useServiceChecklist, useVisits } from '@/api/queries';
+import { useVisits } from '@/api/queries';
 import { useDocumentTitle } from '@/lib/hooks';
 import { ClientPickSheet, type PickedClient } from '@/components/ClientPickSheet';
 import { UserSelect } from '@/components/Pickers';
@@ -35,7 +35,6 @@ export default function VisitsPage() {
   const [picking, setPicking] = useState<Picking>(null);
   const [visitFor, setVisitFor] = useState<PickedClient | null>(null);
   const [planFor, setPlanFor] = useState<PickedClient | null>(null);
-  const works = useServiceChecklist(visitFor?.id ?? 0);
 
   const pick = (c: PickedClient) => {
     if (picking === 'visit') setVisitFor(c);
@@ -128,11 +127,10 @@ export default function VisitsPage() {
         title={picking === 'plan' ? 'График выездов: клиент' : 'Выезд: к какому клиенту'}
       />
       <TaskFormSheet
-        open={Boolean(visitFor) && !works.isLoading}
+        open={Boolean(visitFor)}
         onClose={() => setVisitFor(null)}
         clientId={visitFor?.id}
         presetTitle={visitFor ? `Выезд: ${visitFor.name}` : undefined}
-        presetChecklist={works.data?.items}
         visit
       />
       <Sheet open={Boolean(planFor)} onClose={() => setPlanFor(null)} title="График выездов" subtitle={planFor?.name} width={620}>

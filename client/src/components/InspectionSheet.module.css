@@ -6,25 +6,109 @@
   gap: var(--s-2);
 }
 
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm, 0.875rem);
+}
+
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: baseline;
+}
+
+.dot[data-state='ok'] {
+  background: var(--success);
+}
+
+.dot[data-state='warn'] {
+  background: var(--warning);
+}
+
+.dot[data-state='bad'] {
+  background: var(--danger);
+}
+
 .list {
   display: flex;
   flex-direction: column;
+  gap: var(--s-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.list li {
+/* Пункт: зелёный, если отмечен; жёлтый, если отмечен с замечанием; красный, если не сделан и есть замечание */
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md, 12px);
+  background: var(--surface);
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.item[data-state='ok'] {
+  background: var(--success-soft);
+  border-color: var(--success);
+}
+
+.item[data-state='warn'] {
+  background: var(--warning-soft);
+  border-color: var(--warning);
+}
+
+.item[data-state='bad'] {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+.row {
   display: flex;
   align-items: center;
-  min-height: 48px;
+  gap: var(--s-2);
+  min-height: 44px;
 }
 
-.list li + li {
-  border-top: 1px solid var(--border-soft);
+.row > label {
+  flex: 1;
+  min-width: 0;
 }
 
-.list li > label {
-  width: 100%;
-  padding: var(--s-2) 0;
+.commentBtn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--r-md, 12px);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.commentBtn[data-has='true'] {
+  color: var(--warning-text);
+}
+
+.commentBtn:focus-visible {
+  outline: 2px solid var(--focus, var(--blue-500, #2563eb));
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .commentBtn:hover {
+    background: rgba(0, 0, 0, 0.06);
+  }
 }

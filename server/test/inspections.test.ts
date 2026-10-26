@@ -116,12 +116,9 @@ describe('проверка техники на выезде', () => {
       clientId,
       startAt: new Date(Date.now() - 3_600_000).toISOString(),
       dueAt: day.toISOString(),
-      checklist: ['Проверить резервные копии', 'Почистить ПК'],
       visit: true,
     });
     expect(created.status).toBe(201);
-    const task = (await lenya.get(`/api/tasks/${created.body.id}`)).body;
-    await lenya.post(`/api/tasks/${created.body.id}/checklist/${task.checklist[0].id}`, { done: true }).catch(() => null);
     const closed = await lenya.post('/api/tasks/close', { ids: [created.body.id], comment: 'Всё проверил' });
     expect(closed.status).toBe(200);
 
@@ -133,7 +130,7 @@ describe('проверка техники на выезде', () => {
     const detail = (await semen.get(`/api/reports/client/${clientId}?month=${thisMonth()}`)).body;
     expect(detail.totals.visits).toBe(1);
     expect(detail.visits).toHaveLength(1);
-    expect(detail.visits[0]).toMatchObject({ title: 'Выезд: клиент', checklistTotal: 15, closeComment: 'Всё проверил' });
+    expect(detail.visits[0]).toMatchObject({ title: 'Выезд: клиент', checklistTotal: 0, inspected: 0, closeComment: 'Всё проверил' });
     expect(detail.visits[0].performerName).toContain('Катаев');
 
     const an = (await semen.get(`/api/analytics?month=${thisMonth()}`)).body;
@@ -144,21 +141,105 @@ describe('проверка техники на выезде', () => {
     expect(master.visits[0].clientId).toBe(clientId);
   });
 
-  it('у любого выезда единый чек-лист, даже если передали другой', async () => {
+  it('у выезда нет общего чек-листа, что бы ни передали', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
     const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-42');
     const clientId = (await semen.get(`/api/orders/${orderId}`)).body.clientId;
-    const url = `/api/clients/${clientId}/service-checklist`;
     const plan = { title: 'Выезд: клиент', assigneeId: users.lenya, clientId, startAt: new Date().toISOString(), dueAt: new Date(Date.now() + 3_600_000).toISOString(), visit: true };
-    const first = await semen.post('/api/tasks', plan);
+    const first = await semen.post('/api/tasks', { ...plan, checklist: ['Свой пункт'] });
     expect(first.status).toBe(201);
-    const std = (await semen.get(`/api/tasks/${first.body.id}`)).body.checklist.map((x: any) => x.title);
-    expect(std).toHaveLength(15);
-    expect(std[0]).toBe('Проверка состояния дисков');
-    expect(std[14]).toBe('Пробег');
-    expect((await semen.get(url)).body.items).toEqual(std);
-    const second = await semen.post('/api/tasks', { ...plan, checklist: ['Свой пункт'] });
-    expect((await semen.get(`/api/tasks/${second.body.id}`)).body.checklist.map((x: any) => x.title)).toEqual(std);
+    expect((await semen.get(`/api/tasks/${first.body.id}`)).body.checklist).toEqual([]);
+  });
+
+  it('выезд проверяет технику клиента по одной единице: свой бланк, замечания, доступ инженера', async () => {
+    const semen = await loginAs('semen');
+    const lenya = await loginAs('lenya');
+    const stas = await loginAs('stas');
+    const { users } = await dict();
+    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-43');
+    const order = (await semen.get(`/api/orders/${orderId}`)).body;
+    const clientId = order.clientId;
+    const printerType = (await pool.query(`SELECT id FROM device_types WHERE name = 'Принтеры/МФУ'`)).rows[0].id;
+    const printer = await semen.post(`/api/devices/${order.device.id}/components`, { deviceTypeId: printerType, modelText: 'Kyocera M2040dn', serial: 'VD1' });
+    expect(printer.status).toBe(201);
+    await semen.put(`/api/devices/${order.device.id}`, { inventoryNo: 'ПК-1', location: 'Столовая 1', serial: null, parentId: null });
+    await semen.put(`/api/devices/${printer.body.id}`, { inventoryNo: 'П-1', location: 'Столовая 1', serial: 'VD1', parentId: null });
+
+    const created = await semen.post('/api/tasks', {
+      title: 'Выезд: клиент',
+      assigneeId: users.lenya,
+      clientId,
+      startAt: new Date().toISOString(),
+      dueAt: new Date(Date.now() + 3_600_000).toISOString(),
+      visit: true,
+    });
+    expect(created.status).toBe(201);
+    const taskId = created.body.id;
+
+    // инженер без своих заявок на этого клиента видит технику выезда
+    const list = (await lenya.get(`/api/tasks/${taskId}/visit-devices`)).body;
+    expect(list.map((d: any) => d.kind).sort()).toEqual(['pc', 'printer']);
+    expect(list.every((d: any) => d.current === null)).toBe(true);
+    expect(list.find((d: any) => d.kind === 'pc')).toMatchObject({ inventoryNo: 'ПК-1', location: 'Столовая 1' });
+    // посторонний выезд не видит
+    expect((await stas.get(`/api/tasks/${taskId}/visit-devices`)).status).toBe(403);
+
+    const pcItems = [
+      { title: 'Проверка состояния дисков', done: true, comment: 'Диск в плохом состоянии, заменить' },
+      { title: 'Проверка антивируса', done: true },
+      { title: 'Проверка резервных копий', done: false, comment: 'Копии не настроены' },
+    ];
+    // инженер сохраняет проверку внутри выезда, хотя заявок по технике у него нет
+    const saved = await lenya.post('/api/inspections', { deviceId: order.device.id, taskId, items: pcItems, hostName: 'KASSA-1' });
+    expect(saved.status).toBe(201);
+    // а вне выезда чужую технику нельзя
+    expect((await lenya.post('/api/inspections', { deviceId: order.device.id, items: pcItems })).status).toBe(403);
+    // техника чужого клиента в этот выезд не попадает
+    const other = await intakeLaptop(semen, users.stas, '+7 900 000-00-44');
+    const otherDevice = (await semen.get(`/api/orders/${other}`)).body.device.id;
+    expect((await lenya.post('/api/inspections', { deviceId: otherDevice, taskId, items: pcItems })).status).toBe(400);
+
+    const after = (await lenya.get(`/api/tasks/${taskId}/visit-devices`)).body;
+    const pc = after.find((d: any) => d.kind === 'pc');
+    expect(pc.current.items[0]).toMatchObject({ comment: 'Диск в плохом состоянии, заменить' });
+    expect(pc.current.items[1].comment).toBeUndefined();
+    expect(after.find((d: any) => d.kind === 'printer').current).toBeNull();
+
+    // замечания попадают в журнал техники
+    const works = (await semen.get(`/api/devices/${order.device.id}/works`)).body;
+    expect(works.find((w: any) => w.title === 'Проверка ПК').note).toContain('замечания: Проверка состояния дисков: Диск в плохом состоянии, заменить');
+
+    const closed = await lenya.post('/api/tasks/close', { ids: [taskId], comment: 'Один ПК без копий' });
+    expect(closed.status).toBe(200);
+    const detail = (await semen.get(`/api/reports/client/${clientId}?month=${thisMonth()}`)).body;
+    expect(detail.visits.find((v: any) => v.id === taskId)).toMatchObject({ inspected: 1, checklistTotal: 0 });
+    // закрытый выезд не правится
+    expect((await lenya.post('/api/inspections', { deviceId: order.device.id, taskId, items: pcItems })).status).toBe(409);
+  });
+
+  it('технику клиента добавляет руководитель: номер и отдел, дубль номера не проходит, в выезде она появляется', async () => {
+    const semen = await loginAs('semen');
+    const lenya = await loginAs('lenya');
+    const { users } = await dict();
+    const c = await semen.post('/api/clients', { kind: 'legal', name: 'ООО Столовая', contactPerson: 'Ольга', phone: '+7 900 200-30-40' });
+    expect(c.status).toBe(201);
+    const pcType = (await pool.query(`SELECT id FROM device_types WHERE name = 'Компьютер'`)).rows[0].id;
+    const add = await semen.post(`/api/clients/${c.body.id}/devices`, { deviceTypeId: pcType, inventoryNo: 'ПК-2', location: 'Столовая 3', hostName: 'KASSA-3', modelText: 'Офисный ПК' });
+    expect(add.status).toBe(201);
+    expect((await semen.post(`/api/clients/${c.body.id}/devices`, { deviceTypeId: pcType, inventoryNo: 'пк-2' })).status).toBe(409);
+    expect((await lenya.post(`/api/clients/${c.body.id}/devices`, { deviceTypeId: pcType, inventoryNo: 'ПК-5' })).status).toBe(403);
+
+    const visit = await semen.post('/api/tasks', {
+      title: 'Выезд: ООО Столовая',
+      assigneeId: users.lenya,
+      clientId: c.body.id,
+      startAt: new Date().toISOString(),
+      dueAt: new Date(Date.now() + 3_600_000).toISOString(),
+      visit: true,
+    });
+    const list = (await lenya.get(`/api/tasks/${visit.body.id}/visit-devices`)).body;
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ kind: 'pc', inventoryNo: 'ПК-2', location: 'Столовая 3', hostName: 'KASSA-3' });
   });
 });

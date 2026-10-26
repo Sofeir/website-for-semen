@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import type {
   Inspection,
+  VisitDevice,
   Act,
   ActBrief,
   ActInput,
@@ -71,7 +72,7 @@ export const SCOPE_KEYS: Record<string, string[]> = {
   orders: ['orders', 'order', 'dashboard', 'customerOrders', 'customerOrder', 'deviceWorks', 'clientWorks', 'report'],
   tasks: ['tasks', 'task', 'dashboard', 'order', 'customerTasks', 'visits', 'taskKinds'],
   customers: ['customers'],
-  clients: ['clients', 'client', 'deviceWorks', 'clientWorks', 'report', 'clientDevices', 'clientInspections', 'serviceChecklist', 'servicePlan', 'servicePlans', 'visits'],
+  clients: ['clients', 'client', 'deviceWorks', 'clientWorks', 'report', 'clientDevices', 'clientInspections', 'visitDevices', 'servicePlan', 'servicePlans', 'visits'],
   dashboard: ['dashboard'],
   dictionaries: ['dictionaries'],
   acts: ['acts', 'act', 'order'],
@@ -271,11 +272,12 @@ export const useClientInspections = (clientId: number) =>
     enabled: clientId > 0,
   });
 
-export const useServiceChecklist = (clientId: number) =>
+/** Техника клиента в выезде: у каждого компьютера и принтера свой бланк проверки. */
+export const useVisitDevices = (taskId: number | null) =>
   useQuery({
-    queryKey: ['serviceChecklist', clientId],
-    queryFn: () => api.get<{ items: string[]; isDefault: boolean }>(`/clients/${clientId}/service-checklist`),
-    enabled: clientId > 0,
+    queryKey: ['visitDevices', taskId],
+    queryFn: () => api.get<VisitDevice[]>(`/tasks/${taskId}/visit-devices`),
+    enabled: Boolean(taskId),
   });
 
 export const useServicePlan = (clientId: number) =>

@@ -356,7 +356,24 @@ export interface Inspection {
   personPhone: string | null;
   counter: number | null;
   note: string | null;
-  items: { title: string; done: boolean }[];
+  /** Выезд, при котором проводилась проверка. */
+  taskId: number | null;
+  items: { title: string; done: boolean; comment?: string | null }[];
+}
+
+/** Техника клиента в выезде: бланк проверки, прошлая проверка и проверка в этом выезде. */
+export interface VisitDevice {
+  id: number;
+  title: string;
+  deviceType: string;
+  kind: 'pc' | 'printer';
+  inventoryNo: string | null;
+  location: string | null;
+  hostName: string | null;
+  /** Последняя проверка этой техники (в любом выезде): из неё подставляем сотрудника и имя ПК. */
+  previous: Inspection | null;
+  /** Проверка в этом выезде. */
+  current: Inspection | null;
 }
 
 export interface Dictionaries {
@@ -462,6 +479,8 @@ export interface ClientReportVisit {
   performerName: string | null;
   checklistDone: number;
   checklistTotal: number;
+  /** Сколько единиц техники проверили в этом выезде. */
+  inspected: number;
   closeComment: string | null;
 }
 
@@ -580,6 +599,7 @@ export interface AnalyticsMasterVisit {
   clientName: string | null;
   checklistDone: number;
   checklistTotal: number;
+  inspected: number;
 }
 
 export interface AnalyticsMasterDetail {

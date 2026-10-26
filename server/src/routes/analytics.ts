@@ -188,7 +188,8 @@ analyticsRouter.get(
     const visits = await many<AnalyticsMasterVisit>(
       `SELECT t.id, t.title, t.closed_at AS "closedAt", c.id AS "clientId", c.name AS "clientName",
               (SELECT count(*) FROM task_checklist_items ci WHERE ci.task_id = t.id AND ci.done)::int AS "checklistDone",
-              (SELECT count(*) FROM task_checklist_items ci WHERE ci.task_id = t.id)::int AS "checklistTotal"
+              (SELECT count(*) FROM task_checklist_items ci WHERE ci.task_id = t.id)::int AS "checklistTotal",
+              (SELECT count(DISTINCT x.device_id) FROM device_inspections x WHERE x.task_id = t.id)::int AS inspected
          FROM tasks t
          LEFT JOIN orders o ON o.id = t.order_id
          LEFT JOIN clients c ON c.id = coalesce(t.client_id, o.client_id)
