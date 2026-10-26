@@ -2,7 +2,7 @@
 # Автообновление: если в main на GitHub появились изменения, пересобирает и перезапускает контейнеры.
 # Запускается по расписанию (cron) раз в минуту от root. Данные не затрагиваются: база в PostgreSQL, вложения в /var/lib/servicedesk/uploads.
 set -e
-cd /opt/servicedesk
+cd "$(dirname "$(readlink -f "$0")")/.."
 git fetch -q origin main
 if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
   git merge -q --ff-only origin/main
