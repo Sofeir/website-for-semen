@@ -38,11 +38,24 @@ function demoSwap(): Plugin {
   };
 }
 
+/** В обычной сборке демо-модули (серверный код в браузере) не нужны: подставляем заглушку, чтобы они не попали в бандл. */
+function demoStub(): Plugin {
+  const stub = path.join(demoDir, 'prod-stub.ts');
+  return {
+    name: 'demo-stub',
+    enforce: 'pre',
+    resolveId(source, importer) {
+      if (!importer || !/(^|\/)demo\/(runtime|exportData)$/.test(source)) return null;
+      return stub.replace(/\\/g, '/');
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const demo = mode === 'demo';
   return {
     base: demo ? '/website-for-semen/' : '/',
-    plugins: [...(demo ? [demoSwap()] : []), react()],
+    plugins: [...(demo ? [demoSwap()] : [demoStub()]), react()],
     define: demo ? { 'import.meta.env.VITE_DEMO': JSON.stringify('1') } : {},
     resolve: {
       alias: {

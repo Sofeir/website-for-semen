@@ -1,0 +1,25 @@
+# Приложение и nginx. PostgreSQL остаётся на самом сервере, поэтому оба контейнера работают в сети сервера:
+# в .env база указана как localhost, ничего дополнительно открывать в PostgreSQL не нужно.
+services:
+  app:
+    build: .
+    image: servicedesk-app
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - /var/lib/servicedesk/uploads:/data/uploads
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - app
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # для https (см. УСТАНОВКА-НА-СЕРВЕР.md, раздел про https): сертификат лежит на сервере в /etc/servicedesk-ssl
+      - /etc/servicedesk-ssl:/etc/ssl/servicedesk:ro

@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+client/dist
+client/dist-demo
+uploads
+.git
+.github
+.env
+.env.*
+staff.local.json
+staff.passwords.local.txt
+e2e
+test-results
+playwright-report
+*.log
+*.docx

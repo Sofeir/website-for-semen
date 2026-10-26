@@ -43,6 +43,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build:demo
+      # обычная сборка нужна для установки на сервер (Docker): без проверки она может незаметно сломаться
+      - run: npm run build
       - name: Серверные тесты
         env:
           TEST_DATABASE_URL: postgres://postgres@localhost:5432/servicedesk_test
