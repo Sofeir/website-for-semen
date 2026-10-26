@@ -242,4 +242,30 @@ describe('проверка техники на выезде', () => {
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ kind: 'pc', inventoryNo: 'ПК-2', location: 'Столовая 3', hostName: 'KASSA-3' });
   });
+
+  it('выезд не открывает чужого клиента: свой выезд у инженера и прежний исполнитель доступа не получают', async () => {
+    const semen = await loginAs('semen');
+    const lenya = await loginAs('lenya');
+    const stas = await loginAs('stas');
+    const { users } = await dict();
+    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-45');
+    const order = (await semen.get(`/api/orders/${orderId}`)).body;
+    const when = { startAt: new Date().toISOString(), dueAt: new Date(Date.now() + 3_600_000).toISOString() };
+    const items = [{ title: 'Проверка антивируса', done: true }];
+
+    // инженер сам себе ставит «выезд» к клиенту, с которым не работает: ни список техники, ни проверка недоступны
+    const own = await lenya.post('/api/tasks', { title: 'Выезд', assigneeId: users.lenya, clientId: order.clientId, visit: true, ...when });
+    expect(own.status).toBe(201);
+    expect((await lenya.get(`/api/tasks/${own.body.id}/visit-devices`)).status).toBe(403);
+    expect((await lenya.post('/api/inspections', { deviceId: order.device.id, taskId: own.body.id, items })).status).toBe(403);
+
+    // выезд поставил руководитель: исполнитель работает, а после передачи прежний исполнитель доступ теряет
+    const given = await semen.post('/api/tasks', { title: 'Выезд', assigneeId: users.lenya, clientId: order.clientId, visit: true, ...when });
+    expect((await lenya.get(`/api/tasks/${given.body.id}/visit-devices`)).status).toBe(200);
+    const moved = await lenya.post(`/api/tasks/${given.body.id}/transfer`, { assigneeId: users.stas, dueAt: when.dueAt, comment: 'Передаю коллеге' });
+    expect(moved.status).toBe(200);
+    expect((await lenya.get(`/api/tasks/${given.body.id}/visit-devices`)).status).toBe(403);
+    expect((await lenya.post('/api/inspections', { deviceId: order.device.id, taskId: given.body.id, items })).status).toBe(403);
+    expect((await stas.get(`/api/tasks/${given.body.id}/visit-devices`)).status).toBe(200);
+  });
 });

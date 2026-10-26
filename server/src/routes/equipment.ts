@@ -16,7 +16,7 @@ import { many, one, pool, tx } from '../db/pool';
 import { forbidden, h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { broadcast } from '../notify/hub';
-import { assertClientWorksVisible, assertDeviceVisible, assertOrderVisible, assertTaskVisible } from '../services/access';
+import { assertClientWorksVisible, assertDeviceVisible, assertOrderVisible } from '../services/access';
 import { DEVICE_SELECT, DEVICE_TITLE, WORK_SELECT } from '../services/sql';
 import { assertActiveUser } from '../services/tasks';
 
@@ -222,16 +222,40 @@ equipmentRouter.get(
   }),
 );
 
-/** Задача-выезд, её клиент и открыта ли она. Клиент берётся из задачи или из её заявки. */
+/** Задача-выезд, её клиент, исполнитель и роль постановщика. Клиент берётся из задачи или из её заявки. */
 async function visitTask(taskId: number) {
-  const t = await one<{ id: number; isVisit: boolean; status: string; clientId: number | null }>(
-    `SELECT t.id, t.is_visit AS "isVisit", t.status, coalesce(t.client_id, o.client_id) AS "clientId"
-       FROM tasks t LEFT JOIN orders o ON o.id = t.order_id WHERE t.id = $1`,
+  const t = await one<{
+    id: number;
+    isVisit: boolean;
+    status: string;
+    clientId: number | null;
+    assigneeId: number;
+    creatorRole: string | null;
+  }>(
+    `SELECT t.id, t.is_visit AS "isVisit", t.status, coalesce(t.client_id, o.client_id) AS "clientId",
+            t.assignee_id AS "assigneeId", cr.role AS "creatorRole"
+       FROM tasks t
+       LEFT JOIN orders o ON o.id = t.order_id
+       LEFT JOIN users cr ON cr.id = t.creator_id
+      WHERE t.id = $1`,
     [taskId],
   );
   if (!t) throw new HttpError(404, 'Задача не найдена');
   if (!t.isVisit || !t.clientId) throw new HttpError(400, 'Это не выезд к клиенту');
-  return t as { id: number; isVisit: boolean; status: string; clientId: number };
+  return t as typeof t & { clientId: number };
+}
+
+/**
+ * Кто работает с техникой выезда: руководитель и администратор, а также нынешний исполнитель.
+ * Выезд сам по себе не даёт доступа к чужому клиенту: если его поставил сотрудник без прав видеть всех клиентов
+ * (например, инженер поставил выезд самому себе), исполнителю нужен обычный доступ к клиенту.
+ * Прежние участники цепочки передачи доступ теряют.
+ */
+async function assertVisitAccess(actor: { id: number; role: string }, task: Awaited<ReturnType<typeof visitTask>>) {
+  if (can(actor.role as never, 'orders.viewAll') || can(actor.role as never, 'tasks.manageAll')) return;
+  if (task.assigneeId !== actor.id) throw forbidden('Выезд ведёт другой сотрудник');
+  if (task.creatorRole && can(task.creatorRole as never, 'orders.viewAll')) return;
+  await assertClientWorksVisible(actor as never, task.clientId);
 }
 
 /**
@@ -242,8 +266,8 @@ equipmentRouter.get(
   '/tasks/:id/visit-devices',
   h(async (req, res) => {
     const taskId = intParam(req.params.id);
-    await assertTaskVisible(req.user!, taskId);
     const task = await visitTask(taskId);
+    await assertVisitAccess(req.user!, task);
     const devices = await many<Device & { hostName?: string | null }>(
       `${DEVICE_SELECT} WHERE d.client_id = $1 ORDER BY d.location NULLS LAST, d.inventory_no NULLS LAST, d.id`,
       [task.clientId],
@@ -284,8 +308,8 @@ equipmentRouter.post(
     if (!d) throw new HttpError(404, 'Техника не найдена');
     if (input.taskId) {
       // Проверка в рамках выезда: можно исполнителю выезда, техника должна быть этого же клиента
-      await assertTaskVisible(req.user!, input.taskId);
       const task = await visitTask(input.taskId);
+      await assertVisitAccess(req.user!, task);
       if (task.status !== 'open') throw new HttpError(409, 'Выезд закрыт. Верните его в работу, чтобы изменить проверку.');
       if (task.clientId !== d.client_id) throw new HttpError(400, 'Эта техника не относится к клиенту выезда');
     } else {
