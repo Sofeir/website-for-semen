@@ -85,7 +85,10 @@ jobs:
           [ "$code" = "401" ]
           echo "--- резервная копия"
           sudo bash deploy/backup.sh
-          ls -la /var/backups/servicedesk
+          sudo ls -la /var/backups/servicedesk
+          # копии содержат персональные данные: папка только для владельца, файлы без доступа остальным
+          [ "$(sudo stat -c %a /var/backups/servicedesk)" = "700" ]
+          [ -z "$(sudo find /var/backups/servicedesk -type f -perm /077)" ]
       - name: Docker, журналы при сбое
         if: failure()
         run: docker compose logs --tail 80
