@@ -122,7 +122,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: #d6f0ff;
+  background: #d4e3f7;
   box-shadow:
     0 0 0 1px var(--notice-border),
     var(--shadow-sm);
