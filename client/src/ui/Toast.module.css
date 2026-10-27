@@ -24,7 +24,7 @@
   display: flex;
   align-items: flex-start;
   gap: var(--s-3);
-  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3);
+  padding: var(--s-3) var(--s-2) var(--s-3) var(--s-4);
   border-radius: var(--r-md);
   /* насыщенно-голубая плашка: белая сливалась со страницей, тёмная была слишком тяжёлой */
   background: var(--notice-bg);
@@ -61,10 +61,6 @@
   gap: 2px;
   text-align: left;
   cursor: pointer;
-  /* текст лежит на белой карточке, как в списке уведомлений */
-  padding: var(--s-2) var(--s-3);
-  border-radius: var(--r-sm);
-  background: var(--notice-card);
 }
 
 .content:disabled {
