@@ -26,12 +26,12 @@
   gap: var(--s-3);
   padding: var(--s-3) var(--s-2) var(--s-3) var(--s-4);
   border-radius: var(--r-md);
-  /* тёмная плашка: светлый фон сливался бы со страницей */
-  background: var(--ink-900);
+  /* голубая плашка: белая сливалась со страницей, тёмная была слишком тяжёлой */
+  background: var(--blue-200);
   box-shadow:
     var(--shadow-md),
-    inset 0 0 0 1px var(--ink-700);
-  color: var(--white);
+    inset 0 0 0 1px var(--blue-300);
+  color: var(--text);
 }
 
 .icon {
@@ -42,15 +42,15 @@
 }
 
 .success .icon {
-  color: var(--teal-300);
+  color: var(--teal-700);
 }
 
 .error .icon {
-  color: #ff948b;
+  color: var(--red-700);
 }
 
 .info .icon {
-  color: var(--blue-300);
+  color: var(--blue-700);
 }
 
 .content {
@@ -75,7 +75,7 @@
 
 .body {
   font-size: var(--fs-sm);
-  color: var(--ink-200);
+  color: var(--ink-800);
   white-space: pre-line;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -90,7 +90,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  color: var(--ink-300);
+  color: var(--ink-700);
 }
 
 .close svg {
@@ -100,7 +100,7 @@
 
 @media (hover: hover) {
   .close:hover {
-    background: var(--ink-800);
+    background: rgba(11, 42, 74, 0.1);
   }
 }
 
@@ -122,9 +122,9 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: var(--ink-800);
+  background: var(--blue-100);
   box-shadow:
-    0 0 0 1px var(--ink-700),
+    0 0 0 1px var(--blue-300),
     var(--shadow-sm);
 }
 
