@@ -3,6 +3,7 @@ import { createApp } from './app';
 import { migrate } from './db/migrate';
 import { pool } from './db/pool';
 import { channels } from './notify/channels';
+import { startMaxBot } from './notify/maxBot';
 import { runServicePlansSoon } from './services/servicePlans';
 import { notifyOverdueSoon } from './services/overdue';
 
@@ -18,6 +19,7 @@ async function main() {
     const enabled = channels.filter((c) => c.isEnabled()).map((c) => c.label);
     console.log(`API: http://localhost:${config.port}  (внешние уведомления: ${enabled.join(', ') || 'выключены'})`);
   });
+  startMaxBot();
 }
 
 main().catch(async (e) => {
