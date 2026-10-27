@@ -38,7 +38,7 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--s-2);
 }
 
 .item {
@@ -48,11 +48,12 @@
   padding: var(--s-3);
   border-radius: var(--r-md);
   text-align: left;
+  background: var(--notice-card);
 }
 
 @media (hover: hover) {
   .item:hover {
-    background: rgba(255, 255, 255, 0.4);
+    background: var(--notice-card-hover);
   }
 }
 
