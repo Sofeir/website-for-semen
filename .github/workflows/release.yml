@@ -1,0 +1,35 @@
+# Выкладка на сервер только вручную. Сервер следит за веткой release (deploy/update.sh) и обновляется, когда она сдвинулась.
+# Запуск: GitHub → Actions → «Выложить на сервер» → Run workflow. По умолчанию выкладывается текущий main.
+# Можно указать другой коммит или ветку: так же делается откат на прежнюю версию.
+name: Выложить на сервер
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Что выложить: ветка или коммит (по умолчанию main)'
+        required: false
+        default: main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Сдвинуть release
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          sha=$(git rev-parse --verify "origin/$REF^{commit}" 2>/dev/null || git rev-parse --verify "$REF^{commit}")
+          echo "Выкладываем $sha"
+          git push --force origin "$sha:refs/heads/release"
+          echo "### На сервер уйдёт ${sha:0:7}" >> "$GITHUB_STEP_SUMMARY"
