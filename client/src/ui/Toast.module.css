@@ -26,11 +26,11 @@
   gap: var(--s-3);
   padding: var(--s-3) var(--s-2) var(--s-3) var(--s-4);
   border-radius: var(--r-md);
-  /* голубая плашка: белая сливалась со страницей, тёмная была слишком тяжёлой */
-  background: var(--blue-200);
+  /* насыщенно-голубая плашка: белая сливалась со страницей, тёмная была слишком тяжёлой */
+  background: var(--blue-300);
   box-shadow:
     var(--shadow-md),
-    inset 0 0 0 1px var(--blue-300);
+    inset 0 0 0 1px #5f9be6;
   color: var(--text);
 }
 
@@ -42,7 +42,7 @@
 }
 
 .success .icon {
-  color: var(--teal-700);
+  color: var(--teal-800);
 }
 
 .error .icon {
@@ -50,7 +50,7 @@
 }
 
 .info .icon {
-  color: var(--blue-700);
+  color: var(--blue-800);
 }
 
 .content {
@@ -75,7 +75,7 @@
 
 .body {
   font-size: var(--fs-sm);
-  color: var(--ink-800);
+  color: var(--ink-900);
   white-space: pre-line;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -100,7 +100,7 @@
 
 @media (hover: hover) {
   .close:hover {
-    background: rgba(11, 42, 74, 0.1);
+    background: rgba(255, 255, 255, 0.4);
   }
 }
 
@@ -122,9 +122,9 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: var(--blue-100);
+  background: var(--blue-200);
   box-shadow:
-    0 0 0 1px var(--blue-300),
+    0 0 0 1px #5f9be6,
     var(--shadow-sm);
 }
 

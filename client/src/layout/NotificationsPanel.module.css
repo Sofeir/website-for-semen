@@ -8,10 +8,10 @@
   flex-direction: column;
   border-radius: var(--r-lg);
   /* голубой фон, чтобы список не сливался с белыми карточками страницы */
-  background: var(--blue-100);
+  background: var(--blue-300);
   box-shadow:
     var(--shadow-lg),
-    inset 0 0 0 1px var(--blue-300);
+    inset 0 0 0 1px #5f9be6;
   z-index: var(--z-overlay);
   overflow: hidden;
 }
@@ -52,7 +52,7 @@
 
 @media (hover: hover) {
   .item:hover {
-    background: rgba(31, 122, 240, 0.12);
+    background: rgba(255, 255, 255, 0.4);
   }
 }
 
@@ -66,7 +66,12 @@
 }
 
 .unread .dot {
-  background: var(--blue-600);
+  background: var(--blue-800);
+}
+
+/* «Прочитать все» на голубом фоне: обычный синий читался бы плохо */
+.popover .head button {
+  color: var(--blue-800);
 }
 
 .unread .title {
@@ -89,13 +94,13 @@
 
 .body {
   font-size: var(--fs-sm);
-  color: var(--text-2);
+  color: var(--ink-900);
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
 
 .time {
   font-size: var(--fs-xs);
-  color: var(--ink-600);
+  color: var(--ink-800);
   margin-top: 2px;
 }
