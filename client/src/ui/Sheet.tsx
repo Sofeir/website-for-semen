@@ -16,13 +16,15 @@ interface SheetProps {
   width?: number;
   /** На телефоне — лист на весь экран (для длинных форм). */
   full?: boolean;
+  /** Фон окна не белый, а бледно-голубой (список уведомлений). */
+  soft?: boolean;
 }
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** Модальное окно: по центру на компьютере, лист снизу на телефоне. */
-export function Sheet({ open, onClose, title, subtitle, children, footer, width = 560, full }: SheetProps) {
+export function Sheet({ open, onClose, title, subtitle, children, footer, width = 560, full, soft }: SheetProps) {
   const mobile = useIsMobile();
   const reduced = useReducedMotion();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -88,7 +90,7 @@ export function Sheet({ open, onClose, title, subtitle, children, footer, width 
             aria-modal="true"
             aria-label={typeof title === 'string' ? title : undefined}
             tabIndex={-1}
-            className={cx(s.panel, full && s.full)}
+            className={cx(s.panel, full && s.full, soft && s.soft)}
             style={{ ['--sheet-w' as string]: `${width}px` }}
             initial={{ opacity: mobile ? 1 : 0, ...offset }}
             animate={{ opacity: 1, y: 0, scale: 1 }}

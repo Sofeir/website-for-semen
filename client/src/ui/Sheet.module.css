@@ -21,6 +21,10 @@
   outline: none;
 }
 
+.soft {
+  background: var(--sheet-soft);
+}
+
 .full {
   height: calc(100dvh - 12px - env(safe-area-inset-top));
 }
