@@ -40,7 +40,13 @@
   /* место под полосу прокрутки резервируется с обеих сторон, поля слева и справа одинаковые */
   scrollbar-gutter: stable both-edges;
   overscroll-behavior: contain;
+  scrollbar-color: rgba(255, 255, 255, 0.6) transparent;
   padding: 0 var(--s-2) var(--s-2);
+}
+
+.scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: transparent;
 }
 
 .list {
@@ -60,15 +66,20 @@
 }
 
 .popover .item,
-.sheetList .item {
+.sheet .item {
   background: var(--notice-card);
 }
 
-/* на телефоне список открывается окном снизу: тот же синий фон с белыми карточками */
-.sheetList {
-  padding: var(--s-2);
-  border-radius: var(--r-md);
-  background: var(--notice-bg);
+/* на телефоне список открывается окном снизу: окно синее само (Sheet soft), карточки лежат прямо на нём */
+.sheet .head {
+  padding: 0 var(--s-2) var(--s-1) 0;
+  min-height: 0;
+}
+
+/* значок «Прочитать все» встаёт ровно под слово «Уведомления» */
+.sheet .head button {
+  color: var(--white);
+  margin-left: calc(var(--s-1) * -1);
 }
 
 @media (hover: hover) {
@@ -77,7 +88,7 @@
   }
 
   .popover .item:hover,
-  .sheetList .item:hover {
+  .sheet .item:hover {
     background: var(--notice-card-hover);
   }
 }

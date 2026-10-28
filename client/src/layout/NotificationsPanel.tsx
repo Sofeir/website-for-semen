@@ -83,9 +83,9 @@ export function NotificationsPanel({ variant, onClose }: { variant: 'popover' | 
 
   if (variant === 'sheet') {
     return (
-      <div>
+      <div className={s.sheet}>
         {head}
-        <div className={q.data?.items.length ? s.sheetList : undefined}>{body}</div>
+        {body}
       </div>
     );
   }
