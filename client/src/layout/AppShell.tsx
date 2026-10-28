@@ -197,7 +197,7 @@ export function AppShell() {
       </Sheet>
 
       {mobile && (
-        <Sheet open={bellOpen} onClose={() => setBellOpen(false)} title="Уведомления" full>
+        <Sheet open={bellOpen} onClose={() => setBellOpen(false)} title="Уведомления" full soft>
           <NotificationsPanel variant="sheet" onClose={() => setBellOpen(false)} />
         </Sheet>
       )}
