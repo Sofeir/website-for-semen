@@ -46,10 +46,20 @@ export async function redeemLinkCode(code: string, maxUserId: number): Promise<{
       )
     ).rows[0];
     if (!hit) return null;
-    await db.query('UPDATE users SET max_user_id = NULL, notify_max = false WHERE max_user_id = $1 AND id <> $2', [
-      String(maxUserId),
-      hit.userId,
-    ]);
+    // Привязать чужой аккаунт Max может только его владелец (код приходит из этого аккаунта).
+    // Прежнему владельцу привязки об этом сообщаем, чтобы переход не прошёл незаметно.
+    const taken = (
+      await db.query<{ id: number }>(
+        'UPDATE users SET max_user_id = NULL, notify_max = false WHERE max_user_id = $1 AND id <> $2 RETURNING id',
+        [String(maxUserId), hit.userId],
+      )
+    ).rows;
+    for (const t of taken) {
+      await db.query(
+        `INSERT INTO notifications (user_id, type, title, body) VALUES ($1, 'max_unlinked', 'Max отключён от вашего профиля', $2)`,
+        [t.id, 'Этот аккаунт Max подключили к другому сотруднику. Если это ошибка, нажмите «Подключить Max» в профиле ещё раз.'],
+      );
+    }
     const u = (
       await db.query<{ fullName: string }>(
         'UPDATE users SET max_user_id = $2, notify_max = true WHERE id = $1 RETURNING full_name AS "fullName"',

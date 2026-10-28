@@ -76,6 +76,10 @@ describe('подключение Max одной кнопкой', () => {
     await processUpdate({ update_type: 'bot_started', user: { user_id: 777 }, payload: code }, say);
     expect(await maxOf('stas')).toEqual({ id: '777', on: true });
     expect(await maxOf('lenya')).toEqual({ id: null, on: false });
+    // прежний владелец узнаёт об этом из уведомления
+    const lenya = await loginAs('lenya');
+    const titles = (await lenya.get('/api/notifications')).body.items.map((n: any) => n.title);
+    expect(titles).toContain('Max отключён от вашего профиля');
   });
 
   it('без кода бот подсказывает, как подключиться, и называет id для ручного ввода; без токена кнопка отказывает', async () => {
