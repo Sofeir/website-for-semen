@@ -20,6 +20,15 @@ export interface Me {
   channels: { telegram: boolean; max: boolean };
 }
 
+/** Код и ссылка для подключения Max одной кнопкой. */
+export interface MaxLink {
+  /** Код вида K7P2-9XQM: его можно прислать боту вместо перехода по ссылке. */
+  code: string;
+  expiresAt: string;
+  /** Ссылка на бота с уже вписанным кодом. Пусто, если ник бота узнать не удалось. */
+  link: string | null;
+}
+
 export interface UserBrief {
   id: number;
   fullName: string;

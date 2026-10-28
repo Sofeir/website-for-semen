@@ -1,7 +1,9 @@
 import { config } from '../config';
+import { normalizeCode, redeemLinkCode } from './maxLink';
 
 /**
- * Бот Max отвечает сотруднику его user id: сотрудник пишет боту (или нажимает «Начать») и вписывает этот id в профиле.
+ * Бот Max подключает сотрудника к уведомлениям. Сотрудник нажимает «Подключить Max» в профиле, открывает бота по ссылке
+ * (или присылает ему код), и сервер сам запоминает его аккаунт Max. Если кода нет, бот отвечает user id, его можно вписать руками.
  * Обновления забираем длинным опросом (GET /updates): сервер стоит в закрытой сети, и принимающий адрес (webhook) ему не нужен.
  * Без токена бота ничего не запускается.
  */
@@ -15,8 +17,10 @@ export interface MaxUpdate {
   update_type: string;
   /** bot_started: кто нажал «Начать». */
   user?: MaxUser;
+  /** bot_started по ссылке с ?start=…: то, что стоит после start=. */
+  payload?: string | null;
   /** message_created: сообщение боту. */
-  message?: { sender?: MaxUser };
+  message?: { sender?: MaxUser; body?: { text?: string | null } };
 }
 
 /** Кому отвечать: человеку, который нажал «Начать» или написал боту. Сообщения ботов и каналов пропускаем. */
@@ -31,22 +35,37 @@ export function senderOf(u: MaxUpdate): number | null {
 
 export function replyText(userId: number) {
   return (
-    `Ваш id в Max: ${userId}\n` +
-    'Впишите его в профиле сайта, в поле «Ваш user id в Max», сохраните и нажмите «Проверить». ' +
-    'После этого уведомления будут приходить сюда.'
+    'Чтобы подключить уведомления, откройте свой профиль на сайте и нажмите «Подключить Max». Сайт покажет ссылку и код.\n' +
+    `Если подключить не получается, впишите вручную свой id в Max: ${userId}`
   );
 }
 
+export const linkedText = (fullName: string) => `Готово, вы подключены: ${fullName}. Уведомления будут приходить сюда.`;
+export const badCodeText = 'Код не подходит или устарел. В профиле на сайте нажмите «Подключить Max» ещё раз.';
+
 const api = (path: string) => `${config.maxApiUrl.replace(/\/$/, '')}${path}`;
 
-async function reply(userId: number) {
+async function send(userId: number, text: string) {
   const res = await fetch(api(`/messages?user_id=${userId}`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: config.maxBotToken },
-    body: JSON.stringify({ text: replyText(userId) }),
+    body: JSON.stringify({ text }),
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+/** Что сделать с одним сообщением боту: подключить по коду или подсказать, как подключиться. */
+export async function processUpdate(u: MaxUpdate, say: (userId: number, text: string) => Promise<void> = send) {
+  const id = senderOf(u);
+  if (id == null) return;
+  const text = u.update_type === 'bot_started' ? u.payload : u.message?.body?.text;
+  const code = normalizeCode(text);
+  if (code) {
+    const user = await redeemLinkCode(code, id);
+    return say(id, user ? linkedText(user.fullName) : badCodeText);
+  }
+  return say(id, replyText(id));
 }
 
 /** Один запрос к /updates: ждёт до 30 секунд, пока придёт что-то новое. */
@@ -79,9 +98,7 @@ export function startMaxBot() {
         if (failures) console.log('[max-bot] связь восстановлена');
         failures = 0;
         for (const u of r.updates) {
-          const id = senderOf(u);
-          if (id == null) continue;
-          await reply(id).catch((e) => console.warn(`[max-bot] ответ ${id}: ${(e as Error).message}`));
+          await processUpdate(u).catch((e) => console.warn(`[max-bot] обработка сообщения: ${(e as Error).message}`));
         }
         // если сервер вернул пустой ответ сразу, не крутим цикл вхолостую
         if (!r.updates.length && Date.now() - started < 1000) await sleep(1000);

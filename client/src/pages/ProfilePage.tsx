@@ -3,9 +3,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { Bell, KeyRound, Save, Send } from 'lucide-react';
-import { can, changePasswordSchema, profileSchema, ROLE_LABELS, type Me, type ProfileInput } from '@sd/shared';
+import { can, changePasswordSchema, profileSchema, ROLE_LABELS, type MaxLink, type Me, type ProfileInput } from '@sd/shared';
 import { z } from 'zod';
-import { useMe } from '@/app/auth';
+import { useAuth, useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
 import { keys } from '@/api/queries';
 import { useDocumentTitle } from '@/lib/hooks';
@@ -43,6 +43,39 @@ function Channels({ me }: { me: Me }) {
   const toast = useToast();
   const form = useForm<ProfileInput>({ resolver: zodResolver(profileSchema) as any });
   const [testing, setTesting] = useState<string | null>(null);
+  const { refresh } = useAuth();
+  const [maxLink, setMaxLink] = useState<MaxLink | null>(null);
+  const [linking, setLinking] = useState(false);
+
+  const startMaxLink = async () => {
+    setLinking(true);
+    try {
+      setMaxLink(await api.post<MaxLink>('/auth/me/max-link'));
+    } catch (e) {
+      toast.error('Не получилось', (e as ApiError).message);
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  // пока человек подключается в Max, раз в 3 секунды смотрим, использован ли код
+  useEffect(() => {
+    if (!maxLink) return;
+    const timer = setInterval(async () => {
+      try {
+        const { pending } = await api.get<{ pending: boolean }>('/auth/me/max-link');
+        if (pending && new Date(maxLink.expiresAt).getTime() > Date.now()) return;
+        setMaxLink(null);
+        await refresh();
+        if (!pending) toast.success('Max подключён', 'Уведомления будут приходить в Max');
+        else toast.error('Код устарел', 'Нажмите «Подключить Max» ещё раз');
+      } catch {
+        /* связь пропала на секунду: попробуем при следующем опросе */
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [maxLink, refresh, toast]);
+
   useEffect(() => {
     form.reset({
       notifyInApp: me.notifyInApp,
@@ -133,7 +166,34 @@ function Channels({ me }: { me: Me }) {
               </div>
               {me.channels.max ? (
                 <>
-                  <Field label="Ваш user id в Max" optional hint="Напишите боту сервиса в Max — он ответит вашим id.">
+                  <div className="row wrap">
+                    <Button variant="secondary" size="sm" loading={linking} onClick={startMaxLink}>
+                      {me.maxUserId ? 'Подключить заново' : 'Подключить Max'}
+                    </Button>
+                    {me.maxUserId && <Pill tone="teal">подключён</Pill>}
+                  </div>
+                  {maxLink && (
+                    <div className={s.maxLink}>
+                      <p>
+                        {maxLink.link ? (
+                          <>
+                            Откройте бота и нажмите «Начать»:{' '}
+                            <a href={maxLink.link} target="_blank" rel="noreferrer">
+                              открыть бота в Max
+                            </a>
+                            .
+                          </>
+                        ) : (
+                          'Откройте бота сервиса в Max и отправьте ему этот код:'
+                        )}
+                      </p>
+                      <p>
+                        Если бот попросит код, отправьте ему <b className={s.maxCode}>{maxLink.code}</b>. Код действует 15 минут.
+                      </p>
+                      <p className={s.channelHint}>Эта страница сама заметит подключение.</p>
+                    </div>
+                  )}
+                  <Field label="Ваш user id в Max" optional hint="Заполняется само при подключении. Вручную: напишите боту любое слово, он назовёт id.">
                     <Input {...form.register('maxUserId')} inputMode="numeric" disabled={!v.notifyMax} />
                   </Field>
                   <div>
