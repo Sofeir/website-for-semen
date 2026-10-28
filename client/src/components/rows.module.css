@@ -65,7 +65,14 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  white-space: nowrap;
+  /* длинное имя переносится, а не вылезает за экран */
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.metaItem svg {
+  flex: none;
 }
 
 .metaItem svg {
