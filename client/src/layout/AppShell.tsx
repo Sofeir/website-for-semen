@@ -79,9 +79,6 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-        <div className={s.sideFoot}>
-          <UserMenu placement="side" onTour={() => setTour(true)} />
-        </div>
       </aside>
 
       <div className={s.main}>
@@ -122,6 +119,9 @@ export function AppShell() {
                 </AnimatePresence>
               )}
             </div>
+          </div>
+          <div className={s.headerUser} data-tour="user">
+            <UserMenu onTour={() => setTour(true)} />
           </div>
         </header>
 
@@ -225,7 +225,7 @@ function LogoutTile() {
   );
 }
 
-function UserMenu({ onTour }: { placement: 'side'; onTour: () => void }) {
+function UserMenu({ onTour }: { onTour: () => void }) {
   const me = useMe();
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -250,14 +250,14 @@ function UserMenu({ onTour }: { placement: 'side'; onTour: () => void }) {
     <div className={s.userBtnWrap} ref={ref}>
       <button
         type="button"
-        className={cx(s.sideUser, 'lg-flat')}
+        className={cx(s.headerUserBtn, 'lg')}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
         title={me.fullName}
       >
         <Avatar name={me.fullName} size={40} />
-        <span className={s.sideUserName}>
+        <span className={s.headerUserName}>
           <b className="truncate">{me.fullName}</b>
           <span className="truncate">{me.position || ROLE_LABELS[me.role]}</span>
         </span>
@@ -267,7 +267,6 @@ function UserMenu({ onTour }: { placement: 'side'; onTour: () => void }) {
           <motion.div
             role="menu"
             className={s.menu}
-            style={{ left: 0, right: 'auto', top: 'auto', bottom: 'calc(100% + 8px)' }}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
