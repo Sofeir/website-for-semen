@@ -36,6 +36,13 @@
   color: var(--white);
 }
 
+@media (hover: hover) {
+  .soft .head button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--white);
+  }
+}
+
 .soft .body {
   padding: 0 var(--s-2) calc(var(--s-4) + env(safe-area-inset-bottom));
   scrollbar-gutter: stable both-edges;
