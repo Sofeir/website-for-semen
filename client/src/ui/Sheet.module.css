@@ -22,7 +22,29 @@
 }
 
 .soft {
-  background: var(--sheet-soft);
+  background: var(--notice-bg);
+  color: var(--white);
+}
+
+/* окно уведомлений на телефоне целиком синее, как выпадающий список на компьютере */
+.soft .grabber {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.soft .title,
+.soft .head button {
+  color: var(--white);
+}
+
+.soft .body {
+  padding: 0 var(--s-2) calc(var(--s-4) + env(safe-area-inset-bottom));
+  scrollbar-gutter: stable both-edges;
+  scrollbar-color: rgba(255, 255, 255, 0.6) transparent;
+}
+
+.soft .body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: transparent;
 }
 
 .full {
