@@ -206,7 +206,15 @@ textarea.control {
   font-weight: 600;
   color: var(--text-2);
   white-space: nowrap;
+  min-width: 0;
   z-index: 0;
+}
+
+@media (max-width: 420px) {
+  .segment {
+    padding: 0 var(--s-2);
+    gap: var(--s-1);
+  }
 }
 
 .segment svg {

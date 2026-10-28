@@ -29,6 +29,12 @@
   font-size: var(--fs-md);
 }
 
+/* заголовок и «Прочитать все» лежат прямо на синем фоне окна */
+.popover .headTitle,
+.popover .head button {
+  color: var(--white);
+}
+
 .scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -48,11 +54,28 @@
   padding: var(--s-3);
   border-radius: var(--r-md);
   text-align: left;
+  background: var(--blue-50);
+}
+
+.popover .item,
+.sheetList .item {
   background: var(--notice-card);
+}
+
+/* на телефоне список открывается окном снизу: тот же синий фон с белыми карточками */
+.sheetList {
+  padding: var(--s-2);
+  border-radius: var(--r-md);
+  background: var(--notice-bg);
 }
 
 @media (hover: hover) {
   .item:hover {
+    background: var(--blue-100);
+  }
+
+  .popover .item:hover,
+  .sheetList .item:hover {
     background: var(--notice-card-hover);
   }
 }
@@ -71,9 +94,7 @@
 }
 
 /* «Прочитать все» на голубом фоне: обычный синий читался бы плохо */
-.popover .head button {
-  color: var(--blue-800);
-}
+
 
 .unread .title {
   font-weight: 600;

@@ -112,6 +112,36 @@
   color: var(--text-muted);
 }
 
+/* Телефон: все этапы плитками, без прокрутки вбок. Нажатие открывает заявки этого этапа ниже. */
+@media (max-width: 639px) {
+  .stageJump {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+    margin: 0 0 var(--s-3);
+    padding: 0;
+  }
+
+  .stageJumpBtn {
+    width: 100%;
+    min-height: 48px;
+    justify-content: flex-start;
+  }
+
+  .stageJumpBtn .stageJumpCount {
+    margin-left: auto;
+  }
+
+  .stageJump > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .stageJumpActive {
+    background: var(--white);
+    box-shadow: inset 0 0 0 2px var(--blue-500), var(--fg-shadow-sm);
+  }
+}
+
 .stageDot {
   width: 8px;
   height: 8px;
@@ -171,6 +201,16 @@
     scroll-snap-type: none;
     margin: 0;
     padding: 0;
+  }
+}
+
+/* Телефон: показан один этап на всю ширину, без прокрутки вбок (после правил выше, чтобы перекрыть их) */
+@media (max-width: 639px) {
+  .board {
+    display: block;
+    overflow: visible;
+    margin: 0;
+    padding: 0 0 var(--s-4);
   }
 }
 

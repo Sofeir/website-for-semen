@@ -14,6 +14,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { ChevronsRight, Clock, UserRound } from 'lucide-react';
 import type { OrderListItem, Stage } from '@sd/shared';
 import { fmtWhen } from '@/lib/dates';
+import { useMediaQuery } from '@/lib/hooks';
 import { cx } from '@/ui/Button';
 import { NumberTag, Pill } from '@/ui/Display';
 import { useToast } from '@/ui/Toast';
@@ -28,7 +29,8 @@ interface Props {
 
 /**
  * Канбан этапов. Колонки — все этапы, кроме «Приёма» (заявка проходит его в момент сохранения формы).
- * Перетаскивать можно только в следующую колонку; на телефоне — свайп по колонкам и кнопка «дальше».
+ * Перетаскивать можно только в следующую колонку.
+ * На телефоне все этапы видны плитками сразу, по нажатию открываются заявки только этого этапа (кнопка «дальше» на карточке).
  */
 export function Kanban({ stages, orders, canAdvance, onAdvance }: Props) {
   const toast = useToast();
@@ -42,6 +44,11 @@ export function Kanban({ stages, orders, canAdvance, onAdvance }: Props) {
   const [dragging, setDragging] = useState<OrderListItem | null>(null);
   const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }));
   const board = useRef<HTMLDivElement>(null);
+  const phone = useMediaQuery('(max-width: 639px)');
+  const [picked, setPicked] = useState<number | null>(null);
+  // открыт выбранный этап; пока не выбран, первый, где есть заявки
+  const activeId = picked ?? columns.find((st) => (byStage.get(st.id)?.length ?? 0) > 0)?.id ?? columns[0]?.id ?? null;
+  const shown = phone ? columns.filter((st) => st.id === activeId) : columns;
 
   const nextOf = (o: OrderListItem) => {
     const idx = stages.findIndex((st) => st.id === o.stageId);
@@ -67,6 +74,7 @@ export function Kanban({ stages, orders, canAdvance, onAdvance }: Props) {
   };
 
   const jump = (stageId: number) => {
+    if (phone) return setPicked(stageId);
     board.current
       ?.querySelector(`[data-stage="${stageId}"]`)
       ?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
@@ -78,7 +86,13 @@ export function Kanban({ stages, orders, canAdvance, onAdvance }: Props) {
     <>
       <nav className={s.stageJump} aria-label="Перейти к этапу">
         {columns.map((st) => (
-          <button key={st.id} type="button" onClick={() => jump(st.id)} className={s.stageJumpBtn}>
+          <button
+            key={st.id}
+            type="button"
+            onClick={() => jump(st.id)}
+            className={cx(s.stageJumpBtn, phone && st.id === activeId && s.stageJumpActive)}
+            aria-pressed={phone ? st.id === activeId : undefined}
+          >
             <span className={cx(s.stageDot, s[`dot_${st.color}`])} aria-hidden />
             {st.name}
             <span className={s.stageJumpCount}>{byStage.get(st.id)?.length ?? 0}</span>
@@ -92,7 +106,7 @@ export function Kanban({ stages, orders, canAdvance, onAdvance }: Props) {
         onDragCancel={() => setDragging(null)}
       >
         <div className={s.board} ref={board}>
-          {columns.map((st) => (
+          {shown.map((st) => (
             <Column
               key={st.id}
               stage={st}
