@@ -79,12 +79,6 @@
   display: none;
 }
 
-@media (min-width: 1440px) {
-  .stageJump {
-    display: none;
-  }
-}
-
 .stageJumpBtn {
   flex: none;
   display: inline-flex;
