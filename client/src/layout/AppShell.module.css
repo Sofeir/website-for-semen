@@ -142,35 +142,12 @@
     color: var(--blue-600);
   }
 
-  .sideFoot {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--s-2);
-    padding-top: var(--s-1);
-  }
-
-  .sideUser {
-    display: grid;
-    place-items: center;
-    padding: 6px;
-    border-radius: var(--r-pill);
-  }
-
-  .sideUserName {
-    display: none;
-  }
 }
 
 @media (hover: hover) and (min-width: 768px) {
   .sideLink:not(.sideLinkActive):hover {
     background: var(--fg-fill-active);
     color: var(--ink-900);
-  }
-
-  .sideUser:hover {
-    background: linear-gradient(150deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.45) 100%);
   }
 }
 
@@ -232,36 +209,6 @@
     box-shadow: 0 4px 10px -6px rgba(22, 104, 214, 0.6);
   }
 
-  .sideFoot {
-    align-items: stretch;
-  }
-
-  .sideUser {
-    display: flex;
-    align-items: center;
-    gap: var(--s-3);
-    padding: var(--s-2) var(--s-3) var(--s-2) var(--s-2);
-    border-radius: var(--r-lg);
-    text-align: left;
-    width: 100%;
-  }
-
-  .sideUserName {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    line-height: 1.25;
-  }
-
-  .sideUserName b {
-    font-weight: 600;
-    font-size: var(--fs-sm);
-  }
-
-  .sideUserName span {
-    font-size: var(--fs-xs);
-    color: var(--text-muted);
-  }
 }
 
 /* ---------- Основная колонка ---------- */
@@ -682,5 +629,66 @@
   .headerActions::before,
   .headerActions::after {
     display: none;
+  }
+}
+
+/* Карточка пользователя: справа в шапке, рядом с уведомлениями (на телефоне она в меню «Ещё») */
+.headerUser {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .headerUser {
+    display: block;
+    flex: none;
+  }
+
+  .headerUserBtn {
+    display: grid;
+    place-items: center;
+    padding: 5px;
+    border-radius: var(--r-pill);
+  }
+
+  .headerUserName {
+    display: none;
+  }
+}
+
+@media (hover: hover) and (min-width: 768px) {
+  .headerUserBtn:hover {
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.45) 100%);
+  }
+}
+
+@media (min-width: 1280px) {
+  .headerUser {
+    max-width: 280px;
+  }
+
+  .headerUserBtn {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    padding: 5px var(--s-4) 5px 5px;
+    text-align: left;
+    max-width: 100%;
+  }
+
+  .headerUserName {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.25;
+  }
+
+  .headerUserName b {
+    font-weight: 600;
+    font-size: var(--fs-sm);
+  }
+
+  .headerUserName span {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
   }
 }
