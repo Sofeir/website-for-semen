@@ -93,6 +93,9 @@ export function AppShell() {
             </div>
           )}
           <div className={s.headerSpacer} />
+          <div className={s.headerUser} data-tour="user">
+            <UserMenu onTour={() => setTour(true)} />
+          </div>
           <div className={cx(s.headerActions, 'lg')}>
             {can('intake.create') && (
               <ButtonLink to="/intake" size="sm" icon={<Plus size={18} aria-hidden />} className={s.desktopOnly}>
@@ -119,9 +122,6 @@ export function AppShell() {
                 </AnimatePresence>
               )}
             </div>
-          </div>
-          <div className={s.headerUser} data-tour="user">
-            <UserMenu onTour={() => setTour(true)} />
           </div>
         </header>
 
