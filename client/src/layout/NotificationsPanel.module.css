@@ -40,7 +40,6 @@
   /* место под полосу прокрутки резервируется с обеих сторон, поля слева и справа одинаковые */
   scrollbar-gutter: stable both-edges;
   overscroll-behavior: contain;
-  scrollbar-color: rgba(255, 255, 255, 0.6) transparent;
   padding: 0 var(--s-2) var(--s-2);
 }
 

@@ -55,8 +55,6 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   outline: none;
-  scrollbar-width: thin;
-  scrollbar-color: var(--ink-200) transparent;
 }
 
 .list::-webkit-scrollbar {
