@@ -46,7 +46,6 @@
 .soft .body {
   padding: 0 var(--s-2) calc(var(--s-4) + env(safe-area-inset-bottom));
   scrollbar-gutter: stable both-edges;
-  scrollbar-color: rgba(255, 255, 255, 0.6) transparent;
 }
 
 .soft .body::-webkit-scrollbar-thumb {

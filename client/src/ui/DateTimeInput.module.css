@@ -63,8 +63,6 @@
     0 24px 48px -16px rgba(11, 42, 74, 0.38);
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--ink-200) transparent;
   animation: pop var(--dur) var(--ease-out);
   transform-origin: top center;
 }
