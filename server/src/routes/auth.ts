@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { changePasswordSchema, loginSchema, normalizePhone, profileSchema, registerSchema, type Me } from '@sd/shared';
+import { changePasswordSchema, loginSchema, normalizePhone, profileSchema, registerSchema, type Me, type MaxLink } from '@sd/shared';
 import { one, pool } from '../db/pool';
 import { h, HttpError, parse } from '../lib/http';
 import { createSession, destroySession, requireAuth } from '../auth/session';
 import { loginRetryAfter, registerLoginFail, resetLoginFails } from '../auth/rateLimit';
 import { channels } from '../notify/channels';
+import { createLinkCode, formatCode, getBotUsername } from '../notify/maxLink';
 import { Outbox } from '../notify/notify';
 import { config } from '../config';
 
@@ -160,6 +161,29 @@ authRouter.post(
     const reset = req.body?.reset === true;
     await pool.query(`UPDATE users SET onboarded_at = ${reset ? 'NULL' : 'now()'} WHERE id = $1`, [req.user!.id]);
     res.json({ ok: true });
+  }),
+);
+
+/** Код для подключения Max: сотрудник открывает бота по ссылке (или присылает ему код), и сервер привязывает его аккаунт. */
+authRouter.post(
+  '/me/max-link',
+  requireAuth,
+  h(async (req, res) => {
+    if (!channels.find((c) => c.id === 'max')!.isEnabled()) throw new HttpError(400, 'Max не настроен на сервере: нет токена бота');
+    const { code, expiresAt } = await createLinkCode(req.user!.id);
+    const bot = await getBotUsername();
+    const link: MaxLink = { code: formatCode(code), expiresAt, link: bot ? `https://max.ru/${bot}?start=${code}` : null };
+    res.json(link);
+  }),
+);
+
+/** Ждёт ли ещё код: пока код не использован и не просрочен, на странице профиля показывается подсказка. */
+authRouter.get(
+  '/me/max-link',
+  requireAuth,
+  h(async (req, res) => {
+    const row = await one('SELECT 1 FROM max_link_codes WHERE user_id = $1 AND expires_at > now()', [req.user!.id]);
+    res.json({ pending: Boolean(row) });
   }),
 );
 
