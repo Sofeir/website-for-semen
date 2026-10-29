@@ -1,4 +1,4 @@
-import { config, isLocalUrl } from './config';
+import { config } from './config';
 import { createApp } from './app';
 import { migrate } from './db/migrate';
 import { pool } from './db/pool';
@@ -18,10 +18,6 @@ async function main() {
   app.listen(config.port, () => {
     const enabled = channels.filter((c) => c.isEnabled()).map((c) => c.label);
     console.log(`API: http://localhost:${config.port}  (внешние уведомления: ${enabled.join(', ') || 'выключены'})`);
-    console.log(`Ссылки в уведомлениях ведут на ${config.publicUrl}`);
-    if (config.isProd && isLocalUrl(config.publicUrl)) {
-      console.warn('ВНИМАНИЕ: в .env не задан PUBLIC_URL (адрес сайта), ссылки в Telegram/Max ведут на localhost и у сотрудников не откроются.');
-    }
   });
   startMaxBot();
 }
