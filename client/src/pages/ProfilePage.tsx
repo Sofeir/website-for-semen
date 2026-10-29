@@ -12,6 +12,7 @@ import { useDocumentTitle } from '@/lib/hooks';
 import { Button } from '@/ui/Button';
 import { Avatar, Card, CardHead, ErrorBox, PageHeader, Pill } from '@/ui/Display';
 import { Checkbox, Field, Input, formStyles } from '@/ui/Form';
+import { useConfirm } from '@/ui/Confirm';
 import { useToast } from '@/ui/Toast';
 import s from './ProfilePage.module.css';
 
@@ -41,11 +42,13 @@ export default function ProfilePage() {
 function Channels({ me }: { me: Me }) {
   const qc = useQueryClient();
   const toast = useToast();
+  const confirm = useConfirm();
   const form = useForm<ProfileInput>({ resolver: zodResolver(profileSchema) as any });
   const [testing, setTesting] = useState<string | null>(null);
   const { refresh } = useAuth();
   const [maxLink, setMaxLink] = useState<MaxLink | null>(null);
   const [linking, setLinking] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
 
   const startMaxLink = async () => {
     setLinking(true);
@@ -55,6 +58,27 @@ function Channels({ me }: { me: Me }) {
       toast.error('Не получилось', (e as ApiError).message);
     } finally {
       setLinking(false);
+    }
+  };
+
+  const unlinkMax = async () => {
+    const ok = await confirm({
+      title: 'Отключить Max?',
+      body: 'Уведомления в Max приходить перестанут. Подключить заново можно в любой момент.',
+      confirm: 'Отключить',
+      danger: true,
+    });
+    if (!ok) return;
+    setUnlinking(true);
+    try {
+      const updated = await api.post<Me>('/auth/me/max-unlink');
+      qc.setQueryData(keys.me, (old: any) => (old ? { ...old, user: updated } : old));
+      setMaxLink(null);
+      toast.success('Max отключён');
+    } catch (e) {
+      toast.error('Не получилось', (e as ApiError).message);
+    } finally {
+      setUnlinking(false);
     }
   };
 
@@ -170,6 +194,11 @@ function Channels({ me }: { me: Me }) {
                     <Button variant="secondary" size="sm" loading={linking} onClick={startMaxLink}>
                       {me.maxUserId ? 'Подключить заново' : 'Подключить Max'}
                     </Button>
+                    {me.maxUserId && (
+                      <Button variant="secondary" size="sm" loading={unlinking} onClick={unlinkMax}>
+                        Отключить Max
+                      </Button>
+                    )}
                     {me.maxUserId && <Pill tone="teal">подключён</Pill>}
                   </div>
                   {maxLink && (
