@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { changePasswordSchema, loginSchema, normalizePhone, profileSchema, registerSchema, type Me, type MaxLink } from '@sd/shared';
-import { one, pool } from '../db/pool';
+import { one, pool, tx } from '../db/pool';
 import { h, HttpError, parse } from '../lib/http';
 import { createSession, destroySession, requireAuth } from '../auth/session';
 import { loginRetryAfter, registerLoginFail, resetLoginFails } from '../auth/rateLimit';
@@ -174,6 +174,19 @@ authRouter.post(
     const bot = await getBotUsername();
     const link: MaxLink = { code: formatCode(code), expiresAt, link: bot ? `https://max.ru/${bot}?start=${code}` : null };
     res.json(link);
+  }),
+);
+
+/** Отвязывает Max: сотрудник сам снимает привязку (например, подключил не тот аккаунт). */
+authRouter.post(
+  '/me/max-unlink',
+  requireAuth,
+  h(async (req, res) => {
+    await tx(async (db) => {
+      await db.query('UPDATE users SET max_user_id = NULL, notify_max = false WHERE id = $1', [req.user!.id]);
+      await db.query('DELETE FROM max_link_codes WHERE user_id = $1', [req.user!.id]);
+    });
+    res.json(await loadMe(req.user!.id));
   }),
 );
 

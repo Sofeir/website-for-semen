@@ -82,6 +82,17 @@ describe('подключение Max одной кнопкой', () => {
     expect(titles).toContain('Max отключён от вашего профиля');
   });
 
+  it('сотрудник сам отключает Max: привязка и незавершённый код снимаются', async () => {
+    const stas = await loginAs('stas');
+    expect((await maxOf('stas')).id).toBe('777');
+    await stas.post('/api/auth/me/max-link');
+    const r = await stas.post('/api/auth/me/max-unlink');
+    expect(r.status).toBe(200);
+    expect(r.body.maxUserId).toBeNull();
+    expect(await maxOf('stas')).toEqual({ id: null, on: false });
+    expect((await pool.query('SELECT 1 FROM max_link_codes WHERE user_id = (SELECT id FROM users WHERE login = $1)', ['stas'])).rowCount).toBe(0);
+  });
+
   it('без кода бот подсказывает, как подключиться, и называет id для ручного ввода; без токена кнопка отказывает', async () => {
     sent.length = 0;
     await processUpdate({ update_type: 'message_created', message: { sender: { user_id: 55 }, body: { text: 'привет' } } }, say);
