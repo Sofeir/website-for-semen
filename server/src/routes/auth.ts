@@ -3,7 +3,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { changeLoginSchema, changePasswordSchema, loginSchema, normalizePhone, profileSchema, registerSchema, type Me, type MaxLink } from '@sd/shared';
 import { one, pool, tx } from '../db/pool';
-import { h, HttpError, parse } from '../lib/http';
+import { forbidden, h, HttpError, parse } from '../lib/http';
 import { createSession, destroySession, requireAuth } from '../auth/session';
 import { loginRetryAfter, registerLoginFail, resetLoginFails } from '../auth/rateLimit';
 import { channels } from '../notify/channels';
@@ -160,6 +160,8 @@ authRouter.post(
   '/me/login',
   requireAuth,
   h(async (req, res) => {
+    // Заказчикам логин не меняем: учётки сотрудников заводят и подтверждают руководители.
+    if (req.user!.role === 'customer') throw forbidden('Логин заказчика меняет руководитель');
     const p = parse(changeLoginSchema, req.body);
     const ip = req.ip || 'unknown';
     const key = `change-login:${req.user!.id}`;
