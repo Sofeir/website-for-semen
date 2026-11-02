@@ -40,13 +40,28 @@ describe('смена логина', () => {
   });
 });
 
-describe('смена логина: заказчикам нельзя', () => {
-  it('заказчик получает отказ, логин не меняется', async () => {
+describe('смена логина: заказчик и логины сотрудников', () => {
+  it('заказчик меняет логин сам, но не может взять логин сотрудника', async () => {
     await pool.query(`INSERT INTO users (login, password_hash, full_name, role) VALUES ('zakaz', $1, 'Заказчик', 'customer')`, [
       await bcrypt.hash(PASSWORD, 10),
     ]);
     const s = await loginAs('zakaz');
-    expect((await s.post('/api/auth/me/login', { login: 'isakov-new', current: PASSWORD })).status).toBe(403);
+    // занятый и зарезервированный (в том числе другим регистром) логины сотрудников
+    expect((await s.post('/api/auth/me/login', { login: 'isakov', current: PASSWORD })).status).toBe(409);
+    const reserved = await s.post('/api/auth/me/login', { login: 'Kataev', current: PASSWORD });
+    expect(reserved.status).toBe(409);
+    expect(reserved.body.fields.login).toBeDefined();
+    // свободный логин можно
+    const ok = await s.post('/api/auth/me/login', { login: 'zakaz-new', current: PASSWORD });
+    expect(ok.status).toBe(200);
+    expect(ok.body.login).toBe('zakaz-new');
+  });
+
+  it('при регистрации логин сотрудника тоже занять нельзя', async () => {
+    const r = await request(app)
+      .post('/api/auth/register')
+      .send({ kind: 'person', login: 'Maria', password: PASSWORD, fullName: 'Мария Тест', phone: '+7 900 000-00-00' });
+    expect(r.status).toBe(409);
   });
 });
 

@@ -2,7 +2,8 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { changeLoginSchema, changePasswordSchema, loginSchema, normalizePhone, profileSchema, registerSchema, type Me, type MaxLink } from '@sd/shared';
 import { one, pool, tx } from '../db/pool';
-import { forbidden, h, HttpError, parse } from '../lib/http';
+import { h, HttpError, parse } from '../lib/http';
+import { isReservedLogin, RESERVED_LOGIN_MESSAGE } from '../lib/reservedLogins';
 import { createSession, destroySession, requireAuth } from '../auth/session';
 import { loginRetryAfter, registerLoginFail, resetLoginFails } from '../auth/rateLimit';
 import { channels } from '../notify/channels';
@@ -76,6 +77,7 @@ authRouter.post(
     if (recent.length >= REGISTER_LIMIT) throw new HttpError(429, 'Слишком много регистраций с этого адреса. Попробуйте позже.');
     const taken = await one('SELECT 1 FROM users WHERE lower(login) = lower($1)', [input.login]);
     if (taken) throw new HttpError(409, 'Такой логин уже занят', { fields: { login: 'Такой логин уже занят' } });
+    if (isReservedLogin(input.login)) throw new HttpError(409, RESERVED_LOGIN_MESSAGE, { fields: { login: RESERVED_LOGIN_MESSAGE } });
     await pool.query(
       `INSERT INTO users (login, password_hash, full_name, role, phone, email, reg_kind, reg_contact, pending)
        VALUES ($1, $2, $3, 'customer', $4, $5, $6, $7, true)`,
@@ -159,9 +161,10 @@ authRouter.post(
   '/me/login',
   requireAuth,
   h(async (req, res) => {
-    // Заказчикам логин не меняем: учётки сотрудников заводят и подтверждают руководители.
-    if (req.user!.role === 'customer') throw forbidden('Логин заказчика меняет руководитель');
     const p = parse(changeLoginSchema, req.body);
+    // Заказчик не может занять логин сотрудника, в том числе ещё не заведённого.
+    if (req.user!.role === 'customer' && isReservedLogin(p.login))
+      throw new HttpError(409, RESERVED_LOGIN_MESSAGE, { fields: { login: RESERVED_LOGIN_MESSAGE } });
     const ip = req.ip || 'unknown';
     const key = `change-login:${req.user!.id}`;
     const wait = loginRetryAfter(ip, key);
