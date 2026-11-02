@@ -10,11 +10,11 @@ describe('мастер и диагност видят только своё', ()
   it('чужая заявка не видна ни в списке, ни по ссылке, ни на главной, ни в карточке клиента', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const forOlga = await intakeLaptop(semen, users.olga, '+7 900 111-00-01');
-    const forStas = await intakeLaptop(semen, users.stas, '+7 900 111-00-02');
+    const forOlga = await intakeLaptop(semen, users.maria, '+7 900 111-00-01');
+    const forStas = await intakeLaptop(semen, users.isakov, '+7 900 111-00-02');
 
-    const olga = await loginAs('olga');
-    const lenya = await loginAs('lenya');
+    const olga = await loginAs('maria');
+    const lenya = await loginAs('kataev');
 
     const olgaList = (await olga.get('/api/orders')).body.items ?? (await olga.get('/api/orders')).body;
     const ids = (olgaList as { id: number }[]).map((o) => o.id);
@@ -40,12 +40,12 @@ describe('мастер и диагност видят только своё', ()
 
   it('чужая задача не открывается по ссылке; передавший задачу её видит', async () => {
     const semen = await loginAs('semen');
-    const lenya = await loginAs('lenya');
-    const olga = await loginAs('olga');
+    const lenya = await loginAs('kataev');
+    const olga = await loginAs('maria');
     const { users } = await dict();
     const t = await semen.post('/api/tasks', {
       title: 'Только для Ольги',
-      assigneeId: users.olga,
+      assigneeId: users.maria,
       startAt: new Date().toISOString(),
       dueAt: inDays(1),
     });
@@ -53,7 +53,7 @@ describe('мастер и диагност видят только своё', ()
     expect((await lenya.get(`/api/tasks/${t.body.id}`)).status).toBe(403);
     expect((await semen.get(`/api/tasks/${t.body.id}`)).status).toBe(200);
     // Ольга передаёт Лёне — теперь видят оба
-    await olga.post(`/api/tasks/${t.body.id}/transfer`, { assigneeId: users.lenya, dueAt: inDays(2), comment: 'Это к Лёне' });
+    await olga.post(`/api/tasks/${t.body.id}/transfer`, { assigneeId: users.kataev, dueAt: inDays(2), comment: 'Это к Лёне' });
     expect((await lenya.get(`/api/tasks/${t.body.id}`)).status).toBe(200);
     expect((await olga.get(`/api/tasks/${t.body.id}`)).status).toBe(200);
   });
@@ -65,12 +65,12 @@ describe('сотрудник «только задачи»', () => {
   it('видит свои задачи и «Сегодня», ставит задачи, но заявки, клиенты и акты закрыты', async () => {
     const semen = await loginAs('semen');
     // «только задачи» в рабочем составе нет, роль остаётся в системе: заводим такого сотрудника на время теста
-    const boss = await loginAs('admin');
+    const boss = await loginAs('golenkov');
     const made = await boss.post('/api/users', { login: 'vanya', fullName: 'Тест Помощник', role: 'assistant', phone: '+7 900 000-00-99', password: PASSWORD });
     expect(made.status).toBe(201);
     const vanya = await loginAs('vanya');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.lenya, '+7 900 222-00-01');
+    const orderId = await intakeLaptop(semen, users.kataev, '+7 900 222-00-01');
 
     const t = await semen.post('/api/tasks', {
       title: 'Обновить 1С',
@@ -83,7 +83,7 @@ describe('сотрудник «только задачи»', () => {
     expect((await vanya.get('/api/users')).status).toBe(200);
     const mine = await vanya.post('/api/tasks', {
       title: 'Лёне: проверить принтер',
-      assigneeId: users.lenya,
+      assigneeId: users.kataev,
       startAt: new Date().toISOString(),
       dueAt: inDays(1),
     });

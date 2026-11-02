@@ -14,7 +14,7 @@ describe('учёт техники, виды задач и отчёты', () => {
   it('журнал работ: запись по заявке попадает в историю устройства, у отчёта верные итоги', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-21');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-21');
     const order = (await semen.get(`/api/orders/${orderId}`)).body;
 
     const add = await semen.post('/api/works', { orderId, kind: 'part', title: 'Блок фотобарабана', qty: 1, counter: 80000 });
@@ -37,7 +37,7 @@ describe('учёт техники, виды задач и отчёты', () => {
   it('отчёт по организации: заправки сложены по модели, работы отдельно', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-23');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-23');
     const order = (await semen.get(`/api/orders/${orderId}`)).body;
     await semen.post('/api/works', { clientId: order.clientId, kind: 'refill', title: 'CF259A', qty: 2 });
     await semen.post('/api/works', { clientId: order.clientId, kind: 'refill', title: 'CF259A', qty: 3 });
@@ -52,14 +52,14 @@ describe('учёт техники, виды задач и отчёты', () => {
     expect(r.orders[0].works).toHaveLength(1);
     expect(r.orders[0].works[0]).toMatchObject({ counter: 90000, orderId });
     expect(r.otherWorks).toHaveLength(0);
-    const lenya = await loginAs('lenya');
+    const lenya = await loginAs('kataev');
     expect((await lenya.get(`/api/reports/client/${order.clientId}?month=${thisMonth()}`)).status).toBe(403);
   });
 
   it('паспорт техники: свой номер уникален у клиента', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-22');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-22');
     const order = (await semen.get(`/api/orders/${orderId}`)).body;
     const ok = await semen.put(`/api/devices/${order.device.id}`, { inventoryNo: 'ПК-001', location: 'Бухгалтерия', serial: null });
     expect(ok.status).toBe(200);
@@ -70,17 +70,17 @@ describe('учёт техники, виды задач и отчёты', () => {
   it('журнал чужой техники закрыт для мастера, свой открыт', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-24');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-24');
     const order = (await semen.get(`/api/orders/${orderId}`)).body;
-    const lenya = await loginAs('lenya');
+    const lenya = await loginAs('kataev');
     expect((await lenya.get(`/api/devices/${order.device.id}/works`)).status).toBe(403);
     expect((await lenya.put(`/api/devices/${order.device.id}`, { inventoryNo: 'X-1' })).status).toBe(403);
-    const stas = await loginAs('stas');
+    const stas = await loginAs('isakov');
     expect((await stas.get(`/api/devices/${order.device.id}/works`)).status).toBe(200);
   });
 
   it('отчёты закрыты для мастера', async () => {
-    const lenya = await loginAs('lenya');
+    const lenya = await loginAs('kataev');
     const r = await lenya.get(`/api/reports/monthly?month=${thisMonth()}`);
     expect(r.status).toBe(403);
   });

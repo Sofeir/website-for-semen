@@ -24,8 +24,8 @@ describe('массовое закрытие задач', () => {
 
   it('исполнитель закрывает пачку, постановщики получают уведомления с комментарием', async () => {
     const semen = await loginAs('semen');
-    const olga = await loginAs('olga');
-    const stas = await loginAs('stas');
+    const olga = await loginAs('maria');
+    const stas = await loginAs('isakov');
     const { users } = await dict();
     const ids: number[] = [];
     for (const [who, title] of [
@@ -35,7 +35,7 @@ describe('массовое закрытие задач', () => {
     ] as const) {
       const r = await who.post('/api/tasks', {
         title,
-        assigneeId: users.olga,
+        assigneeId: users.maria,
         startAt: new Date().toISOString(),
         dueAt: inDays(1),
       });
@@ -51,16 +51,16 @@ describe('массовое закрытие задач', () => {
     );
     const notified = notes.rows.map((r) => r.user_id).sort();
     // Себе уведомление не шлём.
-    expect(notified).toEqual([users.semen, users.stas].sort());
+    expect(notified).toEqual([users.semen, users.isakov].sort());
   });
 
   it('чужие задачи диагност закрыть не может — они пропускаются', async () => {
     const semen = await loginAs('semen');
-    const stas = await loginAs('stas');
+    const stas = await loginAs('isakov');
     const { users } = await dict();
     const r = await semen.post('/api/tasks', {
       title: 'Задача Лёни',
-      assigneeId: users.lenya,
+      assigneeId: users.kataev,
       startAt: new Date().toISOString(),
       dueAt: inDays(1),
     });
@@ -71,18 +71,18 @@ describe('массовое закрытие задач', () => {
 
   it('передача задачи строит цепочку шагов', async () => {
     const semen = await loginAs('semen');
-    const stas = await loginAs('stas');
+    const stas = await loginAs('isakov');
     const { users } = await dict();
     const r = await semen.post('/api/tasks', {
       title: 'Цепочка',
-      assigneeId: users.stas,
+      assigneeId: users.isakov,
       startAt: new Date().toISOString(),
       dueAt: inDays(1),
     });
-    await stas.post(`/api/tasks/${r.body.id}/transfer`, { assigneeId: users.lenya, dueAt: inDays(2), comment: 'Тебе' });
+    await stas.post(`/api/tasks/${r.body.id}/transfer`, { assigneeId: users.kataev, dueAt: inDays(2), comment: 'Тебе' });
     const task = (await semen.get(`/api/tasks/${r.body.id}`)).body;
     expect(task.steps).toHaveLength(2);
     expect(task.steps[0].doneAt).not.toBeNull();
-    expect(task.steps[1].assigneeId).toBe(users.lenya);
+    expect(task.steps[1].assigneeId).toBe(users.kataev);
   });
 });

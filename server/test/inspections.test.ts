@@ -26,7 +26,7 @@ describe('проверка техники на выезде', () => {
   it('проверка ноутбука пишется в журнал: очистка отдельной строкой, имя ПК и сотрудник запоминаются', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-31');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-31');
     const order = (await semen.get(`/api/orders/${orderId}`)).body;
     const items = [
       { title: 'Проверка антивируса', done: true },
@@ -60,7 +60,7 @@ describe('проверка техники на выезде', () => {
   it('техника без чек-листа и чужие мастера не проходят', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-32');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-32');
     const order = (await semen.get(`/api/orders/${orderId}`)).body;
     const comp = await semen.post(`/api/devices/${order.device.id}/components`, {
       deviceTypeId: (await pool.query(`SELECT id FROM device_types WHERE name = 'Мониторы'`)).rows[0].id,
@@ -69,7 +69,7 @@ describe('проверка техники на выезде', () => {
     expect(comp.status).toBe(201);
     const bad = await semen.post('/api/inspections', { deviceId: comp.body.id, items: [] });
     expect(bad.status).toBe(400);
-    const lenya = await loginAs('lenya');
+    const lenya = await loginAs('kataev');
     const denied = await lenya.post('/api/inspections', { deviceId: order.device.id, items: [{ title: 'Проверка антивируса', done: true }] });
     expect(denied.status).toBe(403);
   });
@@ -77,7 +77,7 @@ describe('проверка техники на выезде', () => {
   it('пробег принтера идёт в журнал, PDF формируется', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-33');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-33');
     const order = (await semen.get(`/api/orders/${orderId}`)).body;
     const printerType = (await pool.query(`SELECT id FROM device_types WHERE name = 'Принтеры/МФУ'`)).rows[0].id;
     const dev = await semen.post(`/api/devices/${order.device.id}/components`, { deviceTypeId: printerType, modelText: 'Kyocera M2040dn', serial: 'PR1' });
@@ -104,15 +104,15 @@ describe('проверка техники на выезде', () => {
 
   it('закрытый выезд попадает в строку отчёта, подробности клиента и аналитику инженера', async () => {
     const semen = await loginAs('semen');
-    const lenya = await loginAs('lenya');
+    const lenya = await loginAs('kataev');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-41');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-41');
     const clientId = (await semen.get(`/api/orders/${orderId}`)).body.clientId;
     const day = new Date();
     day.setHours(23, 0, 0, 0);
     const created = await semen.post('/api/tasks', {
       title: 'Выезд: клиент',
-      assigneeId: users.lenya,
+      assigneeId: users.kataev,
       clientId,
       startAt: new Date(Date.now() - 3_600_000).toISOString(),
       dueAt: day.toISOString(),
@@ -135,8 +135,8 @@ describe('проверка техники на выезде', () => {
 
     const an = (await semen.get(`/api/analytics?month=${thisMonth()}`)).body;
     expect(an.current.visits).toBe(1);
-    expect(an.masters.find((m: any) => m.userId === users.lenya).visits).toBe(1);
-    const master = (await semen.get(`/api/analytics/master/${users.lenya}?month=${thisMonth()}`)).body;
+    expect(an.masters.find((m: any) => m.userId === users.kataev).visits).toBe(1);
+    const master = (await semen.get(`/api/analytics/master/${users.kataev}?month=${thisMonth()}`)).body;
     expect(master.visits).toHaveLength(1);
     expect(master.visits[0].clientId).toBe(clientId);
   });
@@ -144,9 +144,9 @@ describe('проверка техники на выезде', () => {
   it('у выезда нет общего чек-листа, что бы ни передали', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-42');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-42');
     const clientId = (await semen.get(`/api/orders/${orderId}`)).body.clientId;
-    const plan = { title: 'Выезд: клиент', assigneeId: users.lenya, clientId, startAt: new Date().toISOString(), dueAt: new Date(Date.now() + 3_600_000).toISOString(), visit: true };
+    const plan = { title: 'Выезд: клиент', assigneeId: users.kataev, clientId, startAt: new Date().toISOString(), dueAt: new Date(Date.now() + 3_600_000).toISOString(), visit: true };
     const first = await semen.post('/api/tasks', { ...plan, checklist: ['Свой пункт'] });
     expect(first.status).toBe(201);
     expect((await semen.get(`/api/tasks/${first.body.id}`)).body.checklist).toEqual([]);
@@ -154,10 +154,10 @@ describe('проверка техники на выезде', () => {
 
   it('выезд проверяет технику клиента по одной единице: свой бланк, замечания, доступ инженера', async () => {
     const semen = await loginAs('semen');
-    const lenya = await loginAs('lenya');
-    const stas = await loginAs('stas');
+    const lenya = await loginAs('kataev');
+    const stas = await loginAs('isakov');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-43');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-43');
     const order = (await semen.get(`/api/orders/${orderId}`)).body;
     const clientId = order.clientId;
     const printerType = (await pool.query(`SELECT id FROM device_types WHERE name = 'Принтеры/МФУ'`)).rows[0].id;
@@ -168,7 +168,7 @@ describe('проверка техники на выезде', () => {
 
     const created = await semen.post('/api/tasks', {
       title: 'Выезд: клиент',
-      assigneeId: users.lenya,
+      assigneeId: users.kataev,
       clientId,
       startAt: new Date().toISOString(),
       dueAt: new Date(Date.now() + 3_600_000).toISOString(),
@@ -196,7 +196,7 @@ describe('проверка техники на выезде', () => {
     // а вне выезда чужую технику нельзя
     expect((await lenya.post('/api/inspections', { deviceId: order.device.id, items: pcItems })).status).toBe(403);
     // техника чужого клиента в этот выезд не попадает
-    const other = await intakeLaptop(semen, users.stas, '+7 900 000-00-44');
+    const other = await intakeLaptop(semen, users.isakov, '+7 900 000-00-44');
     const otherDevice = (await semen.get(`/api/orders/${other}`)).body.device.id;
     expect((await lenya.post('/api/inspections', { deviceId: otherDevice, taskId, items: pcItems })).status).toBe(400);
 
@@ -220,7 +220,7 @@ describe('проверка техники на выезде', () => {
 
   it('технику клиента добавляет руководитель: номер и отдел, дубль номера не проходит, в выезде она появляется', async () => {
     const semen = await loginAs('semen');
-    const lenya = await loginAs('lenya');
+    const lenya = await loginAs('kataev');
     const { users } = await dict();
     const c = await semen.post('/api/clients', { kind: 'legal', name: 'ООО Столовая', contactPerson: 'Ольга', phone: '+7 900 200-30-40' });
     expect(c.status).toBe(201);
@@ -232,7 +232,7 @@ describe('проверка техники на выезде', () => {
 
     const visit = await semen.post('/api/tasks', {
       title: 'Выезд: ООО Столовая',
-      assigneeId: users.lenya,
+      assigneeId: users.kataev,
       clientId: c.body.id,
       startAt: new Date().toISOString(),
       dueAt: new Date(Date.now() + 3_600_000).toISOString(),
@@ -245,24 +245,24 @@ describe('проверка техники на выезде', () => {
 
   it('выезд не открывает чужого клиента: свой выезд у инженера и прежний исполнитель доступа не получают', async () => {
     const semen = await loginAs('semen');
-    const lenya = await loginAs('lenya');
-    const stas = await loginAs('stas');
+    const lenya = await loginAs('kataev');
+    const stas = await loginAs('isakov');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-45');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-45');
     const order = (await semen.get(`/api/orders/${orderId}`)).body;
     const when = { startAt: new Date().toISOString(), dueAt: new Date(Date.now() + 3_600_000).toISOString() };
     const items = [{ title: 'Проверка антивируса', done: true }];
 
     // инженер сам себе ставит «выезд» к клиенту, с которым не работает: ни список техники, ни проверка недоступны
-    const own = await lenya.post('/api/tasks', { title: 'Выезд', assigneeId: users.lenya, clientId: order.clientId, visit: true, ...when });
+    const own = await lenya.post('/api/tasks', { title: 'Выезд', assigneeId: users.kataev, clientId: order.clientId, visit: true, ...when });
     expect(own.status).toBe(201);
     expect((await lenya.get(`/api/tasks/${own.body.id}/visit-devices`)).status).toBe(403);
     expect((await lenya.post('/api/inspections', { deviceId: order.device.id, taskId: own.body.id, items })).status).toBe(403);
 
     // выезд поставил руководитель: исполнитель работает, а после передачи прежний исполнитель доступ теряет
-    const given = await semen.post('/api/tasks', { title: 'Выезд', assigneeId: users.lenya, clientId: order.clientId, visit: true, ...when });
+    const given = await semen.post('/api/tasks', { title: 'Выезд', assigneeId: users.kataev, clientId: order.clientId, visit: true, ...when });
     expect((await lenya.get(`/api/tasks/${given.body.id}/visit-devices`)).status).toBe(200);
-    const moved = await lenya.post(`/api/tasks/${given.body.id}/transfer`, { assigneeId: users.stas, dueAt: when.dueAt, comment: 'Передаю коллеге' });
+    const moved = await lenya.post(`/api/tasks/${given.body.id}/transfer`, { assigneeId: users.isakov, dueAt: when.dueAt, comment: 'Передаю коллеге' });
     expect(moved.status).toBe(200);
     expect((await lenya.get(`/api/tasks/${given.body.id}/visit-devices`)).status).toBe(403);
     expect((await lenya.post('/api/inspections', { deviceId: order.device.id, taskId: given.body.id, items })).status).toBe(403);

@@ -26,7 +26,7 @@ describe('люди организаций, серийные номера, сог
     expect(list).toHaveLength(1);
     expect(list[0].position).toBeNull();
     // мастер людей организаций не видит
-    const lenya = await loginAs('lenya');
+    const lenya = await loginAs('kataev');
     expect((await lenya.get(`/api/clients/${org}/contacts`)).status).toBe(403);
   });
 
@@ -58,7 +58,7 @@ describe('люди организаций, серийные номера, сог
       clientId: org,
       contactId: contact,
       devices: [{ device: { deviceTypeId: laptop, brandText: 'Acer', modelText: 'X', serial: 'SN-CONTACT-1' }, faultIds: [], faultText: 'Не включается', appearance: [], kit: [] }],
-      responsibleId: users.stas,
+      responsibleId: users.isakov,
       dueAt: new Date(Date.now() + 86_400_000).toISOString(),
     };
     const r = await semen.post('/api/intake', body);
@@ -83,7 +83,7 @@ describe('люди организаций, серийные номера, сог
       clientKind: 'person',
       newClient: { kind: 'person', name: 'Тест Серийный', phone },
       devices: [{ device: { deviceTypeId: type, brandText: 'HP', modelText: 'M', serial }, faultIds: [], faultText: 'Не работает', appearance: [], kit: [] }],
-      responsibleId: users.stas,
+      responsibleId: users.isakov,
       dueAt: new Date(Date.now() + 86_400_000).toISOString(),
     });
     const noSerial = await semen.post('/api/intake', mk(laptop, null, '+7 900 444-00-01'));
@@ -97,23 +97,23 @@ describe('люди организаций, серийные номера, сог
   it('согласованные срок и сумма правит ответственный, мастеру чужой заявки нельзя', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-31');
-    const stas = await loginAs('stas');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-31');
+    const stas = await loginAs('isakov');
     const ok = await stas.put(`/api/orders/${orderId}/agreed`, { agreedTerm: 'до пятницы', agreedSum: 4500 });
     expect(ok.status).toBe(200);
     const order = (await semen.get(`/api/orders/${orderId}`)).body;
     expect(order.agreedTerm).toBe('до пятницы');
     expect(order.agreedSum).toBe(4500);
-    const lenya = await loginAs('lenya');
+    const lenya = await loginAs('kataev');
     expect((await lenya.put(`/api/orders/${orderId}/agreed`, { agreedTerm: 'x' })).status).toBe(403);
   });
 
   it('работа по заявке: исполнитель, сумма, гарантия и расходники видны в карточке', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-32');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-32');
     const r = await semen.post('/api/works', {
-      orderId, kind: 'part', title: 'Оперативная память', performerId: users.lenya, amount: 3300,
+      orderId, kind: 'part', title: 'Оперативная память', performerId: users.kataev, amount: 3300,
       partBrand: 'Kingston', partSpec: '8 ГБ', warrantyMonths: 12,
     });
     expect(r.status).toBe(201);
@@ -125,7 +125,7 @@ describe('люди организаций, серийные номера, сог
   it('рабочее место: комплектующее входит в состав, чужого клиента нельзя', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-33');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-33');
     const order = (await semen.get(`/api/orders/${orderId}`)).body;
     const periph = (await pool.query(`SELECT id FROM device_types WHERE name = 'Периферия'`)).rows[0].id;
     const add = await semen.post(`/api/devices/${order.device.id}/components`, { deviceTypeId: periph, modelText: 'Монитор Samsung 27"' });
@@ -133,7 +133,7 @@ describe('люди организаций, серийные номера, сог
     const comps = (await semen.get(`/api/devices/${order.device.id}/components`)).body;
     expect(comps).toHaveLength(1);
     expect(comps[0].parentId).toBe(order.device.id);
-    const other = (await semen.get(`/api/orders/${await intakeLaptop(semen, users.stas, '+7 900 000-00-34')}`)).body;
+    const other = (await semen.get(`/api/orders/${await intakeLaptop(semen, users.isakov, '+7 900 000-00-34')}`)).body;
     const bad = await semen.put(`/api/devices/${other.device.id}`, { parentId: order.device.id });
     expect(bad.status).toBe(400);
   });

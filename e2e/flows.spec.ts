@@ -58,10 +58,10 @@ test('ремонт: диагностика → согласование → ма
   await expect(semen).toHaveURL(/\/orders\/\d+$/);
   const orderUrl = new URL(semen.url()).pathname;
 
-  const stas = await as(browser, 'stas');
+  const stas = await as(browser, 'isakov');
   await advance(stas, orderUrl, /Дальше: Согласование/, 'Вайнштейн Семён Леонидович');
   await advance(semen, orderUrl, /Дальше: Ремонт/, 'Катаев Артем Дмитриевич');
-  const lenya = await as(browser, 'lenya');
+  const lenya = await as(browser, 'kataev');
   await advance(lenya, orderUrl, /Дальше: Готово/, 'Вайнштейн Семён Леонидович');
 
   // Акт: две работы из прайса и одна своя строка.
@@ -127,7 +127,7 @@ test('массовое закрытие задач: постановщик по�
     await expect(dialog).toBeHidden();
   }
 
-  const olga = await as(browser, 'olga');
+  const olga = await as(browser, 'maria');
   await olga.goto('/tasks');
   await olga.getByRole('checkbox', { name: `Отметить: Проверить склад ${stamp}` }).click();
   await olga.getByRole('checkbox', { name: `Отметить: Заказать термопасту ${stamp}` }).click();

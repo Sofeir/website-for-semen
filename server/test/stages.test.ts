@@ -32,24 +32,24 @@ describe('переходы заявки по API', () => {
   it('приём сразу закрывает «Приём», ставит «Диагностику» и задачу ответственному', async () => {
     const semen = await loginAs('semen');
     const { stage, users } = await dict();
-    const id = await intakeLaptop(semen, users.stas);
+    const id = await intakeLaptop(semen, users.isakov);
     const order = (await semen.get(`/api/orders/${id}`)).body;
     expect(order.stageId).toBe(stage.diagnostics);
-    expect(order.responsibleId).toBe(users.stas);
+    expect(order.responsibleId).toBe(users.isakov);
     expect(order.history.map((h: any) => h.stageCode)).toEqual(['intake', 'diagnostics']);
     expect(order.tasks).toHaveLength(1);
-    expect(order.tasks[0].assigneeId).toBe(users.stas);
-    const note = await pool.query(`SELECT title FROM notifications WHERE user_id = $1`, [users.stas]);
+    expect(order.tasks[0].assigneeId).toBe(users.isakov);
+    const note = await pool.query(`SELECT title FROM notifications WHERE user_id = $1`, [users.isakov]);
     expect(note.rows.some((r) => r.title.startsWith('Новая задача: Диагностика'))).toBe(true);
   });
 
   it('перескочить этап нельзя', async () => {
     const semen = await loginAs('semen');
     const { stage, users } = await dict();
-    const id = await intakeLaptop(semen, users.stas, '+7 900 000-00-02');
+    const id = await intakeLaptop(semen, users.isakov, '+7 900 000-00-02');
     const res = await semen.post(`/api/orders/${id}/advance`, {
       toStageId: stage.repair,
-      responsibleId: users.lenya,
+      responsibleId: users.kataev,
       dueAt: inDays(2),
     });
     expect(res.status).toBe(409);
@@ -59,10 +59,10 @@ describe('переходы заявки по API', () => {
 
   it('чужую заявку диагност не двигает, свою — двигает', async () => {
     const semen = await loginAs('semen');
-    const olga = await loginAs('olga');
-    const stas = await loginAs('stas');
+    const olga = await loginAs('maria');
+    const stas = await loginAs('isakov');
     const { stage, users } = await dict();
-    const id = await intakeLaptop(semen, users.stas, '+7 900 000-00-03');
+    const id = await intakeLaptop(semen, users.isakov, '+7 900 000-00-03');
     const denied = await olga.post(`/api/orders/${id}/advance`, {
       toStageId: stage.approval,
       responsibleId: users.semen,
@@ -86,7 +86,7 @@ describe('переходы заявки по API', () => {
   it('выдать без отметки «техника возвращена» нельзя', async () => {
     const semen = await loginAs('semen');
     const { stage, users } = await dict();
-    const id = await intakeLaptop(semen, users.stas, '+7 900 000-00-14');
+    const id = await intakeLaptop(semen, users.isakov, '+7 900 000-00-14');
     for (const code of ['approval', 'repair', 'ready']) {
       await semen.post(`/api/orders/${id}/advance`, { toStageId: stage[code], responsibleId: users.semen, dueAt: inDays(1) });
     }
@@ -97,7 +97,7 @@ describe('переходы заявки по API', () => {
   it('отказ на согласовании: из согласования сразу в «Готово», итог — без ремонта', async () => {
     const semen = await loginAs('semen');
     const { stage, users } = await dict();
-    const id = await intakeLaptop(semen, users.stas, '+7 900 000-00-15');
+    const id = await intakeLaptop(semen, users.isakov, '+7 900 000-00-15');
     await semen.post(`/api/orders/${id}/advance`, { toStageId: stage.approval, responsibleId: users.semen, dueAt: inDays(1) });
     const r = await semen.post(`/api/orders/${id}/advance`, {
       toStageId: stage.ready,
@@ -114,7 +114,7 @@ describe('переходы заявки по API', () => {
   it('гарантийный возврат открывает ту же заявку заново', async () => {
     const semen = await loginAs('semen');
     const { stage, users } = await dict();
-    const id = await intakeLaptop(semen, users.stas, '+7 900 000-00-16');
+    const id = await intakeLaptop(semen, users.isakov, '+7 900 000-00-16');
     for (const code of ['approval', 'repair', 'ready', 'issued']) {
       await semen.post(`/api/orders/${id}/advance`, {
         toStageId: stage[code],
@@ -123,7 +123,7 @@ describe('переходы заявки по API', () => {
         deviceReturned: code === 'issued' ? true : undefined,
       });
     }
-    const r = await semen.post(`/api/orders/${id}/reopen`, { reason: 'warranty', responsibleId: users.stas, dueAt: inDays(1) });
+    const r = await semen.post(`/api/orders/${id}/reopen`, { reason: 'warranty', responsibleId: users.isakov, dueAt: inDays(1) });
     expect(r.status).toBe(200);
     const order = (await semen.get(`/api/orders/${id}`)).body;
     expect(order.issuedAt).toBeNull();
@@ -131,22 +131,22 @@ describe('переходы заявки по API', () => {
     expect(order.stageCode).toBe('diagnostics');
     expect(order.history.some((h: any) => h.kind === 'reopen')).toBe(true);
     // открытую заявку заново не открыть
-    const again = await semen.post(`/api/orders/${id}/reopen`, { reason: 'warranty', responsibleId: users.stas, dueAt: inDays(1) });
+    const again = await semen.post(`/api/orders/${id}/reopen`, { reason: 'warranty', responsibleId: users.isakov, dueAt: inDays(1) });
     expect(again.status).toBe(409);
   });
 
   it('передача без причины отклоняется', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const id = await intakeLaptop(semen, users.stas, '+7 900 000-00-17');
-    const r = await semen.post(`/api/orders/${id}/reassign`, { responsibleId: users.lenya, comment: '' });
+    const id = await intakeLaptop(semen, users.isakov, '+7 900 000-00-17');
+    const r = await semen.post(`/api/orders/${id}/reassign`, { responsibleId: users.kataev, comment: '' });
     expect(r.status).toBe(400);
   });
 
   it('полный путь до выдачи; выданную заявку дальше не двигаем', async () => {
     const semen = await loginAs('semen');
     const { stage, users } = await dict();
-    const id = await intakeLaptop(semen, users.stas, '+7 900 000-00-04');
+    const id = await intakeLaptop(semen, users.isakov, '+7 900 000-00-04');
     for (const code of ['approval', 'repair', 'ready', 'issued']) {
       const r = await semen.post(`/api/orders/${id}/advance`, {
         toStageId: stage[code],
@@ -168,16 +168,16 @@ describe('переходы заявки по API', () => {
 
   it('передача диагност → мастер: этап тот же, задача переходит с шагом в цепочке', async () => {
     const semen = await loginAs('semen');
-    const stas = await loginAs('stas');
+    const stas = await loginAs('isakov');
     const { stage, users } = await dict();
-    const id = await intakeLaptop(semen, users.stas, '+7 900 000-00-05');
-    const r = await stas.post(`/api/orders/${id}/reassign`, { responsibleId: users.lenya, comment: 'Это к мастеру' });
+    const id = await intakeLaptop(semen, users.isakov, '+7 900 000-00-05');
+    const r = await stas.post(`/api/orders/${id}/reassign`, { responsibleId: users.kataev, comment: 'Это к мастеру' });
     expect(r.status).toBe(200);
     const order = (await semen.get(`/api/orders/${id}`)).body;
     expect(order.stageId).toBe(stage.diagnostics);
-    expect(order.responsibleId).toBe(users.lenya);
+    expect(order.responsibleId).toBe(users.kataev);
     const task = (await semen.get(`/api/tasks/${order.tasks[0].id}`)).body;
-    expect(task.assigneeId).toBe(users.lenya);
-    expect(task.steps.map((s: any) => s.assigneeId)).toEqual([users.stas, users.lenya]);
+    expect(task.assigneeId).toBe(users.kataev);
+    expect(task.steps.map((s: any) => s.assigneeId)).toEqual([users.isakov, users.kataev]);
   });
 });

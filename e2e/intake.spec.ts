@@ -69,7 +69,7 @@ test('приём физлица: новый клиент → квитанция 
   // Стас видит уведомление о задаче.
   const ctx = await browser.newContext();
   const stasPage = await ctx.newPage();
-  await login(stasPage, 'stas');
+  await login(stasPage, 'isakov');
   await stasPage.getByRole('button', { name: /Уведомления/ }).click();
   await expect(stasPage.getByText(/Новая задача: Диагностика: Ноутбук Lenovo IdeaPad 3/).first()).toBeVisible();
   await ctx.close();

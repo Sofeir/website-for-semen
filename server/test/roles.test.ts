@@ -43,13 +43,13 @@ describe('права на уровне API', () => {
   });
 
   it('диагност не может принимать технику и править справочники', async () => {
-    const stas = await loginAs('stas');
+    const stas = await loginAs('isakov');
     const { laptop, users } = await dict();
     const intake = await stas.post('/api/intake', {
       clientKind: 'person',
       newClient: { kind: 'person', name: 'Кто-то', phone: '+79000000099' },
       devices: [{ device: { deviceTypeId: laptop }, faultText: 'x' }],
-      responsibleId: users.stas,
+      responsibleId: users.isakov,
       dueAt: inDays(1),
     });
     expect(intake.status).toBe(403);
@@ -59,26 +59,26 @@ describe('права на уровне API', () => {
   });
 
   it('инженер справочники не правит, директор и руководитель системного администрирования правят', async () => {
-    const stas = await loginAs('stas');
+    const stas = await loginAs('isakov');
     expect((await stas.post('/api/dictionaries/device_types', { name: 'Дрон' })).status).toBe(403);
-    const admin = await loginAs('admin');
+    const admin = await loginAs('golenkov');
     expect((await admin.post('/api/dictionaries/device_types', { name: 'Дрон' })).status).toBe(201);
     const semen = await loginAs('semen');
     expect((await semen.post('/api/dictionaries/device_types', { name: 'Квадрокоптер' })).status).toBe(201);
   });
 
   it('мастер не видит логины коллег, администратор видит', async () => {
-    const lenya = await loginAs('lenya');
-    const admin = await loginAs('admin');
+    const lenya = await loginAs('kataev');
+    const admin = await loginAs('golenkov');
     expect((await lenya.get('/api/users')).body[0].login).toBeUndefined();
     expect((await admin.get('/api/users')).body[0].login).toBeDefined();
   });
 
   it('импорт из Excel — только директор и руководитель системного администрирования', async () => {
-    const stas = await loginAs('stas');
+    const stas = await loginAs('isakov');
     expect((await stas.post('/api/import/commit', { token: 'x'.repeat(20), kind: 'person', mapping: { name: 0 } })).status).toBe(403);
     expect((await stas.post('/api/import/preview')).status).toBe(403);
-    for (const login of ['admin', 'semen']) {
+    for (const login of ['golenkov', 'semen']) {
       const boss = await loginAs(login);
       expect((await boss.post('/api/import/commit', { token: 'x'.repeat(20), kind: 'person', mapping: { name: 0 } })).status).toBe(410);
     }
@@ -99,9 +99,9 @@ describe('права на уровне API', () => {
 
   it('после пяти неверных паролей вход блокируется', async () => {
     for (let i = 0; i < 5; i++) {
-      await request(app).post('/api/auth/login').send({ login: 'olga', password: 'wrong' });
+      await request(app).post('/api/auth/login').send({ login: 'maria', password: 'wrong' });
     }
-    const res = await request(app).post('/api/auth/login').send({ login: 'olga', password: PASSWORD });
+    const res = await request(app).post('/api/auth/login').send({ login: 'maria', password: PASSWORD });
     expect(res.status).toBe(429);
   });
 });

@@ -108,12 +108,12 @@ export async function seedReference(db: Db = pool) {
  */
 export const DEMO_USERS: { login: string; fullName: string; role: Role; position?: string; phone?: string; roleConfirmed?: boolean }[] = [
   { login: 'semen', fullName: 'Вайнштейн Семён Леонидович', role: 'manager', position: 'Директор' },
-  { login: 'artem', fullName: 'Тафлевич Леонид Беневич', role: 'manager', position: 'Директор' },
-  { login: 'admin', fullName: 'Голенков Григорий Сергеевич', role: 'admin', position: 'Руководитель системного администрирования' },
+  { login: 'leonid', fullName: 'Тафлевич Леонид Беневич', role: 'manager', position: 'Директор' },
+  { login: 'golenkov', fullName: 'Голенков Григорий Сергеевич', role: 'admin', position: 'Руководитель системного администрирования' },
   { login: 'matvey', fullName: 'Тафлевич Матвей Леонидович', role: 'admin', position: 'Руководитель системного администрирования' },
-  { login: 'stas', fullName: 'Исаков Григорий Вячеславович', role: 'diagnostician', position: 'Ведущий инженер' },
-  { login: 'lenya', fullName: 'Катаев Артем Дмитриевич', role: 'master', position: 'Инженер' },
-  { login: 'olga', fullName: 'Тафлевич Мария Викторовна', role: 'diagnostician' },
+  { login: 'isakov', fullName: 'Исаков Григорий Вячеславович', role: 'diagnostician', position: 'Ведущий инженер' },
+  { login: 'kataev', fullName: 'Катаев Артем Дмитриевич', role: 'master', position: 'Инженер' },
+  { login: 'maria', fullName: 'Тафлевич Мария Викторовна', role: 'diagnostician' },
 ];
 
 /** Заводит недостающих сотрудников. Уже существующих не трогает — их роли и пароли могли поменять. */
@@ -164,7 +164,7 @@ export async function seedCustomers() {
   if (maria) {
     await pool.query(
       `INSERT INTO users (login, password_hash, full_name, role, phone, client_id)
-       SELECT 'maria', password_hash, 'Мария Лебедева', 'customer', $1, $2 FROM users WHERE login = 'semen'
+       SELECT 'maria.lebedeva', password_hash, 'Мария Лебедева', 'customer', $1, $2 FROM users WHERE login = 'semen'
        ON CONFLICT (login) DO NOTHING`,
       [maria.phone, maria.id],
     );
@@ -196,7 +196,7 @@ export async function seedCustomers() {
   if (rbe && !hasPlan) {
     await pool.query(
       `INSERT INTO service_plans (client_id, every_n, unit, next_date, visit_time, assignee_id, created_by)
-       SELECT $1, 1, 'month', current_date + 7, '11:00', (SELECT id FROM users WHERE login = 'lenya'), (SELECT id FROM users WHERE login = 'semen')`,
+       SELECT $1, 1, 'month', current_date + 7, '11:00', (SELECT id FROM users WHERE login = 'kataev'), (SELECT id FROM users WHERE login = 'semen')`,
       [rbe.id],
     );
   }
@@ -205,9 +205,9 @@ export async function seedCustomers() {
 /** Живые демо-данные: клиенты, заявки на разных этапах, задачи, акт, чек-лист юрлица. */
 export async function seedDemo() {
   const semen = await actor('semen');
-  const stas = await actor('stas');
-  const olga = await actor('olga');
-  const lenya = await actor('lenya');
+  const stas = await actor('isakov');
+  const olga = await actor('maria');
+  const lenya = await actor('kataev');
   const I = await ids();
   const ob = new Outbox();
   const due = (days: number) => defaultDue(DEFAULT_WORK, new Date(), days).toISOString();
