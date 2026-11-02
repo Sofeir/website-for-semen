@@ -31,7 +31,7 @@ describe('акты по API', () => {
   it('несколько работ, правка пересчитывает итог, PDF собирается', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas);
+    const orderId = await intakeLaptop(semen, users.isakov);
     const svc = (await pool.query(`SELECT id, name, price FROM services WHERE name LIKE 'Замена матрицы%'`)).rows[0];
     const created = await semen.post('/api/acts', {
       orderId,
@@ -65,16 +65,16 @@ describe('акты по API', () => {
   it('пустой акт не сохраняется', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.stas, '+7 900 000-00-11');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-11');
     const res = await semen.post('/api/acts', { orderId, items: [], warrantyMonths: 1 });
     expect(res.status).toBe(400);
   });
 
   it('удалять акт может руководитель, а мастер — нет', async () => {
     const semen = await loginAs('semen');
-    const lenya = await loginAs('lenya');
+    const lenya = await loginAs('kataev');
     const { users } = await dict();
-    const orderId = await intakeLaptop(semen, users.lenya, '+7 900 000-00-12');
+    const orderId = await intakeLaptop(semen, users.kataev, '+7 900 000-00-12');
     const act = await lenya.post('/api/acts', { orderId, items: [{ name: 'Диагностика', qty: 1, price: 0 }], warrantyMonths: 0 });
     expect(act.status).toBe(201);
     expect((await lenya.del(`/api/acts/${act.body.id}`)).status).toBe(403);

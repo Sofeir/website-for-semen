@@ -4,10 +4,10 @@ import s from './LoginPage.module.css';
 
 const ACCOUNTS = [
   { login: 'semen', label: 'Директор', who: 'Вайнштейн' },
-  { login: 'admin', label: 'Рук. сисадмин', who: 'Голенков' },
-  { login: 'stas', label: 'Ведущий инженер', who: 'Исаков' },
-  { login: 'lenya', label: 'Инженер', who: 'Катаев' },
-  { login: 'maria', label: 'Заказчик', who: 'Мария' },
+  { login: 'golenkov', label: 'Рук. сисадмин', who: 'Голенков' },
+  { login: 'isakov', label: 'Ведущий инженер', who: 'Исаков' },
+  { login: 'kataev', label: 'Инженер', who: 'Катаев' },
+  { login: 'maria.lebedeva', label: 'Заказчик', who: 'Мария' },
 ];
 
 /** Подсказка на экране входа демо-версии: чьим сотрудником войти и как стереть данные. */

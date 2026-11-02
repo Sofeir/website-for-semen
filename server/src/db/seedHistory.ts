@@ -96,7 +96,7 @@ export async function seedHistory() {
   if (await one(`SELECT 1 FROM clients WHERE name = 'ООО «Уральские технологии»'`)) return;
 
   const users = new Map((await many('SELECT id, login FROM users')).map((u) => [u.login as string, u.id as number]));
-  const need = ['semen', 'stas', 'olga', 'lenya', 'artem'];
+  const need = ['semen', 'isakov', 'maria', 'kataev', 'leonid'];
   if (need.some((l) => !users.has(l))) return; // нет демо-сотрудников: история не нужна
   const U = (l: string) => users.get(l)!;
   const stages = new Map((await many('SELECT id, code FROM stages')).map((r) => [r.code as string, r.id as number]));
@@ -199,8 +199,8 @@ export async function seedHistory() {
 
     // Поток заявок за 11 месяцев: чем ближе к сегодня, тем больше. Всё считаем в памяти.
     const orgs = [rbeId, rbeId, rbeId, org1, org1, org2];
-    const masters = ['lenya', 'stas'];
-    const diags = ['stas', 'olga'];
+    const masters = ['kataev', 'isakov'];
+    const diags = ['isakov', 'maria'];
     const stageId = (c: string) => stages.get(c)!;
     interface Plan {
       clientId: number;
@@ -352,27 +352,27 @@ export async function seedHistory() {
         const at = when(m * 30 + 3 + Math.floor(rand() * 20), 14);
         works.push([
           clientId, null, orderFor(clientId, at), 'refill', pick(['Картридж CF259A', 'Картридж CE505A', 'Картридж 725']), qty,
-          at, U('olga'), U('olga'), qty * price, null, null, null, null, null, ops,
+          at, U('maria'), U('maria'), qty * price, null, null, null, null, null, ops,
         ]);
       }
     }
     for (const c of persons.slice(0, 3)) {
       const at = when(20 + Math.floor(rand() * 200));
-      works.push([c, null, orderFor(c, at), 'refill', 'Картридж CE285A', 2, at, U('olga'), U('olga'), 800, null, null, null, null, null, ['refill']]);
+      works.push([c, null, orderFor(c, at), 'refill', 'Картридж CE285A', 2, at, U('maria'), U('maria'), 800, null, null, null, null, null, ['refill']]);
     }
 
     // Журнал МФУ с ресурсом детали: замена раньше расчётного срока
     const drum = (m: Dev, counter: number, daysBack: number, by: string) =>
       works.push([m.clientId, m.id, null, 'part', 'Блок фотобарабана', 1, when(daysBack), U(by), U(by), 6800, 'HP', 'CF259A', 6, counter, 150000, []]);
-    drum(mfus[0], 40000, 300, 'lenya');
-    drum(mfus[0], 120000, 140, 'lenya');
-    drum(mfus[1], 55000, 220, 'lenya');
-    drum(mfus[1], 205000, 30, 'lenya');
+    drum(mfus[0], 40000, 300, 'kataev');
+    drum(mfus[0], 120000, 140, 'kataev');
+    drum(mfus[1], 55000, 220, 'kataev');
+    drum(mfus[1], 205000, 30, 'kataev');
 
     // Замены на рабочем месте ПК-054 с гарантией
     for (const [title, brand, spec, daysBack, amount, by] of [
-      ['Оперативная память', 'Kingston', '8 ГБ DDR4', 150, 3300, 'stas'],
-      ['Блок питания', 'FSP', '500 Вт', 60, 3900, 'lenya'],
+      ['Оперативная память', 'Kingston', '8 ГБ DDR4', 150, 3300, 'isakov'],
+      ['Блок питания', 'FSP', '500 Вт', 60, 3900, 'kataev'],
     ] as const) {
       works.push([rbeId, pc54, null, 'part', title, 1, when(daysBack), U(by), U(by), amount, brand, spec, 12, null, null, []]);
     }
@@ -397,13 +397,13 @@ export async function seedHistory() {
 export async function seedVisitHistory() {
   if (await one(`SELECT 1 FROM tasks WHERE is_visit AND status = 'done' AND closed_at < now() - interval '15 days'`)) return;
   const users = new Map((await many('SELECT id, login FROM users')).map((u) => [u.login as string, u.id as number]));
-  if (['semen', 'stas', 'lenya', 'artem'].some((l) => !users.has(l))) return;
+  if (['semen', 'isakov', 'kataev', 'leonid'].some((l) => !users.has(l))) return;
   const orgs = await many<{ id: number; name: string }>(
     `SELECT id, name FROM clients WHERE name IN ('ООО «РБЕ Урал»', 'ООО «Уральские технологии»', 'Кафе «Ямал»')`,
   );
   if (!orgs.length) return;
   const rand = rng(20261024);
-  const crew = [users.get('lenya')!, users.get('stas')!, users.get('artem')!];
+  const crew = [users.get('kataev')!, users.get('isakov')!, users.get('leonid')!];
   const works = ['Проверка состояния дисков', 'Проверка антивируса', 'Проверка активации продуктов Microsoft', 'Проверка наличия ошибок в системе', 'Проверка резервных копий', 'Проверка быстродействия системы', 'Очистка устройства от пыли', 'Проверка качества печати', 'Проверка состояния роликов подачи бумаги', 'Проверка состояния печки', 'Проверка состояния фотобарабана', 'Проверка остатка тонера', 'Проверка бункера отработанного тонера', 'Очистка устройства', 'Пробег'];
   await tx(async (db) => {
     let n = 0;

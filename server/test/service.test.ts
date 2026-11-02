@@ -15,13 +15,13 @@ describe('выезд к клиенту', () => {
 
   it('задача-выезд с чек-листом: исполнитель отмечает пункты, посторонний — нет', async () => {
     const semen = await loginAs('semen');
-    const lenya = await loginAs('lenya');
-    const stas = await loginAs('stas');
+    const lenya = await loginAs('kataev');
+    const stas = await loginAs('isakov');
     const { users } = await dict();
     const clientId = (await pool.query(`SELECT id FROM clients WHERE name = 'ООО Точка'`)).rows[0].id;
     const created = await semen.post('/api/tasks', {
       title: 'Выезд: ООО Точка',
-      assigneeId: users.lenya,
+      assigneeId: users.kataev,
       clientId,
       startAt: new Date().toISOString(),
       dueAt: inDays(1),
@@ -62,12 +62,12 @@ describe('выезд к клиенту', () => {
 
   it('график выездов: накануне ставится задача с чек-листом, дата сдвигается, повторно не дублируется', async () => {
     const semen = await loginAs('semen');
-    const lenya = await loginAs('lenya');
+    const lenya = await loginAs('kataev');
     const { users } = await dict();
     const clientId = (await pool.query(`SELECT id FROM clients WHERE name = 'ООО Точка'`)).rows[0].id;
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const plan = { everyN: 2, unit: 'week', nextDate: ymd(tomorrow), visitTime: '11:30', assigneeId: users.lenya, isActive: true };
+    const plan = { everyN: 2, unit: 'week', nextDate: ymd(tomorrow), visitTime: '11:30', assigneeId: users.kataev, isActive: true };
     expect((await lenya.put(`/api/clients/${clientId}/service-plan`, plan)).status).toBe(403);
     const put = await semen.put(`/api/clients/${clientId}/service-plan`, plan);
     expect(put.status).toBe(200);
@@ -88,8 +88,8 @@ describe('выезд к клиенту', () => {
 
   it('раздел «Выезды»: руководитель видит все, исполнитель — свои, посторонний — ничего', async () => {
     const semen = await loginAs('semen');
-    const lenya = await loginAs('lenya');
-    const stas = await loginAs('stas');
+    const lenya = await loginAs('kataev');
+    const stas = await loginAs('isakov');
     const all = (await semen.get('/api/visits')).body;
     expect(all.tasks.length).toBeGreaterThan(0);
     expect(all.tasks.every((t: { isVisit: boolean }) => t.isVisit)).toBe(true);

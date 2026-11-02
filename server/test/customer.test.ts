@@ -71,7 +71,7 @@ describe('кабинет заказчика по API', () => {
 
   it('подтверждение привязывает кабинет к уже существующему клиенту по телефону', async () => {
     const semen = await loginAs('semen');
-    const orderId = await intakeLaptop(semen, (await dict()).users.olga, '+7 922 333-44-55');
+    const orderId = await intakeLaptop(semen, (await dict()).users.maria, '+7 922 333-44-55');
     const existing = await pool.query('SELECT client_id FROM orders WHERE id = $1', [orderId]);
     const { clientId } = await onboard(semen, 'petr', '8 (922) 333-44-55');
     expect(clientId).toBe(existing.rows[0].client_id);
@@ -189,11 +189,11 @@ describe('кабинет заказчика по API', () => {
   });
 
   it('сотруднику чужой кабинет закрыт, а заказчики не попадают в списки сотрудников', async () => {
-    const stas = await loginAs('stas');
+    const stas = await loginAs('isakov');
     expect((await stas.get('/api/customer/tasks')).status).toBe(403);
     expect((await stas.get('/api/customers')).status).toBe(403);
 
-    const admin = await loginAs('admin');
+    const admin = await loginAs('golenkov');
     const users = await admin.get('/api/users');
     expect(users.body.some((u: { role: string }) => u.role === 'customer')).toBe(false);
 

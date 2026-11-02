@@ -67,7 +67,7 @@ describe('аналитика', () => {
     expect(d.status).toBe(200);
     expect(d.body.works.length).toBe(engineer.works);
     expect(Math.round(d.body.total)).toBe(Math.round(engineer.revenue));
-    const lenya = await loginAs('lenya');
+    const lenya = await loginAs('kataev');
     expect((await lenya.get(`/api/analytics/master/${engineer.userId}?month=${month}`)).status).toBe(403);
   });
 
@@ -88,9 +88,9 @@ describe('аналитика', () => {
   });
 
   it('аналитику видят только директор и руководитель системного администрирования', async () => {
-    expect((await (await loginAs('admin')).get('/api/analytics')).status).toBe(200);
-    expect((await (await loginAs('lenya')).get('/api/analytics')).status).toBe(403);
-    expect((await (await loginAs('stas')).get('/api/analytics')).status).toBe(403);
+    expect((await (await loginAs('golenkov')).get('/api/analytics')).status).toBe(200);
+    expect((await (await loginAs('kataev')).get('/api/analytics')).status).toBe(403);
+    expect((await (await loginAs('isakov')).get('/api/analytics')).status).toBe(403);
   });
 
   it('неверный месяц — понятная ошибка', async () => {

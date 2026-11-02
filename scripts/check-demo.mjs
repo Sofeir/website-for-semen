@@ -18,7 +18,7 @@ const t0 = Date.now();
 await page.goto(BASE + 'login');
 await page.getByLabel('Логин').waitFor({ timeout: 90000 });
 console.log('форма входа за', Date.now() - t0, 'мс');
-await page.getByLabel('Логин').fill('admin');
+await page.getByLabel('Логин').fill('golenkov');
 await page.getByLabel('Пароль', { exact: true }).fill('demo');
 await page.getByRole('button', { name: 'Войти' }).click();
 await page.waitForURL(/website-for-semen\/?$/, { timeout: 90000 });
