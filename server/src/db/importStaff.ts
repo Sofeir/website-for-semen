@@ -52,7 +52,12 @@ function readEntries(file: string): StaffEntry[] {
   if (shared && shared.length < 8) throw new Error('STAFF_PASSWORD короче 8 символов');
   const issued: string[] = [];
   for (const e of entries) {
-    const have = await one<{ id: number }>('SELECT id FROM users WHERE lower(login) = lower($1)', [e.login]);
+    const have = await one<{ id: number; role: string }>('SELECT id, role FROM users WHERE lower(login) = lower($1)', [e.login]);
+    if (have?.role === 'customer') {
+      // Учётка заказчика с таким логином: не превращаем её в сотрудника, пусть руководитель разберётся вручную.
+      console.warn(`ПРОПУЩЕН: ${e.login} — этот логин занят заказчиком, сотрудника с таким логином нужно завести под другим`);
+      continue;
+    }
     if (have) {
       await pool.query('UPDATE users SET full_name = $2, role = $3, position = $4, phone = $5, email = coalesce($6, email), role_confirmed = true, is_active = true WHERE id = $1', [
         have.id,

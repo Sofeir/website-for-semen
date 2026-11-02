@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pool } from '../src/db/pool';
@@ -36,6 +37,16 @@ describe('смена логина', () => {
     expect((await s.post('/api/auth/me/login', { login: 'is akov', current: PASSWORD })).status).toBe(400);
     // свой же логин другим регистром менять можно
     expect((await s.post('/api/auth/me/login', { login: 'Isakov', current: PASSWORD })).status).toBe(200);
+  });
+});
+
+describe('смена логина: заказчикам нельзя', () => {
+  it('заказчик получает отказ, логин не меняется', async () => {
+    await pool.query(`INSERT INTO users (login, password_hash, full_name, role) VALUES ('zakaz', $1, 'Заказчик', 'customer')`, [
+      await bcrypt.hash(PASSWORD, 10),
+    ]);
+    const s = await loginAs('zakaz');
+    expect((await s.post('/api/auth/me/login', { login: 'isakov-new', current: PASSWORD })).status).toBe(403);
   });
 });
 
@@ -90,6 +101,27 @@ describe('календарь задач', () => {
     // отключение
     await isakov.del('/api/auth/me/calendar');
     expect((await request(app).get(`/api/calendar/${next}.ics`)).status).toBe(404);
+  });
+
+  it('формат: одиночный перевод строки и управляющие символы не создают новых строк календаря', () => {
+    const ics = buildCalendar(
+      [
+        {
+          id: 2,
+          title: 'Задача\rEND:VEVENT\rBEGIN:VEVENT\x00',
+          description: 'а\r\nб',
+          dueAt: new Date('2026-11-05T10:00:00Z'),
+          updatedAt: new Date(),
+          clientName: null,
+          orderNumber: null,
+        },
+      ],
+      'https://example.test',
+      'Задачи',
+    );
+    expect(ics.split('\r\n').filter((l) => l === 'BEGIN:VEVENT')).toHaveLength(1);
+    expect(ics).not.toMatch(/\r(?!\n)/);
+    expect(ics).not.toContain('\x00');
   });
 
   it('формат: длинные русские строки переносятся по 75 байт и не рвут буквы', () => {

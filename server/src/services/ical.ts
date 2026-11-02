@@ -10,12 +10,15 @@ export interface CalendarTask {
   orderNumber: string | null;
 }
 
+/** Экранирует текст поля. Любые переводы строки (и одиночный \r) становятся «\n», остальные управляющие символы убираются: иначе в ленту можно было бы вставить свои строки календаря. */
 const escapeText = (s: string) =>
   s
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n');
+    .replace(/\r\n|\r|\n/g, '\\n')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '');
 
 /** Строки длиннее 75 байт переносятся: продолжение начинается с пробела. Режем по символам, чтобы не разорвать русскую букву. */
 function fold(line: string): string {
@@ -55,7 +58,8 @@ export function buildCalendar(tasks: CalendarTask[], origin: string, calendarNam
     'X-PUBLISHED-TTL:PT1H',
   ];
   for (const t of tasks) {
-    const link = `${origin}/tasks?task=${t.id}`;
+    // eslint-disable-next-line no-control-regex
+    const link = `${origin}/tasks?task=${t.id}`.replace(/[\x00-\x20\x7f]/g, '');
     const description = [t.description, t.clientName && `Клиент: ${t.clientName}`, t.orderNumber && `Заявка №${t.orderNumber}`, link]
       .filter(Boolean)
       .join('\n');
