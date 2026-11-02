@@ -17,29 +17,45 @@ interface TaskRow {
   status: string;
   creator_id: number;
   assignee_id: number;
+  assignee_ids: number[];
   order_id: number | null;
   stage_id: number | null;
 }
 
-/** Руководители и администраторы — они получают копию уведомлений о передачах и просрочках. */
-export async function overseerIds(db: Db): Promise<number[]> {
+/** Поля задачи, нужные для проверки прав и уведомлений. Псевдоним таблицы — t. */
+export const TASK_ROW_FIELDS = `t.id, t.title, t.status, t.creator_id, t.assignee_id, t.order_id, t.stage_id,
+  ARRAY(SELECT ta.user_id FROM task_assignees ta WHERE ta.task_id = t.id) AS assignee_ids`;
+
+/**
+ * Сбрасывает напоминания о сроке после смены срока или исполнителя. Если до срока уже меньше суток (или 2 часов),
+ * соответствующее напоминание считается отправленным: иначе оно прилетело бы сразу после создания задачи.
+ * `p` — параметр со сроком.
+ */
+export const remindReset = (p: string) =>
+  `remind_day_at = CASE WHEN ${p}::timestamptz - now() <= interval '1 day' THEN now() END,
+   remind_2h_at = CASE WHEN ${p}::timestamptz - now() <= interval '2 hours' THEN now() END`;
+
+/** Кто участвует в задаче: постановщик, нынешние ответственные и все, кто был в цепочке передачи (в том числе передавшие). */
+export async function taskParticipantIds(db: Db, taskId: number): Promise<number[]> {
   const rows = await many<{ id: number }>(
-    `SELECT id FROM users WHERE is_active AND role IN ('admin', 'manager')`,
-    [],
+    `SELECT creator_id AS id FROM tasks WHERE id = $1
+     UNION SELECT user_id FROM task_assignees WHERE task_id = $1
+     UNION SELECT assignee_id FROM task_steps WHERE task_id = $1
+     UNION SELECT from_user_id FROM task_steps WHERE task_id = $1 AND from_user_id IS NOT NULL`,
+    [taskId],
     db,
   );
   return rows.map((r) => r.id);
 }
 
-/** Одно уведомление всем получателям без повторов и без тех, кто совершил действие. */
-export async function notifyHandover(
-  db: Db,
+/** Одно уведомление всем получателям без повторов и без тех, кто совершил действие. Директорам и админам копии не шлём: только участникам. */
+export function notifyParticipants(
   outbox: Outbox,
   recipients: (number | null | undefined)[],
   skip: number[],
   notice: Omit<Notice, 'userId'>,
 ) {
-  const ids = new Set([...recipients, ...(await overseerIds(db))].filter((x): x is number => Boolean(x)));
+  const ids = new Set(recipients.filter((x): x is number => Boolean(x)));
   for (const userId of ids) if (!skip.includes(userId)) outbox.add({ ...notice, userId });
 }
 
@@ -58,25 +74,44 @@ export async function normalizeDue(db: Db, iso: string | Date): Promise<Date> {
   return clampToWorkEnd(new Date(iso), ws);
 }
 
+/** Список ответственных из запроса: assigneeIds, а старое поле assigneeId (одиночное) тоже принимаем. Без повторов. */
+export function assigneeList(input: { assigneeId?: number; assigneeIds?: number[] }): number[] {
+  return [...new Set([...(input.assigneeIds ?? []), ...(input.assigneeId ? [input.assigneeId] : [])])];
+}
+
+/** Задача целиком переходит одному сотруднику: он становится единственным ответственным, срок и напоминания обновляются. */
+export async function moveTask(db: Db, taskId: number, userId: number, due: Date) {
+  await db.query(
+    `UPDATE tasks SET assignee_id = $2, due_at = $3, overdue_notified_at = NULL, ${remindReset('$3')}, updated_at = now() WHERE id = $1`,
+    [taskId, userId, due],
+  );
+  await db.query('DELETE FROM task_assignees WHERE task_id = $1 AND user_id <> $2', [taskId, userId]);
+}
 
 export async function createTask(
   db: Db,
   actor: Actor,
-  input: TaskInput & { stageId?: number | null },
+  input: Omit<TaskInput, 'assigneeId' | 'assigneeIds'> & { assigneeId?: number; assigneeIds?: number[]; stageId?: number | null },
   outbox: Outbox,
 ): Promise<number> {
-  await assertActiveUser(db, input.assigneeId);
+  const ids = assigneeList(input);
+  if (!ids.length) throw new HttpError(400, 'Выберите ответственного');
+  const people: { id: number; full_name: string }[] = [];
+  for (const userId of ids) people.push(await assertActiveUser(db, userId));
   const due = await normalizeDue(db, input.dueAt);
   const deadline = input.deadlineAt ? await normalizeDue(db, input.deadlineAt) : null;
   const row = await one<{ id: number }>(
-    `INSERT INTO tasks (title, description, creator_id, assignee_id, order_id, client_id, stage_id, start_at, due_at, deadline_at, is_visit, kind_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-             COALESCE($12, (SELECT id FROM task_kinds WHERE code = $13))) RETURNING id`,
+    `INSERT INTO tasks (title, description, creator_id, assignee_id, order_id, client_id, stage_id, start_at, due_at, deadline_at, is_visit, kind_id,
+                        remind_day_at, remind_2h_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10, $11,
+             COALESCE($12, (SELECT id FROM task_kinds WHERE code = $13)),
+             CASE WHEN $9::timestamptz - now() <= interval '1 day' THEN now() END,
+             CASE WHEN $9::timestamptz - now() <= interval '2 hours' THEN now() END) RETURNING id`,
     [
       input.title,
       input.description ?? null,
       actor.id,
-      input.assigneeId,
+      ids[0],
       input.orderId ?? null,
       input.clientId ?? null,
       input.stageId ?? null,
@@ -89,23 +124,30 @@ export async function createTask(
     ],
     db,
   );
-  await db.query(`INSERT INTO task_steps (task_id, assignee_id, from_user_id, due_at) VALUES ($1, $2, $3, $4)`, [
-    row!.id,
-    input.assigneeId,
-    actor.id,
-    due,
-  ]);
+  for (const userId of ids) {
+    await db.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [row!.id, userId]);
+    await db.query(`INSERT INTO task_steps (task_id, assignee_id, from_user_id, due_at) VALUES ($1, $2, $3, $4)`, [
+      row!.id,
+      userId,
+      actor.id,
+      due,
+    ]);
+  }
   // У выезда нет общего чек-листа: техника клиента проверяется по одной единице, у каждой свой бланк
   const checklist = input.visit ? [] : (input.checklist ?? []).filter(Boolean);
   for (const [i, title] of checklist.entries()) {
     await db.query('INSERT INTO task_checklist_items (task_id, title, sort) VALUES ($1, $2, $3)', [row!.id, title, (i + 1) * 10]);
   }
-  if (input.assigneeId !== actor.id) {
+  for (const p of people) {
+    if (p.id === actor.id) continue;
+    const others = people.filter((o) => o.id !== p.id).map((o) => o.full_name);
     outbox.add({
-      userId: input.assigneeId,
+      userId: p.id,
       type: 'task_assigned',
       title: `Новая задача: ${input.title}`,
-      body: `От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`,
+      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, others.length > 0 && `Вместе с: ${others.join(', ')}.`]
+        .filter(Boolean)
+        .join('\n'),
       link: `/tasks?task=${row!.id}`,
     });
   }
@@ -113,17 +155,14 @@ export async function createTask(
   return row!.id;
 }
 
-export function canTouchTask(actor: Actor, t: TaskRow) {
-  return t.assignee_id === actor.id || t.creator_id === actor.id || can(actor.role, 'tasks.manageAll');
+export function canTouchTask(actor: Actor, t: Pick<TaskRow, 'creator_id' | 'assignee_ids'>) {
+  return t.assignee_ids.includes(actor.id) || t.creator_id === actor.id || can(actor.role, 'tasks.manageAll');
 }
 
-/** Закрывает задачи пачкой. Постановщик получает уведомление, если закрыл не он сам. */
+/** Закрывает задачи пачкой. Все участники задачи, кроме закрывшего, получают уведомление. */
 export async function closeTasks(db: Db, actor: Actor, ids: number[], comment: string | null, outbox: Outbox) {
   const rows = (
-    await db.query<TaskRow>(
-      `SELECT id, title, status, creator_id, assignee_id, order_id, stage_id FROM tasks WHERE id = ANY ($1) FOR UPDATE`,
-      [ids],
-    )
+    await db.query<TaskRow>(`SELECT ${TASK_ROW_FIELDS} FROM tasks t WHERE t.id = ANY ($1) FOR UPDATE OF t`, [ids])
   ).rows;
   const closed: number[] = [];
   const skipped: number[] = [];
@@ -138,15 +177,12 @@ export async function closeTasks(db: Db, actor: Actor, ids: number[], comment: s
     );
     await db.query(`UPDATE task_steps SET done_at = now() WHERE task_id = $1 AND done_at IS NULL`, [t.id]);
     closed.push(t.id);
-    if (t.creator_id !== actor.id) {
-      outbox.add({
-        userId: t.creator_id,
-        type: 'task_closed',
-        title: `Задача закрыта: ${t.title}`,
-        body: [`Закрыта сотрудником: ${actor.fullName}.`, comment && `Комментарий: ${comment}`].filter(Boolean).join('\n'),
-        link: `/tasks?task=${t.id}`,
-      });
-    }
+    notifyParticipants(outbox, await taskParticipantIds(db, t.id), [actor.id], {
+      type: 'task_closed',
+      title: `Задача закрыта: ${t.title}`,
+      body: [`Закрыта сотрудником: ${actor.fullName}.`, comment && `Комментарий: ${comment}`].filter(Boolean).join('\n'),
+      link: `/tasks?task=${t.id}`,
+    });
   }
   for (const id of ids) if (!rows.find((r) => r.id === id)) skipped.push(id);
   outbox.touch('tasks');
@@ -154,7 +190,7 @@ export async function closeTasks(db: Db, actor: Actor, ids: number[], comment: s
 }
 
 export async function reopenTask(db: Db, actor: Actor, id: number, outbox: Outbox) {
-  const t = await one<TaskRow>(`SELECT * FROM tasks WHERE id = $1 FOR UPDATE`, [id], db);
+  const t = await one<TaskRow>(`SELECT ${TASK_ROW_FIELDS} FROM tasks t WHERE t.id = $1 FOR UPDATE OF t`, [id], db);
   if (!t) throw new HttpError(404, 'Задача не найдена');
   if (!canTouchTask(actor, t)) throw forbidden();
   if (t.status === 'open') return;
@@ -164,31 +200,29 @@ export async function reopenTask(db: Db, actor: Actor, id: number, outbox: Outbo
   );
   await db.query(
     `INSERT INTO task_steps (task_id, assignee_id, from_user_id, due_at, comment)
-     SELECT id, assignee_id, $2, due_at, 'Возвращена в работу' FROM tasks WHERE id = $1`,
+     SELECT t.id, ta.user_id, $2, t.due_at, 'Возвращена в работу' FROM tasks t JOIN task_assignees ta ON ta.task_id = t.id WHERE t.id = $1`,
     [id, actor.id],
   );
-  if (t.assignee_id !== actor.id) {
-    outbox.add({
-      userId: t.assignee_id,
-      type: 'task_reopened',
-      title: `Задача снова в работе: ${t.title}`,
-      body: `Кто вернул: ${actor.fullName}.`,
-      link: `/tasks?task=${id}`,
-    });
-  }
+  notifyParticipants(outbox, await taskParticipantIds(db, id), [actor.id], {
+    type: 'task_reopened',
+    title: `Задача снова в работе: ${t.title}`,
+    body: `Кто вернул: ${actor.fullName}.`,
+    link: `/tasks?task=${id}`,
+  });
   outbox.touch('tasks');
 }
 
 /**
  * Передача задачи следующему исполнителю: текущий шаг закрывается, открывается новый.
  * Так строится цепочка «сотрудник A → сотрудник Б → готово» с датами каждого шага.
+ * Передавший остаётся участником и дальше получает уведомления по задаче.
  */
 export async function transferTask(db: Db, actor: Actor, id: number, input: TransferTaskInput, outbox: Outbox) {
-  const t = await one<TaskRow>(`SELECT * FROM tasks WHERE id = $1 FOR UPDATE`, [id], db);
+  const t = await one<TaskRow>(`SELECT ${TASK_ROW_FIELDS} FROM tasks t WHERE t.id = $1 FOR UPDATE OF t`, [id], db);
   if (!t) throw new HttpError(404, 'Задача не найдена');
   if (!canTouchTask(actor, t)) throw forbidden();
   if (t.status !== 'open') throw new HttpError(409, 'Задача уже закрыта');
-  if (t.assignee_id === input.assigneeId) throw new HttpError(400, 'Задача уже у этого сотрудника');
+  if (t.assignee_ids.length === 1 && t.assignee_ids[0] === input.assigneeId) throw new HttpError(400, 'Задача уже у этого сотрудника');
   const next = await assertActiveUser(db, input.assigneeId);
   const due = await normalizeDue(db, input.dueAt);
   await db.query(`UPDATE task_steps SET done_at = now() WHERE task_id = $1 AND done_at IS NULL`, [id]);
@@ -199,7 +233,7 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
     due,
     input.comment,
   ]);
-  await db.query(`UPDATE tasks SET assignee_id = $2, due_at = $3, overdue_notified_at = NULL, updated_at = now() WHERE id = $1`, [id, input.assigneeId, due]);
+  await moveTask(db, id, input.assigneeId, due);
   if (input.assigneeId !== actor.id) {
     outbox.add({
       userId: input.assigneeId,
@@ -209,8 +243,8 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
       link: `/tasks?task=${id}`,
     });
   }
-  // Постановщик, прошлый исполнитель и руководители узнают, кто кому передал задачу и почему.
-  await notifyHandover(db, outbox, [t.creator_id, t.assignee_id], [actor.id, input.assigneeId], {
+  // Все, кто участвовал в задаче раньше (постановщик, прошлые исполнители, передававшие), узнают, кто кому передал её и почему.
+  notifyParticipants(outbox, await taskParticipantIds(db, id), [actor.id, input.assigneeId], {
     type: 'task_handover',
     title: `Задачу передали: ${t.title}`,
     body: [`От: ${actor.fullName}. Кому: ${next.full_name}.`, `Причина и что сделано: ${input.comment}`].join('\n'),

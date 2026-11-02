@@ -11,7 +11,7 @@ import { ErrorBox } from '@/ui/Display';
 import { Field, Input, Select, Textarea, formStyles } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
-import { DueInput, UserSelect } from './Pickers';
+import { DueInput, UserMultiSelect } from './Pickers';
 import { ChecklistEditor } from './ChecklistEditor';
 
 interface Props {
@@ -56,7 +56,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
         ? {
             title: task.title,
             description: task.description ?? '',
-            assigneeId: task.assigneeId,
+            assigneeIds: task.assigneeIds,
             orderId: task.orderId,
             clientId: task.clientId,
             startAt: task.startAt,
@@ -67,7 +67,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
         : {
             title: presetTitle ?? '',
             description: '',
-            assigneeId: me.id,
+            assigneeIds: [me.id],
             orderId: orderId ?? null,
             clientId: clientId ?? null,
             // срок по умолчанию — завтра; начало тогда — с начала рабочего дня, а для «сегодня» — с текущего момента
@@ -134,8 +134,19 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
               ))}
           </Select>
         </Field>
-        <Field label="Ответственный" error={errors.assigneeId?.message}>
-          <UserSelect {...form.register('assigneeId')} disabled={Boolean(task)} />
+        <Field
+          label="Ответственные"
+          error={errors.assigneeIds?.message as string | undefined}
+          hint={task ? 'Чтобы сменить ответственных, передайте задачу' : 'Отметьте одного или нескольких сотрудников: уведомления придут всем'}
+          group
+        >
+          <Controller
+            control={form.control}
+            name="assigneeIds"
+            render={({ field }) => (
+              <UserMultiSelect value={field.value ?? []} onChange={field.onChange} disabled={Boolean(task)} />
+            )}
+          />
         </Field>
         <div className={formStyles.grid2}>
           <Field

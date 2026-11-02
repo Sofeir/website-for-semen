@@ -5,9 +5,19 @@ import { forbidden, h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { Outbox } from '../notify/notify';
 import { broadcast } from '../notify/hub';
-import { canTouchTask, closeTasks, createTask, normalizeDue, reopenTask, transferTask } from '../services/tasks';
+import {
+  assigneeList,
+  canTouchTask,
+  closeTasks,
+  createTask,
+  normalizeDue,
+  remindReset,
+  reopenTask,
+  TASK_ROW_FIELDS,
+  transferTask,
+} from '../services/tasks';
 import { reassignOrder } from '../services/orders';
-import { likeEscape, TASK_SELECT } from '../services/sql';
+import { isAssignee, likeEscape, TASK_SELECT } from '../services/sql';
 import { assertTaskVisible } from '../services/access';
 import { runServicePlansSoon } from '../services/servicePlans';
 
@@ -32,10 +42,10 @@ tasksRouter.get(
     };
     if (scope === 'created') add((p) => `t.creator_id = ${p}`, user.id);
     else if (scope === 'all' && manageAll) {
-      if (req.query.assignee) add((p) => `t.assignee_id = ${p}`, Number(req.query.assignee));
+      if (req.query.assignee) add((p) => isAssignee('t', p), Number(req.query.assignee));
     } else if (scope === 'all') {
-      add((p) => `(t.assignee_id = ${p} OR t.creator_id = ${p})`, user.id);
-    } else add((p) => `t.assignee_id = ${p}`, user.id);
+      add((p) => `(${isAssignee('t', p)} OR t.creator_id = ${p})`, user.id);
+    } else add((p) => isAssignee('t', p), user.id);
 
     const status = String(req.query.status || 'open');
     if (status === 'open') where.push(`t.status = 'open'`);
@@ -148,19 +158,24 @@ tasksRouter.put(
   h(async (req, res) => {
     const id = intParam(req.params.id);
     const input = parse(taskSchema, req.body);
-    const t = await one<{ creator_id: number; assignee_id: number; status: string; stage_id: number | null }>(
-      'SELECT creator_id, assignee_id, status, stage_id FROM tasks WHERE id = $1',
+    const t = await one<{ creator_id: number; assignee_ids: number[]; status: string; stage_id: number | null }>(
+      `SELECT t.creator_id, t.status, t.stage_id, ARRAY(SELECT ta.user_id FROM task_assignees ta WHERE ta.task_id = t.id) AS assignee_ids
+         FROM tasks t WHERE t.id = $1`,
       [id],
     );
     if (!t) throw new HttpError(404, 'Задача не найдена');
     if (!(t.creator_id === req.user!.id || can(req.user!.role, 'tasks.manageAll')))
       throw forbidden('Править задачу может постановщик');
-    if (t.assignee_id !== input.assigneeId) throw new HttpError(400, 'Чтобы сменить исполнителя, передайте задачу');
+    const wanted = assigneeList(input).sort((a, b) => a - b);
+    const current = [...t.assignee_ids].sort((a, b) => a - b);
+    if (wanted.length !== current.length || wanted.some((x, i) => x !== current[i])) {
+      throw new HttpError(400, 'Чтобы сменить исполнителя, передайте задачу');
+    }
     const due = await normalizeDue(pool, input.dueAt);
     const deadline = input.deadlineAt ? await normalizeDue(pool, input.deadlineAt) : null;
     await pool.query(
       `UPDATE tasks SET title = $2, description = $3, start_at = $4, due_at = $5, deadline_at = $6,
-              kind_id = COALESCE($7, kind_id), updated_at = now() WHERE id = $1`,
+              kind_id = COALESCE($7, kind_id), ${remindReset('$5')}, updated_at = now() WHERE id = $1`,
       [id, input.title, input.description, input.startAt, due, deadline, input.kindId ?? null],
     );
     await pool.query(`UPDATE task_steps SET due_at = $2 WHERE task_id = $1 AND done_at IS NULL`, [id, due]);
@@ -231,15 +246,10 @@ tasksRouter.post(
     const id = intParam(req.params.id);
     const itemId = intParam(req.params.itemId);
     if (typeof req.body?.done !== 'boolean') throw new HttpError(400, 'Не указано, отмечен ли пункт');
-    const t = await one<{
-      id: number;
-      title: string;
-      status: string;
-      creator_id: number;
-      assignee_id: number;
-      order_id: number | null;
-      stage_id: number | null;
-    }>('SELECT id, title, status, creator_id, assignee_id, order_id, stage_id FROM tasks WHERE id = $1', [id]);
+    const t = await one<{ status: string; creator_id: number; assignee_ids: number[] }>(
+      `SELECT ${TASK_ROW_FIELDS} FROM tasks t WHERE t.id = $1`,
+      [id],
+    );
     if (!t) throw new HttpError(404, 'Задача не найдена');
     if (!canTouchTask(req.user!, t)) throw forbidden();
     if (t.status !== 'open') throw new HttpError(409, 'Задача уже закрыта');

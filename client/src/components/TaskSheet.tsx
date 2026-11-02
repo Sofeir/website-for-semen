@@ -35,7 +35,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   const [editing, setEditing] = useState(false);
   const [toggling, setToggling] = useState<number | null>(null);
   const canCheck = Boolean(
-    task && task.status === 'open' && (task.assigneeId === me.id || task.creatorId === me.id || can('tasks.manageAll')),
+    task && task.status === 'open' && (task.assigneeIds.includes(me.id) || task.creatorId === me.id || can('tasks.manageAll')),
   );
   const toggleItem = async (itemId: number, done: boolean) => {
     if (!task) return;
@@ -58,7 +58,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
     setDue(defaultDueDate(settings.data?.work).toISOString());
   }, [taskId, settings.data?.work]);
 
-  const canTouch = task && (task.assigneeId === me.id || task.creatorId === me.id || can('tasks.manageAll'));
+  const canTouch = task && (task.assigneeIds.includes(me.id) || task.creatorId === me.id || can('tasks.manageAll'));
   const canEdit = task && (task.creatorId === me.id || can('tasks.manageAll')) && task.status === 'open';
 
   const doClose = async () => {
@@ -204,7 +204,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                 {task.description && <p className={s.desc}>{task.description}</p>}
                 <DescList
                   items={[
-                    ['Исполнитель', task.assigneeName],
+                    [task.assigneeIds.length > 1 ? 'Ответственные' : 'Исполнитель', task.assigneeName],
                     ['Постановщик', task.creatorName],
                     ['Начало', fmtWhen(task.startAt)],
                     ['Срок', <span className={task.overdue ? s.late : undefined}>{fmtWhen(task.dueAt)}</span>],

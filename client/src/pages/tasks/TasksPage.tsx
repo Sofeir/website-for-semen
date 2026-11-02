@@ -82,7 +82,7 @@ export default function TasksPage() {
     [list, status],
   );
   const selectable = status === 'open';
-  const canClose = (t: TaskListItem) => t.assigneeId === me.id || t.creatorId === me.id || can('tasks.manageAll');
+  const canClose = (t: TaskListItem) => t.assigneeIds.includes(me.id) || t.creatorId === me.id || can('tasks.manageAll');
 
   const toggle = (id: number) =>
     setSelected((prev) => {

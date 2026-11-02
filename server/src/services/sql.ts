@@ -25,7 +25,10 @@ export const ORDER_SELECT = `
 
 export const TASK_SELECT = `
   SELECT t.id, t.title, t.description, t.status,
-         t.assignee_id AS "assigneeId", ua.full_name AS "assigneeName",
+         t.assignee_id AS "assigneeId",
+         ARRAY(SELECT ta.user_id FROM task_assignees ta WHERE ta.task_id = t.id ORDER BY (ta.user_id <> t.assignee_id), ta.user_id) AS "assigneeIds",
+         (SELECT string_agg(au.full_name, ', ' ORDER BY (au.id <> t.assignee_id), au.full_name)
+            FROM task_assignees ta JOIN users au ON au.id = ta.user_id WHERE ta.task_id = t.id) AS "assigneeName",
          t.creator_id AS "creatorId", uc.full_name AS "creatorName",
          t.order_id AS "orderId", o.number AS "orderNumber",
          coalesce(t.client_id, o.client_id) AS "clientId", c.name AS "clientName",
@@ -74,6 +77,10 @@ export const CLIENT_FIELDS = `
 /** Экранирует % и _ для ILIKE. */
 export const likeEscape = (s: string) => s.replace(/[\\%_]/g, (m) => '\\' + m);
 
+/** Сотрудник — один из ответственных за задачу. `t` — псевдоним таблицы tasks, `p` — параметр с id сотрудника. */
+export const isAssignee = (t: string, p: string) =>
+  `EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = ${t}.id AND ta.user_id = ${p})`;
+
 /**
  * Заявка видна сотруднику, если он её ведёт или вёл раньше, или у него (от него) есть задача по ней.
  * `o` — псевдоним таблицы orders, `p` — параметр с id сотрудника.
@@ -81,9 +88,9 @@ export const likeEscape = (s: string) => s.replace(/[\\%_]/g, (m) => '\\' + m);
 export const orderAccess = (o: string, p: string) =>
   `(${o}.responsible_id = ${p}
     OR EXISTS (SELECT 1 FROM order_history oh WHERE oh.order_id = ${o}.id AND oh.responsible_id = ${p})
-    OR EXISTS (SELECT 1 FROM tasks ot WHERE ot.order_id = ${o}.id AND (ot.assignee_id = ${p} OR ot.creator_id = ${p})))`;
+    OR EXISTS (SELECT 1 FROM tasks ot WHERE ot.order_id = ${o}.id AND (${isAssignee('ot', p)} OR ot.creator_id = ${p})))`;
 
 /** Задача видна, если сотрудник её исполнитель, постановщик или был в цепочке передачи. */
 export const taskAccess = (t: string, p: string) =>
-  `(${t}.assignee_id = ${p} OR ${t}.creator_id = ${p}
+  `(${isAssignee(t, p)} OR ${t}.creator_id = ${p}
     OR EXISTS (SELECT 1 FROM task_steps ts WHERE ts.task_id = ${t}.id AND ts.assignee_id = ${p}))`;

@@ -229,11 +229,11 @@ async function visitTask(taskId: number) {
     isVisit: boolean;
     status: string;
     clientId: number | null;
-    assigneeId: number;
+    assigneeIds: number[];
     creatorRole: string | null;
   }>(
     `SELECT t.id, t.is_visit AS "isVisit", t.status, coalesce(t.client_id, o.client_id) AS "clientId",
-            t.assignee_id AS "assigneeId", cr.role AS "creatorRole"
+            ARRAY(SELECT ta.user_id FROM task_assignees ta WHERE ta.task_id = t.id) AS "assigneeIds", cr.role AS "creatorRole"
        FROM tasks t
        LEFT JOIN orders o ON o.id = t.order_id
        LEFT JOIN users cr ON cr.id = t.creator_id
@@ -253,7 +253,7 @@ async function visitTask(taskId: number) {
  */
 async function assertVisitAccess(actor: { id: number; role: string }, task: Awaited<ReturnType<typeof visitTask>>) {
   if (can(actor.role as never, 'orders.viewAll') || can(actor.role as never, 'tasks.manageAll')) return;
-  if (task.assigneeId !== actor.id) throw forbidden('Выезд ведёт другой сотрудник');
+  if (!task.assigneeIds.includes(actor.id)) throw forbidden('Выезд ведёт другой сотрудник');
   if (task.creatorRole && can(task.creatorRole as never, 'orders.viewAll')) return;
   await assertClientWorksVisible(actor as never, task.clientId);
 }

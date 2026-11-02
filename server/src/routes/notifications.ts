@@ -3,7 +3,7 @@ import { can, type DashboardData } from '@sd/shared';
 import { many, one, pool } from '../db/pool';
 import { h, intParam } from '../lib/http';
 import { subscribe } from '../notify/hub';
-import { ORDER_SELECT, orderAccess, TASK_SELECT } from '../services/sql';
+import { isAssignee, ORDER_SELECT, orderAccess, TASK_SELECT } from '../services/sql';
 import { runServicePlansSoon } from '../services/servicePlans';
 import { notifyOverdueSoon } from '../services/overdue';
 import { endOfDay } from '../services/workTime';
@@ -111,12 +111,12 @@ notificationsRouter.get(
     const todayEnd = endOfDay();
     const [myTasksToday, overdue, newOrders, readyOrders, counts] = await Promise.all([
       many(
-        `${TASK_SELECT} WHERE t.assignee_id = $1 AND t.status = 'open' AND t.due_at >= now() AND t.due_at <= $2
+        `${TASK_SELECT} WHERE ${isAssignee('t', '$1')} AND t.status = 'open' AND t.due_at >= now() AND t.due_at <= $2
           ORDER BY t.due_at LIMIT 50`,
         [user.id, todayEnd],
       ),
       many(
-        `${TASK_SELECT} WHERE t.status = 'open' AND t.due_at < now() ${all ? '' : 'AND t.assignee_id = $1'}
+        `${TASK_SELECT} WHERE t.status = 'open' AND t.due_at < now() ${all ? '' : `AND ${isAssignee('t', '$1')}`}
           ORDER BY t.due_at LIMIT 50`,
         all ? [] : [user.id],
       ),
@@ -133,8 +133,8 @@ notificationsRouter.get(
         `SELECT
            (SELECT count(*) FROM orders o JOIN stages s ON s.id = o.stage_id WHERE NOT s.is_final ${mineO}) AS "inWork",
            (SELECT count(*) FROM orders o WHERE o.stage_id = (SELECT id FROM stages WHERE is_active AND NOT is_final ORDER BY sort DESC, id DESC LIMIT 1) ${mineO}) AS ready,
-           (SELECT count(*) FROM tasks t WHERE t.status = 'open' AND t.due_at < now() ${all ? '' : 'AND t.assignee_id = $1'}) AS overdue,
-           (SELECT count(*) FROM tasks t WHERE t.status = 'open' AND t.assignee_id = $1 AND t.due_at <= $2) AS today`,
+           (SELECT count(*) FROM tasks t WHERE t.status = 'open' AND t.due_at < now() ${all ? '' : `AND ${isAssignee('t', '$1')}`}) AS overdue,
+           (SELECT count(*) FROM tasks t WHERE t.status = 'open' AND ${isAssignee('t', '$1')} AND t.due_at <= $2) AS today`,
         [user.id, todayEnd],
       ),
     ]);

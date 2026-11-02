@@ -271,7 +271,11 @@ export interface TaskListItem {
   title: string;
   description: string | null;
   status: TaskStatus;
+  /** Главный ответственный (первый в списке). */
   assigneeId: number;
+  /** Все ответственные: главный первым. */
+  assigneeIds: number[];
+  /** Имена всех ответственных через запятую. */
   assigneeName: string;
   creatorId: number;
   creatorName: string;
