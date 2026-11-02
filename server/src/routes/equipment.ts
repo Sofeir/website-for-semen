@@ -7,6 +7,7 @@ import {
   INSPECTION_LABELS,
   inspectionKindOf,
   inspectionSchema,
+  intakeSchema,
   type Device,
   type DeviceWork,
   type Inspection,
@@ -16,7 +17,9 @@ import { many, one, pool, tx } from '../db/pool';
 import { forbidden, h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { broadcast } from '../notify/hub';
+import { Outbox } from '../notify/notify';
 import { assertClientWorksVisible, assertDeviceVisible, assertOrderVisible } from '../services/access';
+import { createIntake } from '../services/orders';
 import { DEVICE_SELECT, DEVICE_TITLE, WORK_SELECT } from '../services/sql';
 import { assertActiveUser } from '../services/tasks';
 
@@ -166,18 +169,57 @@ equipmentRouter.post(
     }
     if (!clientId) throw new HttpError(400, 'Не указан клиент');
     const performerId = input.performerId ? (await assertActiveUser(pool, input.performerId)).id : req.user!.id;
-    const row = await one<{ id: number }>(
-      `INSERT INTO device_works (client_id, device_id, order_id, kind, title, qty, counter, note, done_at, created_by,
-                                 performer_id, amount, part_brand, part_spec, warranty_months, resource, ops)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, now()), $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
-      [
-        clientId, deviceId, orderId, input.kind, input.title, input.qty, input.counter ?? null, input.note, input.doneAt ?? null, req.user!.id,
-        performerId, input.amount ?? null, input.partBrand, input.partSpec, input.warrantyMonths ?? null, input.resource ?? null,
-        input.kind === 'refill' ? input.ops : [],
-      ],
-    );
+    // Заправка без выбранной заявки: заводим новую заявку на клиента, чтобы заправка попала в общий список и отчёты.
+    const makeOrder = input.newOrder && input.kind === 'refill' && !orderId && !deviceId;
+    if (makeOrder && !can(req.user!.role, 'intake.create')) throw forbidden('Создавать заявки может сотрудник с правом приёма');
+    const outbox = new Outbox();
+    const saved = await tx(async (db) => {
+      let linkOrderId = orderId;
+      let linkDeviceId = deviceId;
+      let orderNumber: string | null = null;
+      if (makeOrder) {
+        const client = await one<{ kind: 'person' | 'legal' }>('SELECT kind FROM clients WHERE id = $1', [clientId], db);
+        if (!client) throw new HttpError(404, 'Клиент не найден');
+        const type = await one<{ id: number }>(`SELECT id FROM device_types WHERE name = 'Картридж' AND is_active`, [], db);
+        if (!type) throw new HttpError(400, 'В справочнике нет типа техники «Картридж»');
+        const made = await createIntake(
+          db,
+          req.user!,
+          intakeSchema.parse({
+            clientKind: client.kind,
+            clientId,
+            devices: [
+              {
+                device: { deviceTypeId: type.id, modelText: input.title },
+                faultText: `Заправка картриджей: ${input.qty} шт.`,
+              },
+            ],
+            responsibleId: performerId,
+            dueAt: new Date(Date.now() + 4 * 3600_000).toISOString(),
+            comment: input.note,
+          }),
+          outbox,
+        );
+        linkOrderId = made.orderIds[0];
+        orderNumber = made.orderNumbers[0];
+        linkDeviceId = (await one<{ device_id: number }>('SELECT device_id FROM orders WHERE id = $1', [linkOrderId], db))!.device_id;
+      }
+      const row = await one<{ id: number }>(
+        `INSERT INTO device_works (client_id, device_id, order_id, kind, title, qty, counter, note, done_at, created_by,
+                                   performer_id, amount, part_brand, part_spec, warranty_months, resource, ops)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, now()), $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
+        [
+          clientId, linkDeviceId, linkOrderId, input.kind, input.title, input.qty, input.counter ?? null, input.note, input.doneAt ?? null, req.user!.id,
+          performerId, input.amount ?? null, input.partBrand, input.partSpec, input.warrantyMonths ?? null, input.resource ?? null,
+          input.kind === 'refill' ? input.ops : [],
+        ],
+        db,
+      );
+      return { id: row!.id, orderId: linkOrderId, orderNumber };
+    });
+    await outbox.flush();
     broadcast('changed', { scopes: ['clients', 'orders'] });
-    res.status(201).json({ id: row!.id });
+    res.status(201).json(saved);
   }),
 );
 

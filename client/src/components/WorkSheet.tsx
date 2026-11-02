@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { REFILL_OPS, REFILL_OP_LABELS, WORK_KINDS, WORK_KIND_LABELS, type RefillOp, type WorkKind } from '@sd/shared';
+import { can, REFILL_OPS, REFILL_OP_LABELS, WORK_KINDS, WORK_KIND_LABELS, type RefillOp, type WorkKind } from '@sd/shared';
 import { api, ApiError } from '@/api/http';
 import { useMe } from '@/app/auth';
 import { useClient, useInvalidate } from '@/api/queries';
@@ -66,6 +66,9 @@ export function WorkSheet({
   const [orderId, setOrderId] = useState('');
   const client = useClient(chooseOrder && open ? target.clientId : 0);
   const orders = client.data?.orders ?? [];
+  // Заправку из карточки клиента по умолчанию записываем в новую заявку, чтобы она была в общем списке заявок.
+  const canNewOrder = Boolean(chooseOrder && !target.orderId && !target.deviceId && can(me.role, 'intake.create'));
+  const newOrder = canNewOrder && kind === 'refill' && orderId === 'new';
 
   useEffect(() => {
     if (!open) return;
@@ -88,6 +91,7 @@ export function WorkSheet({
   // По умолчанию берём последнюю заявку клиента, которая ещё в работе.
   useEffect(() => {
     if (!chooseOrder || !open || orderId) return;
+    if (canNewOrder && first === 'refill') return setOrderId('new');
     const active = orders.find((o) => !o.issuedAt) ?? orders[0];
     if (active) setOrderId(String(active.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -99,9 +103,10 @@ export function WorkSheet({
     if (!Number(performerId)) return setError('Выберите, кто делал');
     setBusy(true);
     try {
-      await api.post('/works', {
+      const saved = await api.post<{ orderNumber: string | null }>('/works', {
         ...target,
         orderId: target.orderId ?? (Number(orderId) || null),
+        newOrder,
         kind,
         title: what.trim(),
         qty: Number(qty) || 1,
@@ -116,7 +121,9 @@ export function WorkSheet({
         note: note.trim() || null,
       });
       inv('clients', 'client', 'orders', 'order', 'deviceWorks', 'clientWorks', 'report', 'analytics');
-      toast.success(kind === 'refill' ? 'Заправка записана' : 'Работа записана');
+      toast.success(
+        saved.orderNumber ? `Заправка записана, заявка №${saved.orderNumber}` : kind === 'refill' ? 'Заправка записана' : 'Работа записана',
+      );
       onClose();
     } catch (e) {
       setError((e as ApiError).message);
@@ -163,8 +170,16 @@ export function WorkSheet({
           </div>
         )}
         {chooseOrder && (
-          <Field label="По какой заявке" hint="Заправка и замена записываются в заявку, по ней потом можно перейти из отчёта">
-            <Select value={orderId} onChange={(e) => setOrderId(e.target.value)}>
+          <Field
+            label="По какой заявке"
+            hint={
+              newOrder
+                ? 'Создадим новую заявку на заправку: она появится в списке заявок, исполнитель получит задачу'
+                : 'Заправка и замена записываются в заявку, по ней потом можно перейти из отчёта'
+            }
+          >
+            <Select value={canNewOrder && kind !== 'refill' && orderId === 'new' ? '' : orderId} onChange={(e) => setOrderId(e.target.value)}>
+              {canNewOrder && kind === 'refill' && <option value="new">Новая заявка на заправку</option>}
               <option value="">Без заявки</option>
               {orders.map((o) => (
                 <option key={o.id} value={o.id}>

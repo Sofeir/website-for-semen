@@ -31,3 +31,49 @@ describe('приём картриджа', () => {
     expect(tasks).toBeGreaterThan(0);
   });
 });
+
+describe('заправка картриджей по клиенту', () => {
+  const refill = (clientId: number, extra: object, performerId: number) => ({
+    clientId,
+    kind: 'refill',
+    title: 'CF259A',
+    qty: 3,
+    performerId,
+    ops: ['refill'],
+    ...extra,
+  });
+
+  it('с newOrder заводит заявку и задачу, запись привязана к заявке', async () => {
+    const { users } = await dict();
+    const clientId = (await pool.query(`SELECT id FROM clients ORDER BY id LIMIT 1`)).rows[0].id as number;
+    const before = (await pool.query('SELECT count(*)::int AS n FROM orders')).rows[0].n as number;
+    const s = await loginAs('semen');
+    const r = await s.post('/api/works', refill(clientId, { newOrder: true }, users.kataev));
+    expect(r.status).toBe(201);
+    expect(r.body.orderId).toBeGreaterThan(0);
+    expect(r.body.orderNumber).toMatch(/^\d+$/);
+    expect((await pool.query('SELECT count(*)::int AS n FROM orders')).rows[0].n).toBe(before + 1);
+    const w = (await pool.query('SELECT order_id, qty, device_id FROM device_works WHERE id = $1', [r.body.id])).rows[0];
+    expect(w.order_id).toBe(r.body.orderId);
+    expect(w.qty).toBe(3);
+    expect(w.device_id).not.toBeNull();
+    const t = (await pool.query('SELECT assignee_id FROM tasks WHERE order_id = $1', [r.body.orderId])).rows;
+    expect(t.length).toBeGreaterThan(0);
+    expect(t[0].assignee_id).toBe(users.kataev);
+  });
+
+  it('без newOrder заявка не создаётся, с выбранной заявкой пишется в неё', async () => {
+    const { users } = await dict();
+    const clientId = (await pool.query(`SELECT id FROM clients ORDER BY id LIMIT 1`)).rows[0].id as number;
+    const orderId = (await pool.query('SELECT id FROM orders ORDER BY id LIMIT 1')).rows[0].id as number;
+    const s = await loginAs('semen');
+    const before = (await pool.query('SELECT count(*)::int AS n FROM orders')).rows[0].n as number;
+    const plain = await s.post('/api/works', refill(clientId, {}, users.kataev));
+    expect(plain.status).toBe(201);
+    expect(plain.body.orderId).toBeNull();
+    const attached = await s.post('/api/works', refill(clientId, { orderId, newOrder: true }, users.kataev));
+    expect(attached.status).toBe(201);
+    expect(attached.body.orderId).toBe(orderId);
+    expect((await pool.query('SELECT count(*)::int AS n FROM orders')).rows[0].n).toBe(before);
+  });
+});
