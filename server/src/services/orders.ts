@@ -14,7 +14,7 @@ import type { Outbox } from '../notify/notify';
 import { createClient, replaceFleet } from './clients';
 import { getWorkSettings } from './settings';
 import { DEVICE_TITLE } from './sql';
-import { assertActiveUser, closeTasks, createTask, normalizeDue, notifyHandover, type Actor } from './tasks';
+import { assertActiveUser, closeTasks, createTask, moveTask, normalizeDue, notifyParticipants, type Actor } from './tasks';
 import { defaultDue, formatDateTimeRu } from './workTime';
 
 export async function activeStages(db: Db): Promise<Stage[]> {
@@ -227,6 +227,19 @@ interface OrderRow {
   client_id: number;
 }
 
+/** Кто участвовал в заявке: приёмщик, нынешний и все прошлые ответственные, а также те, кто передавал её дальше. */
+async function orderParticipantIds(db: Db, orderId: number): Promise<number[]> {
+  const rows = await many<{ id: number }>(
+    `SELECT accepted_by AS id FROM orders WHERE id = $1 AND accepted_by IS NOT NULL
+     UNION SELECT responsible_id FROM orders WHERE id = $1 AND responsible_id IS NOT NULL
+     UNION SELECT responsible_id FROM order_history WHERE order_id = $1 AND responsible_id IS NOT NULL
+     UNION SELECT from_user_id FROM order_history WHERE order_id = $1 AND from_user_id IS NOT NULL`,
+    [orderId],
+    db,
+  );
+  return rows.map((r) => r.id);
+}
+
 async function lockOrder(db: Db, id: number) {
   const o = await one<OrderRow>('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [id], db);
   if (!o) throw new HttpError(404, 'Заявка не найдена');
@@ -341,6 +354,19 @@ export async function advanceOrder(db: Db, actor: Actor, orderId: number, input:
       link: `/orders/${orderId}`,
     });
   }
+  // Кто вёл заявку раньше, видит, как она идёт дальше. Тем, кто уже получил уведомление по этому действию, второе не шлём.
+  const already = new Set(outbox.notices.map((n) => n.userId));
+  notifyParticipants(
+    outbox,
+    (await orderParticipantIds(db, orderId)).filter((u) => !already.has(u)),
+    [actor.id, responsible.id],
+    {
+      type: 'order_stage',
+      title: `Заявка №${order.number}: ${next.name}`,
+      body: `${title}. Перевёл: ${actor.fullName}. Ответственный: ${responsible.full_name}.`,
+      link: `/orders/${orderId}`,
+    },
+  );
   outbox.touch('orders', 'dashboard', 'clients');
   return next;
 }
@@ -390,14 +416,11 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
       due,
       input.comment,
     ]);
-    await db.query(`UPDATE tasks SET assignee_id = $2, due_at = $3, overdue_notified_at = NULL, updated_at = now() WHERE id = $1`, [
-      task.id,
-      responsible.id,
-      due,
-    ]);
+    await moveTask(db, task.id, responsible.id, due);
   }
   const handoverTitle = await deviceTitle(db, order.device_id);
-  await notifyHandover(db, outbox, [order.accepted_by, order.responsible_id], [actor.id, responsible.id], {
+  // Приёмщик, прошлые ответственные и передававшие заявку тоже получают уведомление, чтобы видеть, как она движется.
+  notifyParticipants(outbox, await orderParticipantIds(db, orderId), [actor.id, responsible.id], {
     type: 'order_handover',
     title: `Заявку №${order.number} передали`,
     body: [
@@ -468,7 +491,7 @@ export async function reopenOrder(db: Db, actor: Actor, orderId: number, input: 
     },
     outbox,
   );
-  await notifyHandover(db, outbox, [order.accepted_by], [actor.id, responsible.id], {
+  notifyParticipants(outbox, await orderParticipantIds(db, orderId), [actor.id, responsible.id], {
     type: 'order_reopened',
     title: `Заявка №${order.number} открыта заново`,
     body: `${title}. ${note}. Ответственный: ${responsible.full_name}.`,

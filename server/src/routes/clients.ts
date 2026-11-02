@@ -13,7 +13,7 @@ import { many, one, pool, tx } from '../db/pool';
 import { h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { createClient, replaceFleet, updateClient } from '../services/clients';
-import { CLIENT_FIELDS, DEVICE_SELECT, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT, taskAccess } from '../services/sql';
+import { CLIENT_FIELDS, DEVICE_SELECT, isAssignee, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT, taskAccess } from '../services/sql';
 import { broadcast } from '../notify/hub';
 import {
   getServicePlan,
@@ -213,7 +213,7 @@ clientsRouter.get(
     const tWhere = ['t.is_visit', done ? `t.status <> 'open'` : `t.status = 'open'`];
     if (who) {
       tParams.push(who);
-      tWhere.push(all ? `t.assignee_id = $1` : `(t.assignee_id = $1 OR t.creator_id = $1)`);
+      tWhere.push(all ? isAssignee('t', '$1') : `(${isAssignee('t', '$1')} OR t.creator_id = $1)`);
     }
     const tasks = await many(
       `${TASK_SELECT} WHERE ${tWhere.join(' AND ')} ORDER BY ${done ? 't.closed_at DESC NULLS LAST' : 't.due_at, t.id'} LIMIT 300`,

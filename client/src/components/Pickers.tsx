@@ -3,7 +3,7 @@ import { ROLE_LABELS, STAFF_ROLES, type Role } from '@sd/shared';
 import { useSettings, useUsers } from '@/api/queries';
 import { defaultDueDate, fromLocalInput, sameDay, startForDue, toLocalInput } from '@/lib/dates';
 import { cx } from '@/ui/Button';
-import { Input, Select } from '@/ui/Form';
+import { Checkbox, Input, Select } from '@/ui/Form';
 import s from './Pickers.module.css';
 
 /** Выбор сотрудника, сгруппированный по ролям. preferRoles поднимает нужные роли наверх. */
@@ -33,6 +33,38 @@ export const UserSelect = forwardRef<
     </Select>
   );
 });
+
+/** Выбор нескольких сотрудников галочками, сгруппированных по ролям. */
+export function UserMultiSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number[];
+  onChange: (v: number[]) => void;
+  disabled?: boolean;
+}) {
+  const users = useUsers();
+  const active = (users.data ?? []).filter((u) => u.isActive !== false);
+  const toggle = (id: number) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  if (users.isLoading) return <span className="muted">Загружаем…</span>;
+  return (
+    <div className={s.people} role="group" aria-label="Ответственные">
+      {STAFF_ROLES.map((role) => {
+        const list = active.filter((u) => u.role === role);
+        if (!list.length) return null;
+        return (
+          <div key={role} className={s.peopleGroup}>
+            <div className={s.peopleLabel}>{ROLE_LABELS[role]}</div>
+            {list.map((u) => (
+              <Checkbox key={u.id} label={u.fullName} checked={value.includes(u.id)} disabled={disabled} onChange={() => toggle(u.id)} />
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * Срок: быстрые варианты чипами + точное время.

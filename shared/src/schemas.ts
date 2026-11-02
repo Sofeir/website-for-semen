@@ -320,7 +320,9 @@ export const taskSchema = z
   .object({
     title: text(200).min(2, 'Назовите задачу'),
     description: optionalText(4000),
-    assigneeId: id,
+    /** Ответственные: можно назначить сразу нескольких. Одиночное assigneeId тоже принимается. */
+    assigneeIds: z.array(id).max(50).optional(),
+    assigneeId: id.optional(),
     orderId: optionalId,
     clientId: optionalId,
     startAt: isoDate,
@@ -334,6 +336,9 @@ export const taskSchema = z
     kindId: optionalId,
   })
   .superRefine((v, ctx) => {
+    if (!v.assigneeId && !v.assigneeIds?.length) {
+      ctx.addIssue({ code: 'custom', path: ['assigneeIds'], message: 'Выберите хотя бы одного ответственного' });
+    }
     if (new Date(v.dueAt) < new Date(v.startAt)) {
       ctx.addIssue({ code: 'custom', path: ['dueAt'], message: 'Срок раньше начала' });
     }
