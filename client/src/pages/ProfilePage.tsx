@@ -14,6 +14,7 @@ import { Avatar, Card, CardHead, ErrorBox, PageHeader, Pill } from '@/ui/Display
 import { Checkbox, Field, Input, formStyles } from '@/ui/Form';
 import { useConfirm } from '@/ui/Confirm';
 import { useToast } from '@/ui/Toast';
+import { CalendarCard, InstallCard, LoginCard } from './ProfileExtras';
 import s from './ProfilePage.module.css';
 
 export default function ProfilePage() {
@@ -33,7 +34,12 @@ export default function ProfilePage() {
       </div>
       <div className={s.grid}>
         <Channels me={me} />
-        <PasswordCard />
+        <div className="stack">
+          <LoginCard me={me} />
+          <PasswordCard />
+          <InstallCard />
+          {!import.meta.env.VITE_DEMO && <CalendarCard />}
+        </div>
       </div>
     </>
   );
