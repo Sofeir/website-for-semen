@@ -77,3 +77,41 @@
   letter-spacing: 0.08em;
   font-size: var(--fs-md);
 }
+
+/* Карточки «Приложение» и «Календарь задач» */
+.extra {
+  display: flex;
+  gap: var(--s-3);
+}
+
+.extra .channelIcon {
+  margin-top: 2px;
+}
+
+.steps {
+  margin: 0;
+  padding-left: 1.3em;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  list-style: decimal;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.urlRow {
+  display: flex;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.urlRow > :first-child {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}

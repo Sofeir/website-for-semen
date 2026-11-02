@@ -1,6 +1,7 @@
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { changePasswordSchema, loginSchema, normalizePhone, profileSchema, registerSchema, type Me, type MaxLink } from '@sd/shared';
+import { changeLoginSchema, changePasswordSchema, loginSchema, normalizePhone, profileSchema, registerSchema, type Me, type MaxLink } from '@sd/shared';
 import { one, pool, tx } from '../db/pool';
 import { h, HttpError, parse } from '../lib/http';
 import { createSession, destroySession, requireAuth } from '../auth/session';
@@ -151,6 +152,62 @@ authRouter.post(
     // Остальные сессии пользователя закрываем.
     await pool.query('DELETE FROM sessions WHERE user_id = $1 AND id <> $2', [req.user!.id, req.user!.sessionId]);
     res.json({ ok: true });
+  }),
+);
+
+/** Смена логина: по текущему паролю, без выхода из сервиса. Занятые логины (без учёта регистра) отклоняются. */
+authRouter.post(
+  '/me/login',
+  requireAuth,
+  h(async (req, res) => {
+    const p = parse(changeLoginSchema, req.body);
+    const ip = req.ip || 'unknown';
+    const key = `change-login:${req.user!.id}`;
+    const wait = loginRetryAfter(ip, key);
+    if (wait > 0) {
+      res.set('Retry-After', String(wait));
+      throw new HttpError(429, `Слишком много попыток. Попробуйте через ${Math.ceil(wait / 60)} мин.`);
+    }
+    const u = await one<{ password_hash: string }>('SELECT password_hash FROM users WHERE id = $1', [req.user!.id]);
+    if (!u || !(await bcrypt.compare(p.current, u.password_hash))) {
+      registerLoginFail(ip, key);
+      throw new HttpError(400, 'Пароль не подходит', { fields: { current: 'Пароль не подходит' } });
+    }
+    resetLoginFails(ip, key);
+    const taken = await one('SELECT 1 FROM users WHERE lower(login) = lower($1) AND id <> $2', [p.login, req.user!.id]);
+    if (taken) throw new HttpError(409, 'Такой логин уже занят', { fields: { login: 'Такой логин уже занят' } });
+    await pool.query('UPDATE users SET login = $2 WHERE id = $1', [req.user!.id, p.login]);
+    res.json(await loadMe(req.user!.id));
+  }),
+);
+
+/** Секретная ссылка на календарь задач. Сама лента отдаётся без входа, см. routes/calendar.ts. */
+authRouter.get(
+  '/me/calendar',
+  requireAuth,
+  h(async (req, res) => {
+    const u = await one<{ token: string | null }>('SELECT calendar_token AS token FROM users WHERE id = $1', [req.user!.id]);
+    res.json({ token: u?.token ?? null });
+  }),
+);
+
+/** Создаёт ссылку или заменяет прежнюю: старая перестаёт работать сразу. */
+authRouter.post(
+  '/me/calendar',
+  requireAuth,
+  h(async (req, res) => {
+    const token = crypto.randomBytes(24).toString('base64url');
+    await pool.query('UPDATE users SET calendar_token = $2 WHERE id = $1', [req.user!.id, token]);
+    res.json({ token });
+  }),
+);
+
+authRouter.delete(
+  '/me/calendar',
+  requireAuth,
+  h(async (req, res) => {
+    await pool.query('UPDATE users SET calendar_token = NULL WHERE id = $1', [req.user!.id]);
+    res.json({ token: null });
   }),
 );
 

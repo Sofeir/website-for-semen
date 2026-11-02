@@ -471,6 +471,18 @@ export const changePasswordSchema = z.object({
   next: z.string().min(8, 'Пароль от 8 символов').max(200),
 });
 
+/** Смена своего логина: нужен текущий пароль, чтобы чужой человек за открытым компьютером не мог переименовать учётку. */
+export const changeLoginSchema = z.object({
+  login: z
+    .string()
+    .trim()
+    .min(3, 'Минимум 3 символа')
+    .max(64)
+    .regex(/^[a-zA-Z0-9._-]+$/, 'Латиница, цифры, точка, дефис'),
+  current: z.string().min(1, 'Введите текущий пароль'),
+});
+export type ChangeLoginInput = z.infer<typeof changeLoginSchema>;
+
 // ---------- Справочники и настройки ----------
 
 export const DICTIONARIES = [

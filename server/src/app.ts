@@ -23,6 +23,7 @@ import { filesRouter } from './routes/files';
 import { importRouter } from './routes/import';
 import { customerRouter } from './routes/customer';
 import { customersRouter } from './routes/customers';
+import { calendarFeedRouter } from './routes/calendar';
 
 export function createApp() {
   const app = express();
@@ -58,6 +59,7 @@ export function createApp() {
   api.use(csrfProtection);
   api.get('/health', (_req, res) => res.json({ ok: true }));
   api.use('/auth', authRouter);
+  api.use(calendarFeedRouter); // лента задач для внешнего календаря: открывается по секретной ссылке, без входа
   api.use(requireAuth);
   api.use(customerRouter); // кабинет заказчика — единственное, что ему открыто, кроме уведомлений
   api.use(denyCustomer);
