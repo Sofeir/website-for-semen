@@ -210,6 +210,8 @@ export const deviceWorkSchema = z
     warrantyMonths: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().int().min(0).max(120).nullable()).optional(),
     resource: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().int().min(1).max(100_000_000).nullable()).optional(),
     ops: z.array(z.enum(REFILL_OPS)).max(REFILL_OPS.length).default([]),
+    /** Только для заправки без выбранной заявки: создать новую заявку на этого клиента. */
+    newOrder: z.boolean().default(false),
   })
   .superRefine((v, ctx) => {
     if (!v.clientId && !v.deviceId && !v.orderId) {
