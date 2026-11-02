@@ -46,7 +46,7 @@ clientsRouter.get(
       // Телефон в базе хранится как 7XXXXXXXXXX: ведущую 8 при поиске считаем семёркой.
       let digits = q.replace(/\D/g, '');
       if (digits.startsWith('8')) digits = '7' + digits.slice(1);
-      const parts = [`c.name ILIKE ${like}`, `c.contact_person ILIKE ${like}`, `c.inn ILIKE ${like}`, `c.email ILIKE ${like}`];
+      const parts = [`c.name ILIKE ${like}`, `c.contact_person ILIKE ${like}`, `c.inn ILIKE ${like}`, `c.kpp ILIKE ${like}`, `c.email ILIKE ${like}`];
       // Сотрудники организации и техника клиента: по ФИО, серийному и своему номеру
       parts.push(
         `EXISTS (SELECT 1 FROM client_contacts cc WHERE cc.client_id = c.id AND cc.full_name ILIKE ${like})`,

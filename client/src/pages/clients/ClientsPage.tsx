@@ -86,6 +86,7 @@ export default function ClientsPage() {
                 <th scope="col">Клиент</th>
                 <th scope="col">Телефон</th>
                 <th scope="col">ИНН</th>
+                <th scope="col">КПП</th>
                 <th scope="col">Заявки</th>
                 <th scope="col">
                   <span className="visually-hidden">Открыть</span>
@@ -106,6 +107,7 @@ export default function ClientsPage() {
                   </td>
                   <td className="num">{formatPhone(c.phone) || '—'}</td>
                   <td className="num">{c.inn || '—'}</td>
+                  <td className="num">{c.kpp || '—'}</td>
                   <td>
                     <span className="row" style={{ gap: 6 }}>
                       <span className="num">{c.ordersCount ?? 0}</span>
@@ -127,7 +129,7 @@ export default function ClientsPage() {
               <span className={s.icon}>{c.kind === 'legal' ? <Building2 aria-hidden /> : <UserRound aria-hidden />}</span>
               <span className={s.mobileMain}>
                 <b>{c.name}</b>
-                <span>{[formatPhone(c.phone), c.contactPerson, c.inn && `ИНН ${c.inn}`].filter(Boolean).join(', ')}</span>
+                <span>{[formatPhone(c.phone), c.contactPerson, c.inn && `ИНН ${c.inn}`, c.kpp && `КПП ${c.kpp}`].filter(Boolean).join(', ')}</span>
               </span>
               {Boolean(c.activeCount) && <Pill tone="blue">{c.activeCount}</Pill>}
             </Link>
