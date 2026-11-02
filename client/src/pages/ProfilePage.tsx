@@ -38,7 +38,7 @@ export default function ProfilePage() {
           <LoginCard me={me} />
           <PasswordCard />
           <InstallCard />
-          {!import.meta.env.VITE_DEMO && <CalendarCard />}
+          <CalendarCard />
         </div>
       </div>
     </>

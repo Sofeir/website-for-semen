@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { changeLoginSchema, changePasswordSchema, loginSchema, normalizePhone, profileSchema, registerSchema, type Me, type MaxLink } from '@sd/shared';
@@ -198,7 +197,8 @@ authRouter.post(
   '/me/calendar',
   requireAuth,
   h(async (req, res) => {
-    const token = crypto.randomBytes(24).toString('base64url');
+    // Web Crypto, а не node:crypto: этот код работает и в демо прямо в браузере.
+    const token = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(36).padStart(2, '0')).join('');
     await pool.query('UPDATE users SET calendar_token = $2 WHERE id = $1', [req.user!.id, token]);
     res.json({ token });
   }),
