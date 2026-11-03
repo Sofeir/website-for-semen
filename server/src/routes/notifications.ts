@@ -116,7 +116,7 @@ notificationsRouter.get(
         [user.id, todayEnd],
       ),
       many(
-        `${TASK_SELECT} WHERE t.status = 'open' AND t.due_at < now() ${all ? '' : `AND ${isAssignee('t', '$1')}`}
+        `${TASK_SELECT} WHERE t.status = 'open' AND (t.due_at < now() OR t.was_overdue) ${all ? '' : `AND ${isAssignee('t', '$1')}`}
           ORDER BY t.due_at LIMIT 50`,
         all ? [] : [user.id],
       ),
@@ -133,7 +133,7 @@ notificationsRouter.get(
         `SELECT
            (SELECT count(*) FROM orders o JOIN stages s ON s.id = o.stage_id WHERE NOT s.is_final ${mineO}) AS "inWork",
            (SELECT count(*) FROM orders o WHERE o.stage_id = (SELECT id FROM stages WHERE is_active AND NOT is_final ORDER BY sort DESC, id DESC LIMIT 1) ${mineO}) AS ready,
-           (SELECT count(*) FROM tasks t WHERE t.status = 'open' AND t.due_at < now() ${all ? '' : `AND ${isAssignee('t', '$1')}`}) AS overdue,
+           (SELECT count(*) FROM tasks t WHERE t.status = 'open' AND (t.due_at < now() OR t.was_overdue) ${all ? '' : `AND ${isAssignee('t', '$1')}`}) AS overdue,
            (SELECT count(*) FROM tasks t WHERE t.status = 'open' AND ${isAssignee('t', '$1')} AND t.due_at <= $2) AS today`,
         [user.id, todayEnd],
       ),

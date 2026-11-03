@@ -57,6 +57,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
             title: task.title,
             description: task.description ?? '',
             assigneeIds: task.assigneeIds,
+            watcherIds: task.watcherIds,
             orderId: task.orderId,
             clientId: task.clientId,
             startAt: task.startAt,
@@ -68,6 +69,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
             title: presetTitle ?? '',
             description: '',
             assigneeIds: [me.id],
+            watcherIds: [],
             orderId: orderId ?? null,
             clientId: clientId ?? null,
             // срок по умолчанию — завтра; начало тогда — с начала рабочего дня, а для «сегодня» — с текущего момента
@@ -148,6 +150,24 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
             )}
           />
         </Field>
+        <Field
+          label="Наблюдатели"
+          optional
+          hint="Видят задачу и получают уведомления о ней, но не исполняют и не закрывают её"
+          group
+        >
+          <Controller
+            control={form.control}
+            name="watcherIds"
+            render={({ field }) => (
+              <UserMultiSelect
+                value={field.value ?? []}
+                onChange={field.onChange}
+                label="Наблюдатели"
+              />
+            )}
+          />
+        </Field>
         <div className={formStyles.grid2}>
           <Field
             label="Срок"
@@ -161,7 +181,12 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
               render={({ field }) => (
                 <DueInput
                   value={field.value}
-                  onChange={field.onChange}
+                  onChange={(v) => {
+                    field.onChange(v);
+                    // крайний срок не может быть раньше срока: если срок ушёл дальше, крайний срок подтягивается следом
+                    const dl = form.getValues('deadlineAt');
+                    if (dl && v && new Date(dl) < new Date(v)) form.setValue('deadlineAt', v, { shouldDirty: true });
+                  }}
                   onPreset={(start) => form.setValue('startAt', start, { shouldDirty: true, shouldValidate: true })}
                 />
               )}
@@ -180,17 +205,26 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
               )}
             />
           </Field>
-          <Field label="Крайний срок" optional error={errors.deadlineAt?.message}>
+          <Field label="Крайний срок" optional error={errors.deadlineAt?.message} hint="Не раньше срока">
             <Controller
               control={form.control}
               name="deadlineAt"
-              render={({ field }) => (
-                <Input
-                  type="datetime-local"
-                  value={field.value ? toLocal(field.value) : ''}
-                  onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value).toISOString() : null)}
-                />
-              )}
+              render={({ field }) => {
+                const due = form.watch('dueAt');
+                return (
+                  <Input
+                    type="datetime-local"
+                    min={due ? toLocal(due) : undefined}
+                    value={field.value ? toLocal(field.value) : ''}
+                    onChange={(e) => {
+                      if (!e.target.value) return field.onChange(null);
+                      const picked = new Date(e.target.value);
+                      // раньше срока выбрать нельзя: подставляем сам срок
+                      field.onChange(due && picked < new Date(due) ? due : picked.toISOString());
+                    }}
+                  />
+                );
+              }}
             />
           </Field>
         </div>

@@ -13,7 +13,7 @@ usersRouter.get(
   h(async (req, res) => {
     const admin = can(req.user!.role, 'users.manage');
     const rows = await many(
-      `SELECT id, full_name AS "fullName", role, position, is_active AS "isActive"${admin ? ', login, phone, email, role_confirmed AS "roleConfirmed"' : ''}
+      `SELECT id, full_name AS "fullName", role, position, is_active AS "isActive"${admin ? ', login, phone, email, role_confirmed AS "roleConfirmed", confirms_overdue AS "confirmsOverdue"' : ''}
          FROM users WHERE role <> 'customer'${admin ? '' : ' AND is_active'} ORDER BY is_active DESC, full_name`,
     );
     res.json(rows);
@@ -55,6 +55,7 @@ usersRouter.put(
     // сменили роль вручную — значит, теперь она известна точно
     if (u.roleConfirmed !== undefined) add('role_confirmed', u.roleConfirmed);
     else if (u.role !== undefined) add('role_confirmed', true);
+    if (u.confirmsOverdue !== undefined) add('confirms_overdue', u.confirmsOverdue);
     if (u.phone !== undefined) add('phone', u.phone);
     if (u.position !== undefined) add('position', u.position);
     if (u.email !== undefined) add('email', u.email);

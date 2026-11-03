@@ -78,6 +78,11 @@ function readEntries(file: string): StaffEntry[] {
     if (!shared) issued.push(`${e.login}\t${e.fullName}\t${password}`);
     console.log(`создан: ${e.login} (${e.fullName}), ${shared ? 'общий пароль из STAFF_PASSWORD' : 'пароль в staff.passwords.local.txt'}`);
   }
+  // Закрытие просроченных задач подтверждает один человек — директор Вайнштейн. Если его ещё не отметили, отмечаем.
+  await pool.query(
+    `UPDATE users SET confirms_overdue = true WHERE role = 'manager' AND full_name ILIKE 'Вайнштейн%'
+        AND NOT EXISTS (SELECT 1 FROM users WHERE confirms_overdue)`,
+  );
   if (issued.length) {
     const out = path.join(root, 'staff.passwords.local.txt');
     fs.appendFileSync(out, `${issued.join('\n')}\n`, { mode: 0o600 });

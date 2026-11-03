@@ -20,7 +20,7 @@ import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import s from './Tasks.module.css';
 
-type Scope = 'mine' | 'created' | 'all';
+type Scope = 'mine' | 'created' | 'watching' | 'all';
 
 function groupTasks(tasks: TaskListItem[]) {
   const today = startOfDay();
@@ -109,7 +109,7 @@ export default function TasksPage() {
         toast.error(
           `Не закрыто: ${r.skipped.length}`,
           r.needConfirm.length
-            ? `Просроченные (${r.needConfirm.length}) закрывает только руководитель: откройте задачу и запросите подтверждение`
+            ? `Просроченные (${r.needConfirm.length}) закрывает только директор: откройте задачу и запросите подтверждение`
             : 'Эти задачи уже закрыты или вам не принадлежат',
         );
       }
@@ -131,6 +131,7 @@ export default function TasksPage() {
   const scopeItems: { value: Scope; label: string }[] = [
     { value: 'mine', label: 'Мне' },
     { value: 'created', label: 'Поставленные мной' },
+    { value: 'watching', label: 'Наблюдаю' },
   ];
   if (can('tasks.manageAll')) scopeItems.push({ value: 'all', label: 'Все сотрудники' });
 

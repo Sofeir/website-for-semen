@@ -61,7 +61,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
 
   const canTouch = task && (task.assigneeIds.includes(me.id) || task.creatorId === me.id || can('tasks.manageAll'));
   // Просроченную задачу закрывает только руководитель: остальные просят его подтвердить.
-  const needsManager = Boolean(task && task.status === 'open' && task.overdue && !can('tasks.manageAll'));
+  const needsManager = Boolean(task && task.status === 'open' && task.overdue && !me.confirmsOverdue);
   const canEdit = task && (task.creatorId === me.id || can('tasks.manageAll')) && task.status === 'open';
 
   const doClose = async () => {
@@ -215,7 +215,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
               <Field
                 label="Что сделано"
                 optional
-                hint="Задача просрочена, поэтому закрыть её может только руководитель. Он получит уведомление с этим текстом"
+                hint="Задача просрочена, поэтому закрыть её может только директор. Он получит уведомление с этим текстом"
               >
                 <Textarea value={comment} onChange={(e) => setComment(e.target.value)} data-autofocus maxLength={2000} />
               </Field>
@@ -239,6 +239,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                 <DescList
                   items={[
                     [task.assigneeIds.length > 1 ? 'Ответственные' : 'Исполнитель', task.assigneeName],
+                    [task.watcherIds.length > 1 ? 'Наблюдатели' : 'Наблюдатель', task.watcherName],
                     ['Постановщик', task.creatorName],
                     ['Начало', fmtWhen(task.startAt)],
                     ['Срок', <span className={task.overdue ? s.late : undefined}>{fmtWhen(task.dueAt)}</span>],

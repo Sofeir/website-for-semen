@@ -6,7 +6,9 @@ import { requirePermission } from '../auth/session';
 import { Outbox } from '../notify/notify';
 import { broadcast } from '../notify/hub';
 import {
+  assertActiveUser,
   assigneeList,
+  canConfirmOverdue,
   canTouchTask,
   closeTasks,
   createTask,
@@ -19,9 +21,10 @@ import {
   transferTask,
 } from '../services/tasks';
 import { reassignOrder } from '../services/orders';
-import { isAssignee, likeEscape, TASK_SELECT } from '../services/sql';
+import { isAssignee, isWatcher, likeEscape, TASK_SELECT } from '../services/sql';
 import { assertTaskVisible } from '../services/access';
 import { runServicePlansSoon } from '../services/servicePlans';
+import { formatDateTimeRu } from '../services/workTime';
 
 export const tasksRouter = Router();
 
@@ -43,16 +46,17 @@ tasksRouter.get(
       where.push(sql(`$${params.length}`));
     };
     if (scope === 'created') add((p) => `t.creator_id = ${p}`, user.id);
+    else if (scope === 'watching') add((p) => isWatcher('t', p), user.id);
     else if (scope === 'all' && manageAll) {
       if (req.query.assignee) add((p) => isAssignee('t', p), Number(req.query.assignee));
     } else if (scope === 'all') {
-      add((p) => `(${isAssignee('t', p)} OR t.creator_id = ${p})`, user.id);
+      add((p) => `(${isAssignee('t', p)} OR ${isWatcher('t', p)} OR t.creator_id = ${p})`, user.id);
     } else add((p) => isAssignee('t', p), user.id);
 
     const status = String(req.query.status || 'open');
     if (status === 'open') where.push(`t.status = 'open'`);
     else if (status === 'done') where.push(`t.status <> 'open'`);
-    if (req.query.overdue === '1') where.push(`t.status = 'open' AND t.due_at < now()`);
+    if (req.query.overdue === '1') where.push(`t.status = 'open' AND (t.due_at < now() OR t.was_overdue)`);
     if (req.query.from && req.query.to) {
       add((p) => `t.due_at >= ${p}`, new Date(String(req.query.from)));
       add((p) => `t.due_at < ${p}`, new Date(String(req.query.to)));
@@ -174,26 +178,44 @@ tasksRouter.put(
     if (!t) throw new HttpError(404, 'Задача не найдена');
     if (!(t.creator_id === req.user!.id || can(req.user!.role, 'tasks.manageAll')))
       throw forbidden('Править задачу может постановщик');
+    const outbox = new Outbox();
     const wanted = assigneeList(input).sort((a, b) => a - b);
     const current = [...t.assignee_ids].sort((a, b) => a - b);
     if (wanted.length !== current.length || wanted.some((x, i) => x !== current[i])) {
       throw new HttpError(400, 'Чтобы сменить исполнителя, передайте задачу');
     }
     const due = await normalizeDue(pool, input.dueAt);
-    // Срок просроченной задачи сдвигает только руководитель, иначе просрочку можно «стереть» правкой.
-    if (
-      !can(req.user!.role, 'tasks.manageAll') &&
-      due.getTime() > Date.now() &&
-      (await one(`SELECT 1 FROM tasks WHERE id = $1 AND status = 'open' AND due_at < now()`, [id]))
-    ) {
-      throw new HttpError(403, 'Срок просроченной задачи переносит руководитель');
-    }
     const deadline = input.deadlineAt ? await normalizeDue(pool, input.deadlineAt) : null;
-    await pool.query(
-      `UPDATE tasks SET title = $2, description = $3, start_at = $4, due_at = $5, deadline_at = $6,
-              kind_id = COALESCE($7, kind_id), ${remindReset('$5')}, updated_at = now() WHERE id = $1`,
-      [id, input.title, input.description, input.startAt, due, deadline, input.kindId ?? null],
-    );
+    // Перенос срока просроченной задачи не делает её «непросроченной»: снять отметку может только тот, кто подтверждает просрочку.
+    const confirms = await canConfirmOverdue(pool, req.user!.id);
+    await tx(async (db) => {
+      await db.query(
+        `UPDATE tasks SET title = $2, description = $3, start_at = $4, due_at = $5, deadline_at = $6,
+                kind_id = COALESCE($7, kind_id), was_overdue = CASE WHEN $8 THEN false ELSE was_overdue OR due_at < now() END,
+                ${remindReset('$5')}, updated_at = now() WHERE id = $1`,
+        [id, input.title, input.description, input.startAt, due, deadline, input.kindId ?? null, confirms],
+      );
+      if (input.watcherIds) {
+        const want = [...new Set(input.watcherIds)].filter((w) => !current.includes(w));
+        for (const w of want) await assertActiveUser(db, w);
+        const had = (await many<{ user_id: number }>('SELECT user_id FROM task_watchers WHERE task_id = $1', [id], db)).map((r) => r.user_id);
+        await db.query('DELETE FROM task_watchers WHERE task_id = $1 AND NOT (user_id = ANY ($2))', [id, want]);
+        for (const w of want.filter((x) => !had.includes(x))) {
+          await db.query('INSERT INTO task_watchers (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, w]);
+          if (w !== req.user!.id) {
+            outbox.add({
+              userId: w,
+              type: 'task_watch',
+              title: `Вы наблюдатель задачи: ${input.title}`,
+              body: `От: ${req.user!.fullName}. Срок — ${formatDateTimeRu(due)}.`,
+              link: `/tasks?task=${id}`,
+            });
+          }
+        }
+        outbox.touch('tasks');
+      }
+    });
+    await outbox.flush();
     await pool.query(`UPDATE task_steps SET due_at = $2 WHERE task_id = $1 AND done_at IS NULL`, [id, due]);
     res.json({ ok: true });
   }),

@@ -39,17 +39,19 @@ export function UserMultiSelect({
   value,
   onChange,
   disabled,
+  label = 'Ответственные',
 }: {
   value: number[];
   onChange: (v: number[]) => void;
   disabled?: boolean;
+  label?: string;
 }) {
   const users = useUsers();
   const active = (users.data ?? []).filter((u) => u.isActive !== false);
   const toggle = (id: number) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
   if (users.isLoading) return <span className="muted">Загружаем…</span>;
   return (
-    <div className={s.people} role="group" aria-label="Ответственные">
+    <div className={s.people} role="group" aria-label={label}>
       {STAFF_ROLES.map((role) => {
         const list = active.filter((u) => u.role === role);
         if (!list.length) return null;

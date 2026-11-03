@@ -210,7 +210,7 @@ export const useClientDevices = (id: number | null | undefined) =>
   });
 
 export interface TaskFilters {
-  scope?: 'mine' | 'created' | 'all';
+  scope?: 'mine' | 'created' | 'watching' | 'all';
   status?: 'open' | 'done' | 'any';
   q?: string;
   assignee?: number | '';

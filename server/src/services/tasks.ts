@@ -1,4 +1,4 @@
-import { can, PERMISSIONS, type Role, type TaskInput, type TransferTaskInput } from '@sd/shared';
+import { can, type Role, type TaskInput, type TransferTaskInput } from '@sd/shared';
 import { many, one, type Db } from '../db/pool';
 import { forbidden, HttpError } from '../lib/http';
 import type { Notice, Outbox } from '../notify/notify';
@@ -40,6 +40,7 @@ export async function taskParticipantIds(db: Db, taskId: number): Promise<number
   const rows = await many<{ id: number }>(
     `SELECT creator_id AS id FROM tasks WHERE id = $1
      UNION SELECT user_id FROM task_assignees WHERE task_id = $1
+     UNION SELECT user_id FROM task_watchers WHERE task_id = $1
      UNION SELECT assignee_id FROM task_steps WHERE task_id = $1
      UNION SELECT from_user_id FROM task_steps WHERE task_id = $1 AND from_user_id IS NOT NULL`,
     [taskId],
@@ -82,7 +83,8 @@ export function assigneeList(input: { assigneeId?: number; assigneeIds?: number[
 /** Задача целиком переходит одному сотруднику: он становится единственным ответственным, срок и напоминания обновляются. */
 export async function moveTask(db: Db, taskId: number, userId: number, due: Date) {
   await db.query(
-    `UPDATE tasks SET assignee_id = $2, due_at = $3, overdue_notified_at = NULL, ${remindReset('$3')}, updated_at = now() WHERE id = $1`,
+    `UPDATE tasks SET assignee_id = $2, due_at = $3, overdue_notified_at = NULL, was_overdue = (was_overdue OR due_at < now()),
+            ${remindReset('$3')}, updated_at = now() WHERE id = $1`,
     [taskId, userId, due],
   );
   await db.query('DELETE FROM task_assignees WHERE task_id = $1 AND user_id <> $2', [taskId, userId]);
@@ -100,6 +102,8 @@ export async function createTask(
   for (const userId of ids) people.push(await assertActiveUser(db, userId));
   const due = await normalizeDue(db, input.dueAt);
   const deadline = input.deadlineAt ? await normalizeDue(db, input.deadlineAt) : null;
+  const watcherIds = [...new Set(input.watcherIds ?? [])].filter((w) => !ids.includes(w));
+  for (const w of watcherIds) await assertActiveUser(db, w);
   const row = await one<{ id: number }>(
     `INSERT INTO tasks (title, description, creator_id, assignee_id, order_id, client_id, stage_id, start_at, due_at, deadline_at, is_visit, kind_id,
                         remind_day_at, remind_2h_at)
@@ -124,6 +128,18 @@ export async function createTask(
     ],
     db,
   );
+  for (const w of watcherIds) {
+    await db.query('INSERT INTO task_watchers (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [row!.id, w]);
+    if (w !== actor.id) {
+      outbox.add({
+        userId: w,
+        type: 'task_watch',
+        title: `Вы наблюдатель задачи: ${input.title}`,
+        body: `От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`,
+        link: `/tasks?task=${row!.id}`,
+      });
+    }
+  }
   for (const userId of ids) {
     await db.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [row!.id, userId]);
     await db.query(`INSERT INTO task_steps (task_id, assignee_id, from_user_id, due_at) VALUES ($1, $2, $3, $4)`, [
@@ -160,11 +176,16 @@ export function canTouchTask(actor: Actor, t: Pick<TaskRow, 'creator_id' | 'assi
 }
 
 export const OVERDUE_CLOSE_MESSAGE =
-  'Задача просрочена: закрыть её можно только с подтверждения руководителя. Нажмите «Запросить подтверждение» в задаче';
+  'Задача просрочена: закрыть её можно только с подтверждения директора. Нажмите «Запросить подтверждение» в задаче';
+
+/** Может ли сотрудник закрывать просроченные задачи сам. Такая отметка сейчас у одного человека. */
+export async function canConfirmOverdue(db: Db, userId: number): Promise<boolean> {
+  return Boolean(await one('SELECT 1 FROM users WHERE id = $1 AND confirms_overdue AND is_active', [userId], db));
+}
 
 /**
  * Закрывает задачи пачкой. Все участники задачи, кроме закрывшего, получают уведомление.
- * overdueNeedsManager: просроченную задачу закрывает только руководитель, остальные просят его подтвердить (needConfirm).
+ * overdueNeedsManager: просроченную задачу закрывает только тот, кто подтверждает просрочку (директор Вайнштейн), остальные просят его (needConfirm).
  * Закрытие этапа вместе с заявкой идёт без этого условия: там задачу закрывает сам переход заявки.
  */
 export async function closeTasks(
@@ -177,19 +198,20 @@ export async function closeTasks(
 ) {
   const rows = (
     await db.query<TaskRow & { overdue: boolean }>(
-      `SELECT ${TASK_ROW_FIELDS}, (t.due_at < now()) AS overdue FROM tasks t WHERE t.id = ANY ($1) FOR UPDATE OF t`,
+      `SELECT ${TASK_ROW_FIELDS}, (t.due_at < now() OR t.was_overdue) AS overdue FROM tasks t WHERE t.id = ANY ($1) FOR UPDATE OF t`,
       [ids],
     )
   ).rows;
   const closed: number[] = [];
   const skipped: number[] = [];
   const needConfirm: number[] = [];
+  const confirms = opts.overdueNeedsManager ? await canConfirmOverdue(db, actor.id) : true;
   for (const t of rows) {
     if (t.status !== 'open' || !canTouchTask(actor, t)) {
       skipped.push(t.id);
       continue;
     }
-    if (opts.overdueNeedsManager && t.overdue && !can(actor.role, 'tasks.manageAll')) {
+    if (!confirms && t.overdue) {
       skipped.push(t.id);
       needConfirm.push(t.id);
       continue;
@@ -212,10 +234,10 @@ export async function closeTasks(
   return { closed, skipped, needConfirm };
 }
 
-/** Запрос руководителю: подтвердите закрытие просроченной задачи. Получают постановщик и все с правом закрывать чужие задачи. */
+/** Запрос: подтвердите закрытие просроченной задачи. Получает только тот, кто подтверждает просрочку. */
 export async function requestTaskClose(db: Db, actor: Actor, id: number, comment: string, outbox: Outbox) {
   const t = await one<TaskRow & { overdue: boolean }>(
-    `SELECT ${TASK_ROW_FIELDS}, (t.due_at < now()) AS overdue FROM tasks t WHERE t.id = $1`,
+    `SELECT ${TASK_ROW_FIELDS}, (t.due_at < now() OR t.was_overdue) AS overdue FROM tasks t WHERE t.id = $1`,
     [id],
     db,
   );
@@ -223,12 +245,10 @@ export async function requestTaskClose(db: Db, actor: Actor, id: number, comment
   if (!canTouchTask(actor, t)) throw forbidden();
   if (t.status !== 'open') throw new HttpError(409, 'Задача уже закрыта');
   if (!t.overdue) throw new HttpError(400, 'Задача не просрочена: закройте её сами');
-  const managers = await many<{ id: number }>(
-    'SELECT id FROM users WHERE is_active AND role = ANY ($1)',
-    [PERMISSIONS['tasks.manageAll'] as readonly string[]],
-    db,
-  );
-  notifyParticipants(outbox, [t.creator_id, ...managers.map((m) => m.id)], [actor.id], {
+  const confirmers = await many<{ id: number }>('SELECT id FROM users WHERE is_active AND confirms_overdue', [], db);
+  if (!confirmers.length) throw new HttpError(409, 'Не назначен тот, кто подтверждает закрытие просроченных задач');
+  // Запрос уходит только ему: ни постановщику, ни другим руководителям он не приходит.
+  notifyParticipants(outbox, confirmers.map((m) => m.id), [actor.id], {
     type: 'task_close_request',
     title: `Просят подтвердить закрытие: ${t.title}`,
     body: [`Просрочена. Исполнитель: ${actor.fullName}.`, comment && `Что сделано: ${comment}`].filter(Boolean).join('\n'),
@@ -271,14 +291,6 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
   if (!canTouchTask(actor, t)) throw forbidden();
   if (t.status !== 'open') throw new HttpError(409, 'Задача уже закрыта');
   if (t.assignee_ids.length === 1 && t.assignee_ids[0] === input.assigneeId) throw new HttpError(400, 'Задача уже у этого сотрудника');
-  // Передачей себе с новым сроком просрочку не обойти: просроченную задачу своими силами в срок не вернуть.
-  if (
-    input.assigneeId === actor.id &&
-    !can(actor.role, 'tasks.manageAll') &&
-    (await one('SELECT 1 FROM tasks WHERE id = $1 AND due_at < now()', [id], db))
-  ) {
-    throw new HttpError(403, 'Просроченную задачу нельзя передать себе: попросите руководителя подтвердить закрытие');
-  }
   const next = await assertActiveUser(db, input.assigneeId);
   const due = await normalizeDue(db, input.dueAt);
   await db.query(`UPDATE task_steps SET done_at = now() WHERE task_id = $1 AND done_at IS NULL`, [id]);

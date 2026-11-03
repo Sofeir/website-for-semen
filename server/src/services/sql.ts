@@ -39,7 +39,10 @@ export const TASK_SELECT = `
          (SELECT count(*)::int FROM task_checklist_items ci WHERE ci.task_id = t.id AND ci.done) AS "checklistDone",
          t.is_visit AS "isVisit",
          t.kind_id AS "kindId", tk.name AS "kindName", tk.color AS "kindColor",
-         (t.status = 'open' AND t.due_at < now()) AS overdue
+         ARRAY(SELECT tw.user_id FROM task_watchers tw WHERE tw.task_id = t.id ORDER BY tw.user_id) AS "watcherIds",
+         (SELECT string_agg(wu.full_name, ', ' ORDER BY wu.full_name)
+            FROM task_watchers tw JOIN users wu ON wu.id = tw.user_id WHERE tw.task_id = t.id) AS "watcherName",
+         (t.status = 'open' AND (t.due_at < now() OR t.was_overdue)) AS overdue
     FROM tasks t
     JOIN users ua ON ua.id = t.assignee_id
     JOIN users uc ON uc.id = t.creator_id
@@ -90,7 +93,11 @@ export const orderAccess = (o: string, p: string) =>
     OR EXISTS (SELECT 1 FROM order_history oh WHERE oh.order_id = ${o}.id AND oh.responsible_id = ${p})
     OR EXISTS (SELECT 1 FROM tasks ot WHERE ot.order_id = ${o}.id AND (${isAssignee('ot', p)} OR ot.creator_id = ${p})))`;
 
-/** Задача видна, если сотрудник её исполнитель, постановщик или был в цепочке передачи. */
+/** Сотрудник наблюдает за задачей. */
+export const isWatcher = (t: string, p: string) =>
+  `EXISTS (SELECT 1 FROM task_watchers tw WHERE tw.task_id = ${t}.id AND tw.user_id = ${p})`;
+
+/** Задача видна, если сотрудник её исполнитель, наблюдатель, постановщик или был в цепочке передачи. */
 export const taskAccess = (t: string, p: string) =>
-  `(${isAssignee(t, p)} OR ${t}.creator_id = ${p}
+  `(${isAssignee(t, p)} OR ${isWatcher(t, p)} OR ${t}.creator_id = ${p}
     OR EXISTS (SELECT 1 FROM task_steps ts WHERE ts.task_id = ${t}.id AND ts.assignee_id = ${p}))`;

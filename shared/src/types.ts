@@ -9,6 +9,8 @@ export interface Me {
   phone: string | null;
   position?: string | null;
   onboarded: boolean;
+  /** Подтверждает закрытие просроченных задач (сейчас только директор Вайнштейн). */
+  confirmsOverdue: boolean;
   notifyInApp: boolean;
   notifyTelegram: boolean;
   notifyMax: boolean;
@@ -41,6 +43,8 @@ export interface UserBrief {
   isActive?: boolean;
   /** false — роль пока предположение, её надо уточнить. Видит только администратор. */
   roleConfirmed?: boolean;
+  /** Подтверждает закрытие просроченных задач. Видит только администратор. */
+  confirmsOverdue?: boolean;
 }
 
 export interface Stage {
@@ -277,6 +281,9 @@ export interface TaskListItem {
   assigneeIds: number[];
   /** Имена всех ответственных через запятую. */
   assigneeName: string;
+  /** Наблюдатели: видят задачу и получают уведомления, но не исполняют её. */
+  watcherIds: number[];
+  watcherName: string | null;
   creatorId: number;
   creatorName: string;
   orderId: number | null;
