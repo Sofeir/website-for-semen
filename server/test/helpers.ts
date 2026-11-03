@@ -24,6 +24,8 @@ export interface Session {
   post: (url: string, body?: object) => request.Test;
   put: (url: string, body?: object) => request.Test;
   del: (url: string) => request.Test;
+  /** Загрузка одного файла (multipart) с дополнительными полями формы. */
+  upload: (url: string, file: { name: string; type: string; data: Buffer }, fields?: Record<string, string>) => request.Test;
   user: { id: number; role: string };
 }
 
@@ -38,6 +40,11 @@ export async function loginAs(login: string): Promise<Session> {
     post: (url, body = {}) => agent.post(url).set('X-CSRF-Token', csrf).send(body),
     put: (url, body = {}) => agent.put(url).set('X-CSRF-Token', csrf).send(body),
     del: (url) => agent.delete(url).set('X-CSRF-Token', csrf),
+    upload: (url, file, fields = {}) => {
+      let r = agent.post(url).set('X-CSRF-Token', csrf);
+      for (const [k, v] of Object.entries(fields)) r = r.field(k, v);
+      return r.attach('files', file.data, { filename: file.name, contentType: file.type });
+    },
     user: res.body.user,
   };
 }

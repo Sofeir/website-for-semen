@@ -323,6 +323,7 @@ export interface TaskChecklistItem {
 export interface TaskDetail extends TaskListItem {
   steps: TaskStep[];
   checklist: TaskChecklistItem[];
+  attachments: Attachment[];
 }
 
 export interface NotificationItem {

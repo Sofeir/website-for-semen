@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { can, closeTasksSchema, taskKindSchema, taskSchema, transferTaskSchema, type TaskDetail } from '@sd/shared';
+import { can, closeTasksSchema, taskKindSchema, taskSchema, transferTaskSchema, type Attachment, type TaskDetail } from '@sd/shared';
 import { many, one, pool, tx } from '../db/pool';
 import { forbidden, h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
@@ -11,8 +11,10 @@ import {
   closeTasks,
   createTask,
   normalizeDue,
+  OVERDUE_CLOSE_MESSAGE,
   remindReset,
   reopenTask,
+  requestTaskClose,
   TASK_ROW_FIELDS,
   transferTask,
 } from '../services/tasks';
@@ -135,7 +137,13 @@ tasksRouter.get(
         WHERE ci.task_id = $1 ORDER BY ci.sort, ci.id`,
       [id],
     );
-    const detail: TaskDetail = { ...t, steps, checklist };
+    const rows = await many<Omit<Attachment, 'url'>>(
+      `SELECT a.id, a.file_name AS "fileName", a.mime, a.size, a.created_at AS "createdAt", u.full_name AS "uploadedBy"
+         FROM attachments a LEFT JOIN users u ON u.id = a.uploaded_by WHERE a.task_id = $1 ORDER BY a.created_at, a.id`,
+      [id],
+    );
+    const attachments = rows.map((a) => ({ ...a, url: `/api/files/${a.id}` }));
+    const detail: TaskDetail = { ...t, steps, checklist, attachments };
     res.json(detail);
   }),
 );
@@ -188,9 +196,23 @@ tasksRouter.post(
   h(async (req, res) => {
     const input = parse(closeTasksSchema, req.body);
     const outbox = new Outbox();
-    const result = await tx((db) => closeTasks(db, req.user!, input.ids, input.comment, outbox));
+    const result = await tx((db) => closeTasks(db, req.user!, input.ids, input.comment, outbox, { overdueNeedsManager: true }));
     await outbox.flush();
+    if (input.ids.length === 1 && result.needConfirm.length) throw new HttpError(403, OVERDUE_CLOSE_MESSAGE);
     res.json(result);
+  }),
+);
+
+/** Исполнитель просит руководителя подтвердить закрытие просроченной задачи: сам закрыть её он не может. */
+tasksRouter.post(
+  '/tasks/:id/close-request',
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const comment = typeof req.body?.comment === 'string' ? req.body.comment.trim().slice(0, 2000) : '';
+    const outbox = new Outbox();
+    await tx((db) => requestTaskClose(db, req.user!, id, comment, outbox));
+    await outbox.flush();
+    res.json({ ok: true });
   }),
 );
 

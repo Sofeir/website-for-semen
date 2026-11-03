@@ -8,7 +8,8 @@ import { can } from '@sd/shared';
 import { config } from '../config';
 import { one, pool } from '../db/pool';
 import { forbidden, h, HttpError, intParam } from '../lib/http';
-import { assertOrderVisible } from '../services/access';
+import { assertOrderVisible, assertTaskVisible } from '../services/access';
+import { canTouchTask, TASK_ROW_FIELDS } from '../services/tasks';
 
 export const filesRouter = Router();
 
@@ -76,8 +77,17 @@ filesRouter.post(
     if (!files.length) throw new HttpError(400, 'Файл не выбран');
     const orderId = req.body.orderId ? intParam(req.body.orderId, 'orderId') : null;
     const clientId = req.body.clientId ? intParam(req.body.clientId, 'clientId') : null;
+    const taskId = req.body.taskId ? intParam(req.body.taskId, 'taskId') : null;
     const result = [];
     try {
+      if (taskId) {
+        const t = await one<{ creator_id: number; assignee_ids: number[]; status: string }>(
+          `SELECT ${TASK_ROW_FIELDS} FROM tasks t WHERE t.id = $1`,
+          [taskId],
+        );
+        if (!t) throw new HttpError(400, 'Задача не найдена');
+        if (!canTouchTask(req.user!, t)) throw forbidden('Прикреплять файлы к задаче могут участники задачи и руководитель');
+      }
       for (const f of files) {
         const ext = path.extname(f.originalname).toLowerCase();
         const fd = await fsp.open(f.path, 'r');
@@ -94,10 +104,10 @@ filesRouter.post(
       }
       for (const f of files) {
         const row = await one(
-          `INSERT INTO attachments (order_id, client_id, file_name, stored_name, mime, size, uploaded_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `INSERT INTO attachments (order_id, client_id, task_id, file_name, stored_name, mime, size, uploaded_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            RETURNING id, file_name AS "fileName", mime, size, created_at AS "createdAt"`,
-          [orderId, linkedClient, fixName(f.originalname).slice(0, 200), f.filename, f.mimetype, f.size, req.user!.id],
+          [orderId, linkedClient, taskId, fixName(f.originalname).slice(0, 200), f.filename, f.mimetype, f.size, req.user!.id],
         );
         result.push({ ...row, url: `/api/files/${row.id}`, uploadedBy: req.user!.fullName });
       }
@@ -115,6 +125,7 @@ filesRouter.get(
     const a = await one('SELECT * FROM attachments WHERE id = $1', [intParam(req.params.id)]);
     if (!a) throw new HttpError(404, 'Файл не найден');
     if (a.order_id) await assertOrderVisible(req.user!, a.order_id);
+    if (a.task_id) await assertTaskVisible(req.user!, a.task_id);
     const full = path.join(config.uploadDir, path.basename(a.stored_name));
     if (!fs.existsSync(full)) throw new HttpError(404, 'Файл пропал с диска');
     const inline = /^image\/(jpeg|png|webp)$/.test(a.mime) || a.mime === 'application/pdf';
@@ -134,7 +145,8 @@ filesRouter.delete(
   h(async (req, res) => {
     const a = await one('SELECT * FROM attachments WHERE id = $1', [intParam(req.params.id)]);
     if (!a) throw new HttpError(404, 'Файл не найден');
-    if (a.uploaded_by !== req.user!.id && !can(req.user!.role, 'orders.assign')) throw forbidden();
+    if (a.uploaded_by !== req.user!.id && !can(req.user!.role, 'orders.assign') && !(a.task_id && can(req.user!.role, 'tasks.manageAll')))
+      throw forbidden();
     await pool.query('DELETE FROM attachments WHERE id = $1', [a.id]);
     await fsp.unlink(path.join(config.uploadDir, path.basename(a.stored_name))).catch(() => {});
     res.json({ ok: true });

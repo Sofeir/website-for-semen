@@ -143,8 +143,13 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
       }
     }
 
-    const seq = await one<{ n: number }>(`SELECT nextval('order_number_seq') AS n`, [], db);
-    const number = formatOrderNumber(seq!.n);
+    // Если счётчик отстал от уже занятых номеров (перенос базы, ручная правка), берём следующий свободный, а не падаем на дубле.
+    let number = '';
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const seq = await one<{ n: number }>(`SELECT nextval('order_number_seq') AS n`, [], db);
+      number = formatOrderNumber(seq!.n);
+      if (!(await one('SELECT 1 FROM orders WHERE number = $1', [number], db))) break;
+    }
     const order = await one<{ id: number }>(
       `INSERT INTO orders (number, batch_id, client_id, device_id, stage_id, responsible_id, stage_due_at,
                            fault_ids, fault_text, appearance, appearance_note, kit, kit_note, device_password,

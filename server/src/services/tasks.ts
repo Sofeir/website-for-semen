@@ -1,4 +1,4 @@
-import { can, type Role, type TaskInput, type TransferTaskInput } from '@sd/shared';
+import { can, PERMISSIONS, type Role, type TaskInput, type TransferTaskInput } from '@sd/shared';
 import { many, one, type Db } from '../db/pool';
 import { forbidden, HttpError } from '../lib/http';
 import type { Notice, Outbox } from '../notify/notify';
@@ -159,16 +159,39 @@ export function canTouchTask(actor: Actor, t: Pick<TaskRow, 'creator_id' | 'assi
   return t.assignee_ids.includes(actor.id) || t.creator_id === actor.id || can(actor.role, 'tasks.manageAll');
 }
 
-/** Закрывает задачи пачкой. Все участники задачи, кроме закрывшего, получают уведомление. */
-export async function closeTasks(db: Db, actor: Actor, ids: number[], comment: string | null, outbox: Outbox) {
+export const OVERDUE_CLOSE_MESSAGE =
+  'Задача просрочена: закрыть её можно только с подтверждения руководителя. Нажмите «Запросить подтверждение» в задаче';
+
+/**
+ * Закрывает задачи пачкой. Все участники задачи, кроме закрывшего, получают уведомление.
+ * overdueNeedsManager: просроченную задачу закрывает только руководитель, остальные просят его подтвердить (needConfirm).
+ * Закрытие этапа вместе с заявкой идёт без этого условия: там задачу закрывает сам переход заявки.
+ */
+export async function closeTasks(
+  db: Db,
+  actor: Actor,
+  ids: number[],
+  comment: string | null,
+  outbox: Outbox,
+  opts: { overdueNeedsManager?: boolean } = {},
+) {
   const rows = (
-    await db.query<TaskRow>(`SELECT ${TASK_ROW_FIELDS} FROM tasks t WHERE t.id = ANY ($1) FOR UPDATE OF t`, [ids])
+    await db.query<TaskRow & { overdue: boolean }>(
+      `SELECT ${TASK_ROW_FIELDS}, (t.due_at < now()) AS overdue FROM tasks t WHERE t.id = ANY ($1) FOR UPDATE OF t`,
+      [ids],
+    )
   ).rows;
   const closed: number[] = [];
   const skipped: number[] = [];
+  const needConfirm: number[] = [];
   for (const t of rows) {
     if (t.status !== 'open' || !canTouchTask(actor, t)) {
       skipped.push(t.id);
+      continue;
+    }
+    if (opts.overdueNeedsManager && t.overdue && !can(actor.role, 'tasks.manageAll')) {
+      skipped.push(t.id);
+      needConfirm.push(t.id);
       continue;
     }
     await db.query(
@@ -186,7 +209,32 @@ export async function closeTasks(db: Db, actor: Actor, ids: number[], comment: s
   }
   for (const id of ids) if (!rows.find((r) => r.id === id)) skipped.push(id);
   outbox.touch('tasks');
-  return { closed, skipped };
+  return { closed, skipped, needConfirm };
+}
+
+/** Запрос руководителю: подтвердите закрытие просроченной задачи. Получают постановщик и все с правом закрывать чужие задачи. */
+export async function requestTaskClose(db: Db, actor: Actor, id: number, comment: string, outbox: Outbox) {
+  const t = await one<TaskRow & { overdue: boolean }>(
+    `SELECT ${TASK_ROW_FIELDS}, (t.due_at < now()) AS overdue FROM tasks t WHERE t.id = $1`,
+    [id],
+    db,
+  );
+  if (!t) throw new HttpError(404, 'Задача не найдена');
+  if (!canTouchTask(actor, t)) throw forbidden();
+  if (t.status !== 'open') throw new HttpError(409, 'Задача уже закрыта');
+  if (!t.overdue) throw new HttpError(400, 'Задача не просрочена: закройте её сами');
+  const managers = await many<{ id: number }>(
+    'SELECT id FROM users WHERE is_active AND role = ANY ($1)',
+    [PERMISSIONS['tasks.manageAll'] as readonly string[]],
+    db,
+  );
+  notifyParticipants(outbox, [t.creator_id, ...managers.map((m) => m.id)], [actor.id], {
+    type: 'task_close_request',
+    title: `Просят подтвердить закрытие: ${t.title}`,
+    body: [`Просрочена. Исполнитель: ${actor.fullName}.`, comment && `Что сделано: ${comment}`].filter(Boolean).join('\n'),
+    link: `/tasks?task=${id}`,
+  });
+  outbox.touch('tasks');
 }
 
 export async function reopenTask(db: Db, actor: Actor, id: number, outbox: Outbox) {
