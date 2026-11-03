@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRightLeft, Check, Pencil, RotateCcw } from 'lucide-react';
+import { ArrowRightLeft, Check, Pencil, RotateCcw, Send } from 'lucide-react';
 import { useAuth, useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
 import { useCloseTasks, useInvalidate, useSettings, useTask, useTransferTask } from '@/api/queries';
@@ -9,13 +9,14 @@ import { Button } from '@/ui/Button';
 import { DescList, ErrorBox, Pill, Spinner } from '@/ui/Display';
 import { Checkbox, Field, Textarea } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
+import { AttachHint, AttachmentList, UploadButton } from './Attachments';
 import { useToast } from '@/ui/Toast';
 import { DueInput, UserSelect } from './Pickers';
 import { TaskFormSheet } from './TaskFormSheet';
 import { VisitDevices } from './VisitDevices';
 import s from './TaskSheet.module.css';
 
-type Mode = 'view' | 'close' | 'transfer';
+type Mode = 'view' | 'close' | 'transfer' | 'request';
 
 export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose: () => void }) {
   const me = useMe();
@@ -59,6 +60,8 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   }, [taskId, settings.data?.work]);
 
   const canTouch = task && (task.assigneeIds.includes(me.id) || task.creatorId === me.id || can('tasks.manageAll'));
+  // Просроченную задачу закрывает только руководитель: остальные просят его подтвердить.
+  const needsManager = Boolean(task && task.status === 'open' && task.overdue && !me.confirmsOverdue);
   const canEdit = task && (task.creatorId === me.id || can('tasks.manageAll')) && task.status === 'open';
 
   const doClose = async () => {
@@ -67,6 +70,18 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
       await close.mutateAsync({ ids: [task!.id], comment: comment || null });
       toast.success('Задача закрыта', task!.creatorId !== me.id ? `${task!.creatorName} получит уведомление` : undefined);
       onClose();
+    } catch (e) {
+      setError((e as ApiError).message);
+    }
+  };
+
+  const doRequest = async () => {
+    setError('');
+    try {
+      await api.post(`/tasks/${task!.id}/close-request`, { comment: comment.trim() });
+      toast.success('Запрос отправлен', 'Руководитель получил уведомление и подтвердит закрытие');
+      setMode('view');
+      setComment('');
     } catch (e) {
       setError((e as ApiError).message);
     }
@@ -110,9 +125,15 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
           <Button variant="secondary" icon={<ArrowRightLeft size={18} aria-hidden />} onClick={() => setMode('transfer')}>
             Передать
           </Button>
-          <Button variant="success" icon={<Check size={18} aria-hidden />} onClick={() => setMode('close')}>
-            Закрыть задачу
-          </Button>
+          {needsManager ? (
+            <Button variant="success" icon={<Send size={18} aria-hidden />} onClick={() => setMode('request')}>
+              Запросить подтверждение
+            </Button>
+          ) : (
+            <Button variant="success" icon={<Check size={18} aria-hidden />} onClick={() => setMode('close')}>
+              Закрыть задачу
+            </Button>
+          )}
         </>
       );
     } else {
@@ -124,6 +145,10 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
           {mode === 'close' ? (
             <Button variant="success" loading={close.isPending} onClick={doClose} icon={<Check size={18} aria-hidden />}>
               Закрыть
+            </Button>
+          ) : mode === 'request' ? (
+            <Button variant="success" onClick={doRequest} icon={<Send size={18} aria-hidden />}>
+              Отправить
             </Button>
           ) : (
             <Button loading={transfer.isPending} onClick={doTransfer} icon={<ArrowRightLeft size={18} aria-hidden />}>
@@ -186,6 +211,15 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                 <Textarea value={comment} onChange={(e) => setComment(e.target.value)} data-autofocus maxLength={2000} />
               </Field>
             )}
+            {mode === 'request' && (
+              <Field
+                label="Что сделано"
+                optional
+                hint="Задача просрочена, поэтому закрыть её может только директор. Он получит уведомление с этим текстом"
+              >
+                <Textarea value={comment} onChange={(e) => setComment(e.target.value)} data-autofocus maxLength={2000} />
+              </Field>
+            )}
             {mode === 'transfer' && (
               <>
                 <Field label="Кому передать">
@@ -205,6 +239,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                 <DescList
                   items={[
                     [task.assigneeIds.length > 1 ? 'Ответственные' : 'Исполнитель', task.assigneeName],
+                    [task.watcherIds.length > 1 ? 'Наблюдатели' : 'Наблюдатель', task.watcherName],
                     ['Постановщик', task.creatorName],
                     ['Начало', fmtWhen(task.startAt)],
                     ['Срок', <span className={task.overdue ? s.late : undefined}>{fmtWhen(task.dueAt)}</span>],
@@ -256,6 +291,21 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                         </li>
                       ))}
                     </ul>
+                  </section>
+                )}
+                {(task.attachments.length > 0 || canTouch) && (
+                  <section>
+                    <h3 className={s.chainTitle}>Файлы и фото{task.attachments.length > 0 && ` · ${task.attachments.length}`}</h3>
+                    {task.attachments.length > 0 ? (
+                      <AttachmentList items={task.attachments} onDeleted={() => inv('task')} />
+                    ) : (
+                      <AttachHint />
+                    )}
+                    {canTouch && (
+                      <div className={s.files}>
+                        <UploadButton target={{ taskId: task.id }} onUploaded={() => inv('task')} label="Добавить фото или файл" />
+                      </div>
+                    )}
                   </section>
                 )}
                 {task.steps.length > 0 && (

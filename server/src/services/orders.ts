@@ -87,7 +87,11 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
     if (!contact) throw new HttpError(400, 'Этот сотрудник не из выбранной организации');
   }
 
-  if (input.fleet && client.kind === 'legal') await replaceFleet(db, clientId, input.fleet);
+  if (input.fleet && client.kind === 'legal') {
+    // Парк техники организации правят только те, кто может править клиентов: инженер при приёме парк не переписывает.
+    if (!can(actor.role, 'clients.edit') && input.clientId) throw forbidden('Менять парк техники организации может администратор или директор');
+    await replaceFleet(db, clientId, input.fleet);
+  }
 
   const stages = await activeStages(db);
   if (stages.length < 3) throw new HttpError(500, 'В справочнике меньше трёх активных этапов');
@@ -143,8 +147,13 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
       }
     }
 
-    const seq = await one<{ n: number }>(`SELECT nextval('order_number_seq') AS n`, [], db);
-    const number = formatOrderNumber(seq!.n);
+    // Если счётчик отстал от уже занятых номеров (перенос базы, ручная правка), берём следующий свободный, а не падаем на дубле.
+    let number = '';
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const seq = await one<{ n: number }>(`SELECT nextval('order_number_seq') AS n`, [], db);
+      number = formatOrderNumber(seq!.n);
+      if (!(await one('SELECT 1 FROM orders WHERE number = $1', [number], db))) break;
+    }
     const order = await one<{ id: number }>(
       `INSERT INTO orders (number, batch_id, client_id, device_id, stage_id, responsible_id, stage_due_at,
                            fault_ids, fault_text, appearance, appearance_note, kit, kit_note, device_password,

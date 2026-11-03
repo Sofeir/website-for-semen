@@ -153,7 +153,7 @@ clientsRouter.get(
 
 clientsRouter.post(
   '/clients',
-  requirePermission('clients.edit'),
+  requirePermission('clients.create'),
   h(async (req, res) => {
     const input = parse(clientSchema, req.body);
     const id = await tx((db) => createClient(db, req.user!.id, input));

@@ -325,6 +325,8 @@ export const taskSchema = z
     /** Ответственные: можно назначить сразу нескольких. Одиночное assigneeId тоже принимается. */
     assigneeIds: z.array(id).max(50).optional(),
     assigneeId: id.optional(),
+    /** Наблюдатели: видят задачу и получают уведомления. */
+    watcherIds: z.array(id).max(50).optional(),
     orderId: optionalId,
     clientId: optionalId,
     startAt: isoDate,
@@ -424,6 +426,7 @@ export const userUpdateSchema = z.object({
   fullName: text(120).min(2).optional(),
   role: z.enum(STAFF_ROLES).optional(),
   roleConfirmed: z.boolean().optional(),
+  confirmsOverdue: z.boolean().optional(),
   phone: optionalText(32),
   email: optionalEmail,
   position: optionalText(120),

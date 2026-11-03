@@ -20,7 +20,7 @@ async function loadMe(userId: number): Promise<Me> {
   const u = await one(
     `SELECT id, login, full_name AS "fullName", role, phone, position, onboarded_at IS NOT NULL AS onboarded,
             notify_inapp AS "notifyInApp", notify_telegram AS "notifyTelegram", notify_max AS "notifyMax",
-            telegram_chat_id AS "telegramChatId", max_user_id AS "maxUserId", client_id AS "clientId"
+            telegram_chat_id AS "telegramChatId", max_user_id AS "maxUserId", client_id AS "clientId", confirms_overdue AS "confirmsOverdue"
        FROM users WHERE id = $1`,
     [userId],
   );

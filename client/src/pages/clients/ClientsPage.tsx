@@ -33,7 +33,7 @@ export default function ClientsPage() {
         title="Клиенты"
         subtitle={clients.data ? `${clients.data.total} в базе` : undefined}
         actions={
-          can('clients.edit') && (
+          can('clients.create') && (
             <Button size="sm" icon={<UserPlus size={18} aria-hidden />} onClick={() => setCreating(true)}>
               Новый клиент
             </Button>

@@ -20,7 +20,7 @@ import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import s from './Tasks.module.css';
 
-type Scope = 'mine' | 'created' | 'all';
+type Scope = 'mine' | 'created' | 'watching' | 'all';
 
 function groupTasks(tasks: TaskListItem[]) {
   const today = startOfDay();
@@ -99,11 +99,20 @@ export default function TasksPage() {
     try {
       const r = await close.mutateAsync({ ids: [...selected], comment: comment || null });
       const othersNotified = list.filter((t) => r.closed.includes(t.id) && t.creatorId !== me.id).length;
-      toast.success(
-        `Закрыто: ${r.closed.length} ${pluralRu(r.closed.length, 'задача', 'задачи', 'задач')}`,
-        othersNotified ? 'Постановщики получили уведомления' : undefined,
-      );
-      if (r.skipped.length) toast.error(`Не закрыто: ${r.skipped.length}`, 'Эти задачи уже закрыты или вам не принадлежат');
+      if (r.closed.length) {
+        toast.success(
+          `Закрыто: ${r.closed.length} ${pluralRu(r.closed.length, 'задача', 'задачи', 'задач')}`,
+          othersNotified ? 'Постановщики получили уведомления' : undefined,
+        );
+      }
+      if (r.skipped.length) {
+        toast.error(
+          `Не закрыто: ${r.skipped.length}`,
+          r.needConfirm.length
+            ? `Просроченные (${r.needConfirm.length}) закрывает только директор: откройте задачу и запросите подтверждение`
+            : 'Эти задачи уже закрыты или вам не принадлежат',
+        );
+      }
       setSelected(new Set());
       setComment('');
       setConfirmOpen(false);
@@ -122,6 +131,7 @@ export default function TasksPage() {
   const scopeItems: { value: Scope; label: string }[] = [
     { value: 'mine', label: 'Мне' },
     { value: 'created', label: 'Поставленные мной' },
+    { value: 'watching', label: 'Наблюдаю' },
   ];
   if (can('tasks.manageAll')) scopeItems.push({ value: 'all', label: 'Все сотрудники' });
 

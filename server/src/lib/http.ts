@@ -43,7 +43,8 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   if (err instanceof HttpError) {
     return res.status(err.status).json({ error: err.message, ...err.extra });
   }
-  const e = err as { code?: string; message?: string; status?: number; type?: string };
+  const e = err as { code?: string; message?: string; status?: number; type?: string; constraint?: string };
+  if (e?.code === '23505') console.warn(`Повтор уникального значения: ${e.constraint ?? '?'}`);
   if (e?.type === 'entity.too.large') return res.status(413).json({ error: 'Слишком большой запрос' });
   if (e?.type === 'entity.parse.failed') return res.status(400).json({ error: 'Некорректный JSON' });
   if (e?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'Файл слишком большой' });

@@ -213,6 +213,11 @@ function Users() {
               ))}
             </Select>
             <Checkbox
+              label="Подтверждает просрочку"
+              checked={u.confirmsOverdue === true}
+              onChange={(e) => update(u, { confirmsOverdue: e.target.checked })}
+            />
+            <Checkbox
               label="Активен"
               checked={u.isActive !== false}
               disabled={u.id === me.id}

@@ -129,6 +129,8 @@ export async function createUsers(password: string, db: Db = pool) {
       [u.login, hash, u.fullName, u.role, u.phone ?? null, u.position ?? null, u.roleConfirmed ?? true],
     );
   }
+  // Закрытие просроченных задач подтверждает один человек — директор Вайнштейн.
+  await db.query(`UPDATE users SET confirms_overdue = true WHERE login = 'semen' AND NOT EXISTS (SELECT 1 FROM users WHERE confirms_overdue)`);
 }
 
 async function actor(login: string): Promise<Actor> {

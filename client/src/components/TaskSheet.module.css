@@ -123,3 +123,7 @@
   font-size: var(--fs-sm);
   text-decoration: none;
 }
+
+.files {
+  margin-top: 8px;
+}

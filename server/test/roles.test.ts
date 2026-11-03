@@ -14,7 +14,10 @@ describe('матрица прав', () => {
       expect(can(r, 'dictionaries.edit')).toBe(false);
       expect(can(r, 'users.manage')).toBe(false);
     }
-    expect(PERMISSIONS['intake.create']).toEqual(['admin', 'manager']);
+    // Инженеры принимают технику и заводят клиентов, но карточки клиентов правят только администратор и директор.
+    expect(PERMISSIONS['intake.create']).toEqual(['admin', 'manager', 'diagnostician', 'master']);
+    expect(PERMISSIONS['clients.create']).toEqual(['admin', 'manager', 'diagnostician', 'master']);
+    expect(PERMISSIONS['clients.edit']).toEqual(['admin', 'manager']);
   });
 });
 
@@ -42,17 +45,20 @@ describe('права на уровне API', () => {
     expect(res.status).toBe(403);
   });
 
-  it('диагност не может принимать технику и править справочники', async () => {
+  it('диагност принимает технику и заводит клиентов, но не правит карточки, справочники и настройки', async () => {
     const stas = await loginAs('isakov');
     const { laptop, users } = await dict();
     const intake = await stas.post('/api/intake', {
       clientKind: 'person',
       newClient: { kind: 'person', name: 'Кто-то', phone: '+79000000099' },
-      devices: [{ device: { deviceTypeId: laptop }, faultText: 'x' }],
+      devices: [{ device: { deviceTypeId: laptop, serial: 'SN-ROLE-1' }, faultText: 'x' }],
       responsibleId: users.isakov,
       dueAt: inDays(1),
     });
-    expect(intake.status).toBe(403);
+    expect(intake.status).toBe(201);
+    const made = await stas.post('/api/clients', { kind: 'person', name: 'Новый клиент инженера', phone: '+79000000098' });
+    expect(made.status).toBe(201);
+    expect((await stas.put(`/api/clients/${made.body.id}`, { kind: 'person', name: 'Другое имя', phone: '+79000000098' })).status).toBe(403);
     expect((await stas.post('/api/dictionaries/device_types', { name: 'Дрон' })).status).toBe(403);
     expect((await stas.put('/api/settings/company', { name: 'X' })).status).toBe(403);
     expect((await stas.post('/api/users', {})).status).toBe(403);

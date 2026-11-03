@@ -16,13 +16,14 @@ const sizeLabel = (b: number) =>
   b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} МБ` : `${Math.max(1, Math.round(b / 1024))} КБ`;
 
 /** Загрузка файлов на сервер. Возвращает созданные вложения. */
-export async function uploadFiles(files: File[], target: { orderId?: number; clientId?: number } = {}) {
+export async function uploadFiles(files: File[], target: { orderId?: number; clientId?: number; taskId?: number } = {}) {
   const tooBig = files.find((f) => f.size > MAX_MB * 1024 * 1024);
   if (tooBig) throw new ApiError(413, `«${tooBig.name}» больше ${MAX_MB} МБ`);
   const fd = new FormData();
   files.forEach((f) => fd.append('files', f));
   if (target.orderId) fd.append('orderId', String(target.orderId));
   if (target.clientId) fd.append('clientId', String(target.clientId));
+  if (target.taskId) fd.append('taskId', String(target.taskId));
   return api.post<Attachment[]>('/uploads', fd);
 }
 
@@ -64,7 +65,7 @@ export function AttachmentList({
                 )}
               </span>
             </a>
-            {onDeleted && (a.uploadedBy === me.fullName || can('orders.assign')) && (
+            {onDeleted && (a.uploadedBy === me.fullName || can('orders.assign') || can('tasks.manageAll')) && (
               <IconButton
                 label={`Удалить файл ${a.fileName}`}
                 onClick={async () => {
@@ -93,7 +94,7 @@ export function UploadButton({
   onUploaded,
   label = 'Добавить файлы',
 }: {
-  target: { orderId?: number; clientId?: number };
+  target: { orderId?: number; clientId?: number; taskId?: number };
   onUploaded: (items: Attachment[]) => void;
   label?: string;
 }) {

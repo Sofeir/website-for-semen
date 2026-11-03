@@ -40,6 +40,7 @@ export async function taskParticipantIds(db: Db, taskId: number): Promise<number
   const rows = await many<{ id: number }>(
     `SELECT creator_id AS id FROM tasks WHERE id = $1
      UNION SELECT user_id FROM task_assignees WHERE task_id = $1
+     UNION SELECT user_id FROM task_watchers WHERE task_id = $1
      UNION SELECT assignee_id FROM task_steps WHERE task_id = $1
      UNION SELECT from_user_id FROM task_steps WHERE task_id = $1 AND from_user_id IS NOT NULL`,
     [taskId],
@@ -82,7 +83,8 @@ export function assigneeList(input: { assigneeId?: number; assigneeIds?: number[
 /** Задача целиком переходит одному сотруднику: он становится единственным ответственным, срок и напоминания обновляются. */
 export async function moveTask(db: Db, taskId: number, userId: number, due: Date) {
   await db.query(
-    `UPDATE tasks SET assignee_id = $2, due_at = $3, overdue_notified_at = NULL, ${remindReset('$3')}, updated_at = now() WHERE id = $1`,
+    `UPDATE tasks SET assignee_id = $2, due_at = $3, overdue_notified_at = NULL, was_overdue = (was_overdue OR due_at < now()),
+            ${remindReset('$3')}, updated_at = now() WHERE id = $1`,
     [taskId, userId, due],
   );
   await db.query('DELETE FROM task_assignees WHERE task_id = $1 AND user_id <> $2', [taskId, userId]);
@@ -100,6 +102,8 @@ export async function createTask(
   for (const userId of ids) people.push(await assertActiveUser(db, userId));
   const due = await normalizeDue(db, input.dueAt);
   const deadline = input.deadlineAt ? await normalizeDue(db, input.deadlineAt) : null;
+  const watcherIds = [...new Set(input.watcherIds ?? [])].filter((w) => !ids.includes(w));
+  for (const w of watcherIds) await assertActiveUser(db, w);
   const row = await one<{ id: number }>(
     `INSERT INTO tasks (title, description, creator_id, assignee_id, order_id, client_id, stage_id, start_at, due_at, deadline_at, is_visit, kind_id,
                         remind_day_at, remind_2h_at)
@@ -124,6 +128,18 @@ export async function createTask(
     ],
     db,
   );
+  for (const w of watcherIds) {
+    await db.query('INSERT INTO task_watchers (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [row!.id, w]);
+    if (w !== actor.id) {
+      outbox.add({
+        userId: w,
+        type: 'task_watch',
+        title: `Вы наблюдатель задачи: ${input.title}`,
+        body: `От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`,
+        link: `/tasks?task=${row!.id}`,
+      });
+    }
+  }
   for (const userId of ids) {
     await db.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [row!.id, userId]);
     await db.query(`INSERT INTO task_steps (task_id, assignee_id, from_user_id, due_at) VALUES ($1, $2, $3, $4)`, [
@@ -159,16 +175,45 @@ export function canTouchTask(actor: Actor, t: Pick<TaskRow, 'creator_id' | 'assi
   return t.assignee_ids.includes(actor.id) || t.creator_id === actor.id || can(actor.role, 'tasks.manageAll');
 }
 
-/** Закрывает задачи пачкой. Все участники задачи, кроме закрывшего, получают уведомление. */
-export async function closeTasks(db: Db, actor: Actor, ids: number[], comment: string | null, outbox: Outbox) {
+export const OVERDUE_CLOSE_MESSAGE =
+  'Задача просрочена: закрыть её можно только с подтверждения директора. Нажмите «Запросить подтверждение» в задаче';
+
+/** Может ли сотрудник закрывать просроченные задачи сам. Такая отметка сейчас у одного человека. */
+export async function canConfirmOverdue(db: Db, userId: number): Promise<boolean> {
+  return Boolean(await one('SELECT 1 FROM users WHERE id = $1 AND confirms_overdue AND is_active', [userId], db));
+}
+
+/**
+ * Закрывает задачи пачкой. Все участники задачи, кроме закрывшего, получают уведомление.
+ * overdueNeedsManager: просроченную задачу закрывает только тот, кто подтверждает просрочку (директор Вайнштейн), остальные просят его (needConfirm).
+ * Закрытие этапа вместе с заявкой идёт без этого условия: там задачу закрывает сам переход заявки.
+ */
+export async function closeTasks(
+  db: Db,
+  actor: Actor,
+  ids: number[],
+  comment: string | null,
+  outbox: Outbox,
+  opts: { overdueNeedsManager?: boolean } = {},
+) {
   const rows = (
-    await db.query<TaskRow>(`SELECT ${TASK_ROW_FIELDS} FROM tasks t WHERE t.id = ANY ($1) FOR UPDATE OF t`, [ids])
+    await db.query<TaskRow & { overdue: boolean }>(
+      `SELECT ${TASK_ROW_FIELDS}, (t.due_at < now() OR t.was_overdue) AS overdue FROM tasks t WHERE t.id = ANY ($1) FOR UPDATE OF t`,
+      [ids],
+    )
   ).rows;
   const closed: number[] = [];
   const skipped: number[] = [];
+  const needConfirm: number[] = [];
+  const confirms = opts.overdueNeedsManager ? await canConfirmOverdue(db, actor.id) : true;
   for (const t of rows) {
     if (t.status !== 'open' || !canTouchTask(actor, t)) {
       skipped.push(t.id);
+      continue;
+    }
+    if (!confirms && t.overdue) {
+      skipped.push(t.id);
+      needConfirm.push(t.id);
       continue;
     }
     await db.query(
@@ -186,7 +231,30 @@ export async function closeTasks(db: Db, actor: Actor, ids: number[], comment: s
   }
   for (const id of ids) if (!rows.find((r) => r.id === id)) skipped.push(id);
   outbox.touch('tasks');
-  return { closed, skipped };
+  return { closed, skipped, needConfirm };
+}
+
+/** Запрос: подтвердите закрытие просроченной задачи. Получает только тот, кто подтверждает просрочку. */
+export async function requestTaskClose(db: Db, actor: Actor, id: number, comment: string, outbox: Outbox) {
+  const t = await one<TaskRow & { overdue: boolean }>(
+    `SELECT ${TASK_ROW_FIELDS}, (t.due_at < now() OR t.was_overdue) AS overdue FROM tasks t WHERE t.id = $1`,
+    [id],
+    db,
+  );
+  if (!t) throw new HttpError(404, 'Задача не найдена');
+  if (!canTouchTask(actor, t)) throw forbidden();
+  if (t.status !== 'open') throw new HttpError(409, 'Задача уже закрыта');
+  if (!t.overdue) throw new HttpError(400, 'Задача не просрочена: закройте её сами');
+  const confirmers = await many<{ id: number }>('SELECT id FROM users WHERE is_active AND confirms_overdue', [], db);
+  if (!confirmers.length) throw new HttpError(409, 'Не назначен тот, кто подтверждает закрытие просроченных задач');
+  // Запрос уходит только ему: ни постановщику, ни другим руководителям он не приходит.
+  notifyParticipants(outbox, confirmers.map((m) => m.id), [actor.id], {
+    type: 'task_close_request',
+    title: `Просят подтвердить закрытие: ${t.title}`,
+    body: [`Просрочена. Исполнитель: ${actor.fullName}.`, comment && `Что сделано: ${comment}`].filter(Boolean).join('\n'),
+    link: `/tasks?task=${id}`,
+  });
+  outbox.touch('tasks');
 }
 
 export async function reopenTask(db: Db, actor: Actor, id: number, outbox: Outbox) {

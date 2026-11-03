@@ -210,7 +210,7 @@ export const useClientDevices = (id: number | null | undefined) =>
   });
 
 export interface TaskFilters {
-  scope?: 'mine' | 'created' | 'all';
+  scope?: 'mine' | 'created' | 'watching' | 'all';
   status?: 'open' | 'done' | 'any';
   q?: string;
   assignee?: number | '';
@@ -327,7 +327,7 @@ export function useReopenOrder(orderId: number) {
 export function useCloseTasks() {
   const inv = useInvalidate();
   return useMutation({
-    mutationFn: (input: CloseTasksInput) => api.post<{ closed: number[]; skipped: number[] }>('/tasks/close', input as any),
+    mutationFn: (input: CloseTasksInput) => api.post<{ closed: number[]; skipped: number[]; needConfirm: number[] }>('/tasks/close', input as any),
     onSuccess: () => inv('tasks', 'task', 'dashboard', 'order', 'client'),
   });
 }
