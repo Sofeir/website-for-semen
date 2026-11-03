@@ -99,7 +99,8 @@ describe('календарь задач', () => {
     expect(feed.headers['content-type']).toContain('text/calendar');
     expect(feed.text).toContain('BEGIN:VCALENDAR');
     expect(feed.text).toContain(`UID:task-${created.body.id}@servicedesk`);
-    expect(feed.text).toContain('Настроить CRM\\, срочно\\; важно');
+    // длинные строки календаря переносятся: перед проверкой склеиваем
+    expect(feed.text.replace(/\r\n /g, '')).toContain('Настроить CRM\\, срочно\\; важно');
     expect(feed.text).not.toContain('Чужая задача');
 
     // закрытая задача пропадает из ленты
