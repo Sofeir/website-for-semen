@@ -128,9 +128,15 @@ describe('несколько ответственных и кому приход
     const semen = await loginAs('semen');
     const orderId = await (await import('./helpers')).intakeLaptop(semen, users.isakov, '+7 900 555-00-01');
     const isakov = await loginAs('isakov');
+    // срок при передаче заявки отодвинуть нельзя: продление согласует директор
+    const later = await isakov.post(`/api/orders/${orderId}/reassign`, {
+      responsibleId: users.kataev,
+      dueAt: inDays(5),
+      comment: 'Нужна замена SSD',
+    });
+    expect(later.status).toBe(403);
     const r = await isakov.post(`/api/orders/${orderId}/reassign`, {
       responsibleId: users.kataev,
-      dueAt: inDays(2),
       comment: 'Нужна замена SSD',
     });
     expect(r.status).toBe(200);

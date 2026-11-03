@@ -14,7 +14,7 @@ import type { Outbox } from '../notify/notify';
 import { createClient, replaceFleet } from './clients';
 import { getWorkSettings } from './settings';
 import { DEVICE_TITLE } from './sql';
-import { assertActiveUser, closeTasks, createTask, moveTask, normalizeDue, notifyParticipants, type Actor } from './tasks';
+import { assertActiveUser, assertDueNotLater, closeTasks, createTask, moveTask, normalizeDue, notifyParticipants, type Actor } from './tasks';
 import { defaultDue, formatDateTimeRu } from './workTime';
 
 export async function activeStages(db: Db): Promise<Stage[]> {
@@ -24,6 +24,24 @@ export async function activeStages(db: Db): Promise<Stage[]> {
     [],
     db,
   );
+}
+
+export const CARTRIDGE_TYPE = 'Картридж';
+
+/** Картриджи с директором не согласуют: для них этап «Согласование» пропускается. */
+export function nextStageFor(stages: Stage[], currentId: number, deviceType: string | null | undefined): Stage | null {
+  const next = nextStageOf(stages, currentId);
+  if (next && deviceType === CARTRIDGE_TYPE && next.code === 'approval') return nextStageOf(stages, next.id) ?? next;
+  return next;
+}
+
+async function deviceTypeName(db: Db, deviceId: number): Promise<string | null> {
+  const r = await one<{ name: string }>(
+    'SELECT dt.name FROM devices d JOIN device_types dt ON dt.id = d.device_type_id WHERE d.id = $1',
+    [deviceId],
+    db,
+  );
+  return r?.name ?? null;
 }
 
 /** Следующий допустимый этап. Перескакивать и возвращаться нельзя. */
@@ -148,6 +166,10 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
     }
 
     // Если счётчик отстал от уже занятых номеров (перенос базы, ручная правка), берём следующий свободный, а не падаем на дубле.
+    // Картриджи сразу в работу (заправка), без диагностики и согласования
+    const cartridge = (await deviceTypeName(db, deviceId)) === CARTRIDGE_TYPE;
+    const startStage = cartridge ? (stages.find((s) => s.code === 'repair') ?? work) : work;
+    const faultText = item.cartridge ? `Заправка картриджей: ${item.qty} шт.` : item.faultText;
     let number = '';
     for (let attempt = 0; attempt < 50; attempt++) {
       const seq = await one<{ n: number }>(`SELECT nextval('order_number_seq') AS n`, [], db);
@@ -164,11 +186,11 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
         batch!.id,
         clientId,
         deviceId,
-        work.id,
+        startStage.id,
         responsible.id,
         due,
         item.faultIds,
-        item.faultText,
+        faultText,
         item.appearance,
         item.appearanceNote,
         item.kit,
@@ -191,14 +213,22 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
     );
     await db.query(
       `INSERT INTO order_history (order_id, stage_id, responsible_id, from_user_id, due_at) VALUES ($1, $2, $3, $4, $5)`,
-      [orderId, work.id, responsible.id, actor.id, due],
+      [orderId, startStage.id, responsible.id, actor.id, due],
     );
     const title = await deviceTitle(db, deviceId);
+    if (item.cartridge && cartridge) {
+      // Заправка записывается в работы: так она попадает в отчёты по клиенту, как при записи из карточки клиента
+      await db.query(
+        `INSERT INTO device_works (client_id, device_id, order_id, kind, title, qty, note, created_by, performer_id, amount, ops)
+         VALUES ($1, $2, $3, 'refill', $4, $5, $6, $7, $8, $9, $10)`,
+        [clientId, deviceId, orderId, (dv.modelText?.trim() || title).slice(0, 200), item.qty, input.comment, actor.id, responsible.id, item.refillAmount ?? null, item.refillOps],
+      );
+    }
     await createTask(
       db,
       actor,
       {
-        title: stageTaskTitle(work, title, number),
+        title: stageTaskTitle(startStage, title, number),
         description: `Клиент: ${client.name}.`,
         assigneeId: responsible.id,
         orderId,
@@ -206,7 +236,7 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
         startAt: new Date().toISOString(),
         dueAt: due.toISOString(),
         deadlineAt: null,
-        stageId: work.id,
+        stageId: startStage.id,
       },
       outbox,
     );
@@ -260,7 +290,8 @@ export async function advanceOrder(db: Db, actor: Actor, orderId: number, input:
   const stages = await activeStages(db);
   const current = stages.find((s) => s.id === order.stage_id);
   if (current?.isFinal) throw new HttpError(409, 'Заявка уже выдана');
-  let next = nextStageOf(stages, order.stage_id);
+  const naiveNext = nextStageOf(stages, order.stage_id);
+  let next = nextStageFor(stages, order.stage_id, await deviceTypeName(db, order.device_id));
   if (!next) throw new HttpError(409, 'Дальше этапов нет');
   if (input.declined) {
     // Заказчик не согласовал ремонт: из «Согласования» сразу в «Готово», этап ремонта пропускаем.
@@ -271,7 +302,7 @@ export async function advanceOrder(db: Db, actor: Actor, orderId: number, input:
   if (next.isFinal && !input.deviceReturned) {
     throw new HttpError(400, 'Отметьте, что техника возвращена клиенту, иначе заявку закрыть нельзя');
   }
-  if (input.toStageId !== next.id) {
+  if (input.toStageId !== next.id && input.toStageId !== naiveNext?.id) {
     throw new HttpError(409, `Этапы идут строго по порядку: следующий — «${next.name}».`, { nextStageId: next.id });
   }
   if (!canAdvanceOrder(actor, order)) throw forbidden('Перевести заявку может ответственный или руководитель');
@@ -397,6 +428,14 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
   const due = input.dueAt
     ? await normalizeDue(db, input.dueAt)
     : (await one<{ d: Date }>('SELECT stage_due_at AS d FROM orders WHERE id = $1', [orderId], db))!.d;
+  // Передавая заявку, срок отодвинуть нельзя: продление согласует директор (то же правило, что у передачи задачи)
+  const currentDue = await one<{ d: Date | null }>(
+    `SELECT coalesce((SELECT t.due_at FROM tasks t WHERE t.order_id = o.id AND t.stage_id = o.stage_id AND t.status = 'open' ORDER BY t.id DESC LIMIT 1), o.stage_due_at) AS d
+       FROM orders o WHERE o.id = $1`,
+    [orderId],
+    db,
+  );
+  if (currentDue?.d) await assertDueNotLater(db, actor, currentDue.d, due);
 
   await db.query('UPDATE order_history SET finished_at = now() WHERE order_id = $1 AND finished_at IS NULL', [orderId]);
   await db.query(

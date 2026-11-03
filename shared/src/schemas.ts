@@ -98,6 +98,11 @@ export const intakeDeviceSchema = z.object({
   kitNote: optionalText(500),
   devicePassword: optionalText(200),
   department: optionalText(120),
+  /** Приём картриджей упрощённой формой: модель, количество и что делали. Заправка записывается в работы. */
+  cartridge: z.boolean().optional(),
+  qty: z.coerce.number().int().min(1, 'Минимум 1').max(999, 'Не больше 999').default(1),
+  refillOps: z.array(z.enum(['refill', 'drum', 'roller', 'chip', 'blade'])).default(['refill']),
+  refillAmount: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().min(0).max(10_000_000).nullable()).optional(),
 });
 export type IntakeDeviceInput = z.infer<typeof intakeDeviceSchema>;
 
@@ -134,7 +139,11 @@ export const intakeSchema = z
       ctx.addIssue({ code: 'custom', path: ['clientId'], message: 'Выберите или создайте клиента' });
     }
     v.devices.forEach((d, i) => {
-      if (!d.faultIds.length && !d.faultText) {
+      if (d.cartridge) {
+        if (!d.device.modelId && !d.device.modelText?.trim()) {
+          ctx.addIssue({ code: 'custom', path: ['devices', i, 'device', 'modelText'], message: 'Напишите модель картриджа' });
+        }
+      } else if (!d.faultIds.length && !d.faultText) {
         ctx.addIssue({ code: 'custom', path: ['devices', i, 'faultText'], message: 'Опишите неисправность' });
       }
     });

@@ -188,6 +188,10 @@ tasksRouter.put(
     );
     if (!t) throw new HttpError(404, 'Задача не найдена');
     if (!canTouchTask(req.user!, t)) throw forbidden('Править задачу может постановщик или исполнитель');
+    const manager = can(req.user!.role, 'tasks.manageAll');
+    if (t.status !== 'open' && !manager) throw new HttpError(409, 'Закрытую задачу не правят: верните её в работу');
+    // Исполнитель правит название, описание и начало; вид задачи и наблюдателей меняет постановщик или руководитель
+    const owner = t.creator_id === req.user!.id || manager;
     const outbox = new Outbox();
     const wanted = assigneeList(input).sort((a, b) => a - b);
     const current = [...t.assignee_ids].sort((a, b) => a - b);
@@ -205,9 +209,9 @@ tasksRouter.put(
         `UPDATE tasks SET title = $2, description = $3, start_at = $4, due_at = $5,
                 kind_id = COALESCE($6, kind_id), was_overdue = CASE WHEN $7 THEN false ELSE was_overdue OR due_at < now() END,
                 ${dueChanged ? `${remindReset()},` : ''} updated_at = now() WHERE id = $1`,
-        [id, input.title, input.description, input.startAt, dueChanged ? due : t.due_at, input.kindId ?? null, confirms && dueChanged],
+        [id, input.title, input.description, input.startAt, dueChanged ? due : t.due_at, owner ? (input.kindId ?? null) : null, confirms && dueChanged],
       );
-      if (input.watcherIds) {
+      if (input.watcherIds && owner) {
         const want = [...new Set(input.watcherIds)].filter((w) => !current.includes(w));
         for (const w of want) await assertActiveUser(db, w);
         const had = (await many<{ user_id: number }>('SELECT user_id FROM task_watchers WHERE task_id = $1', [id], db)).map((r) => r.user_id);

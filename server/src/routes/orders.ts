@@ -19,7 +19,7 @@ import {
   advanceOrder,
   canAdvanceOrder,
   createIntake,
-  nextStageOf,
+  nextStageFor,
   reassignOrder,
   reopenOrder,
 } from '../services/orders';
@@ -121,7 +121,7 @@ ordersRouter.get(
         : Promise.resolve(null),
       many<DeviceWork>(`${WORK_SELECT} WHERE w.order_id = $1 ORDER BY w.done_at, w.id`, [id]),
     ]);
-    const next = nextStageOf(stages, raw.stage_id);
+    const next = nextStageFor(stages, raw.stage_id, device.deviceType);
     const detail: OrderDetail = {
       ...order,
       device,
