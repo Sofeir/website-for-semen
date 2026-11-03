@@ -271,6 +271,14 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
   if (!canTouchTask(actor, t)) throw forbidden();
   if (t.status !== 'open') throw new HttpError(409, 'Задача уже закрыта');
   if (t.assignee_ids.length === 1 && t.assignee_ids[0] === input.assigneeId) throw new HttpError(400, 'Задача уже у этого сотрудника');
+  // Передачей себе с новым сроком просрочку не обойти: просроченную задачу своими силами в срок не вернуть.
+  if (
+    input.assigneeId === actor.id &&
+    !can(actor.role, 'tasks.manageAll') &&
+    (await one('SELECT 1 FROM tasks WHERE id = $1 AND due_at < now()', [id], db))
+  ) {
+    throw new HttpError(403, 'Просроченную задачу нельзя передать себе: попросите руководителя подтвердить закрытие');
+  }
   const next = await assertActiveUser(db, input.assigneeId);
   const due = await normalizeDue(db, input.dueAt);
   await db.query(`UPDATE task_steps SET done_at = now() WHERE task_id = $1 AND done_at IS NULL`, [id]);

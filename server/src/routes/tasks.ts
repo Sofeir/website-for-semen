@@ -180,6 +180,14 @@ tasksRouter.put(
       throw new HttpError(400, 'Чтобы сменить исполнителя, передайте задачу');
     }
     const due = await normalizeDue(pool, input.dueAt);
+    // Срок просроченной задачи сдвигает только руководитель, иначе просрочку можно «стереть» правкой.
+    if (
+      !can(req.user!.role, 'tasks.manageAll') &&
+      due.getTime() > Date.now() &&
+      (await one(`SELECT 1 FROM tasks WHERE id = $1 AND status = 'open' AND due_at < now()`, [id]))
+    ) {
+      throw new HttpError(403, 'Срок просроченной задачи переносит руководитель');
+    }
     const deadline = input.deadlineAt ? await normalizeDue(pool, input.deadlineAt) : null;
     await pool.query(
       `UPDATE tasks SET title = $2, description = $3, start_at = $4, due_at = $5, deadline_at = $6,

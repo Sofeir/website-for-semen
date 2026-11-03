@@ -80,3 +80,25 @@ describe('файлы к задачам', () => {
     expect((await other.upload('/api/uploads', { name: 'x.png', type: 'image/png', data: PNG }, { taskId: String(id) })).status).toBe(403);
   });
 });
+
+describe('обход просрочки', () => {
+  it('исполнитель не передаёт просроченную задачу себе, постановщик не переносит срок', async () => {
+    const { users } = await dict();
+    const id = await overdueTask('maria', users.isakov);
+    await pool.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2)', [id, users.kataev]);
+    const stas = await loginAs('isakov');
+    const t = await stas.post(`/api/tasks/${id}/transfer`, { assigneeId: users.isakov, dueAt: inDays(2), comment: 'беру себе' });
+    expect(t.status).toBe(403);
+    const maria = await loginAs('maria');
+    const put = await maria.put(`/api/tasks/${id}`, {
+      title: 'Просроченная',
+      assigneeIds: [users.isakov, users.kataev],
+      startAt: new Date().toISOString(),
+      dueAt: inDays(3),
+    });
+    expect(put.status).toBe(403);
+    const semen = await loginAs('semen');
+    const ok = await semen.put(`/api/tasks/${id}`, { title: 'Просроченная', assigneeIds: [users.isakov, users.kataev], startAt: new Date().toISOString(), dueAt: inDays(3) });
+    expect(ok.status).toBe(200);
+  });
+});
