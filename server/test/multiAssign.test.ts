@@ -63,7 +63,7 @@ describe('несколько ответственных и кому приход
     const isakov = await loginAs('isakov');
     const tr = await isakov.post(`/api/tasks/${r.body.id}/transfer`, {
       assigneeId: users.kataev,
-      dueAt: inDays(2),
+      dueAt: new Date(Date.now() + 3_600_000).toISOString(),
       comment: 'Нужен мастер для замены диска',
     });
     expect(tr.status).toBe(200);
@@ -92,11 +92,11 @@ describe('несколько ответственных и кому приход
     expect(await got('Просрочена задача: Просроченная')).toHaveLength(3);
   });
 
-  it('напоминания: за сутки и за 2 часа, ответственным и по одному разу', async () => {
+  it('напоминания: за сутки, за 2 часа и за 15 минут, ответственным и по одному разу', async () => {
     const { users } = await dict();
     const mk = async (title: string, interval: string) => {
       const r = await pool.query(
-        `INSERT INTO tasks (title, creator_id, assignee_id, start_at, due_at) VALUES ($1, $2, $3, now(), now() + $4::interval) RETURNING id`,
+        `INSERT INTO tasks (title, creator_id, assignee_id, start_at, due_at, remind_from) VALUES ($1, $2, $3, now(), now() + $4::interval, now() - interval '3 days') RETURNING id`,
         [title, users.golenkov, users.isakov, interval],
       );
       await pool.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2)', [r.rows[0].id, users.kataev]);
@@ -105,13 +105,13 @@ describe('несколько ответственных и кому приход
     await mk('Срок скоро', '90 minutes');
     await mk('Срок не скоро', '5 days');
     await notifyDeadlineReminders();
-    expect(await got('Через сутки срок задачи: Срок завтра')).toEqual(['isakov', 'kataev']);
-    expect(await got('Через 2 часа срок задачи: Срок скоро')).toEqual(['isakov', 'kataev']);
+    expect(await got('Через 1 день крайний срок: Срок завтра')).toEqual(['isakov', 'kataev']);
+    expect(await got('Через 2 часа крайний срок: Срок скоро')).toEqual(['isakov', 'kataev']);
     // задача с близким сроком не получает ещё и «за сутки»
-    expect(await got('Через сутки срок задачи: Срок скоро')).toEqual([]);
+    expect(await got('Через 1 день крайний срок: Срок скоро')).toEqual([]);
     expect(await got('Срок не скоро')).toEqual([]);
     await notifyDeadlineReminders();
-    expect(await got('Через сутки срок задачи: Срок завтра')).toHaveLength(2);
+    expect(await got('Через 1 день крайний срок: Срок завтра')).toHaveLength(2);
   });
 
   it('задача, поставленная уже внутри окна, не получает напоминание сразу после создания', async () => {

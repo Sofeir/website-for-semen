@@ -7,6 +7,7 @@ import { Outbox } from '../notify/notify';
 import { broadcast } from '../notify/hub';
 import {
   assertActiveUser,
+  assertDueNotLater,
   assigneeList,
   canConfirmOverdue,
   canTouchTask,
@@ -17,6 +18,8 @@ import {
   remindReset,
   reopenTask,
   requestTaskClose,
+  requestTaskExtension,
+  EXTEND_MESSAGE,
   TASK_ROW_FIELDS,
   transferTask,
 } from '../services/tasks';
@@ -46,7 +49,15 @@ tasksRouter.get(
       where.push(sql(`$${params.length}`));
     };
     if (scope === 'created') add((p) => `t.creator_id = ${p}`, user.id);
-    else if (scope === 'watching') add((p) => isWatcher('t', p), user.id);
+    else if (scope === 'control') {
+      // Под контролем: поставил, наблюдает или передавал дальше, но сам не исполняет.
+      add(
+        (p) =>
+          `(t.creator_id = ${p} OR ${isWatcher('t', p)} OR EXISTS (SELECT 1 FROM task_steps cs WHERE cs.task_id = t.id AND cs.from_user_id = ${p}))
+           AND NOT ${isAssignee('t', p)}`,
+        user.id,
+      );
+    } else if (scope === 'watching') add((p) => isWatcher('t', p), user.id);
     else if (scope === 'all' && manageAll) {
       if (req.query.assignee) add((p) => isAssignee('t', p), Number(req.query.assignee));
     } else if (scope === 'all') {
@@ -164,20 +175,19 @@ tasksRouter.post(
   }),
 );
 
-/** Правка полей задачи — постановщику или руководителю. */
+/** Правка полей задачи — постановщику, исполнителю или руководителю. Крайний срок двигает только директор. */
 tasksRouter.put(
   '/tasks/:id',
   h(async (req, res) => {
     const id = intParam(req.params.id);
     const input = parse(taskSchema, req.body);
-    const t = await one<{ creator_id: number; assignee_ids: number[]; status: string; stage_id: number | null }>(
-      `SELECT t.creator_id, t.status, t.stage_id, ARRAY(SELECT ta.user_id FROM task_assignees ta WHERE ta.task_id = t.id) AS assignee_ids
+    const t = await one<{ creator_id: number; assignee_ids: number[]; status: string; stage_id: number | null; due_at: Date }>(
+      `SELECT t.creator_id, t.status, t.stage_id, t.due_at, ARRAY(SELECT ta.user_id FROM task_assignees ta WHERE ta.task_id = t.id) AS assignee_ids
          FROM tasks t WHERE t.id = $1`,
       [id],
     );
     if (!t) throw new HttpError(404, 'Задача не найдена');
-    if (!(t.creator_id === req.user!.id || can(req.user!.role, 'tasks.manageAll')))
-      throw forbidden('Править задачу может постановщик');
+    if (!canTouchTask(req.user!, t)) throw forbidden('Править задачу может постановщик или исполнитель');
     const outbox = new Outbox();
     const wanted = assigneeList(input).sort((a, b) => a - b);
     const current = [...t.assignee_ids].sort((a, b) => a - b);
@@ -185,15 +195,17 @@ tasksRouter.put(
       throw new HttpError(400, 'Чтобы сменить исполнителя, передайте задачу');
     }
     const due = await normalizeDue(pool, input.dueAt);
-    const deadline = input.deadlineAt ? await normalizeDue(pool, input.deadlineAt) : null;
+    // Крайний срок: сдвинуть его в любую сторону может только тот, кто подтверждает просрочку; остальные его не меняют.
+    const dueChanged = Math.abs(due.getTime() - t.due_at.getTime()) > 60_000;
     // Перенос срока просроченной задачи не делает её «непросроченной»: снять отметку может только тот, кто подтверждает просрочку.
     const confirms = await canConfirmOverdue(pool, req.user!.id);
+    if (dueChanged && !confirms) throw new HttpError(403, EXTEND_MESSAGE);
     await tx(async (db) => {
       await db.query(
-        `UPDATE tasks SET title = $2, description = $3, start_at = $4, due_at = $5, deadline_at = $6,
-                kind_id = COALESCE($7, kind_id), was_overdue = CASE WHEN $8 THEN false ELSE was_overdue OR due_at < now() END,
-                ${remindReset('$5')}, updated_at = now() WHERE id = $1`,
-        [id, input.title, input.description, input.startAt, due, deadline, input.kindId ?? null, confirms],
+        `UPDATE tasks SET title = $2, description = $3, start_at = $4, due_at = $5,
+                kind_id = COALESCE($6, kind_id), was_overdue = CASE WHEN $7 THEN false ELSE was_overdue OR due_at < now() END,
+                ${dueChanged ? `${remindReset()},` : ''} updated_at = now() WHERE id = $1`,
+        [id, input.title, input.description, input.startAt, dueChanged ? due : t.due_at, input.kindId ?? null, confirms && dueChanged],
       );
       if (input.watcherIds) {
         const want = [...new Set(input.watcherIds)].filter((w) => !current.includes(w));
@@ -216,7 +228,7 @@ tasksRouter.put(
       }
     });
     await outbox.flush();
-    await pool.query(`UPDATE task_steps SET due_at = $2 WHERE task_id = $1 AND done_at IS NULL`, [id, due]);
+    await pool.query(`UPDATE task_steps SET due_at = $2 WHERE task_id = $1 AND done_at IS NULL`, [id, dueChanged ? due : t.due_at]);
     res.json({ ok: true });
   }),
 );
@@ -246,6 +258,21 @@ tasksRouter.post(
   }),
 );
 
+/** Просьба продлить крайний срок: уходит только директору, он меняет срок в задаче сам. */
+tasksRouter.post(
+  '/tasks/:id/extend-request',
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const comment = typeof req.body?.comment === 'string' ? req.body.comment.trim().slice(0, 2000) : '';
+    const wanted = new Date(String(req.body?.dueAt ?? ''));
+    if (Number.isNaN(wanted.getTime())) throw new HttpError(400, 'Выберите новый срок');
+    const outbox = new Outbox();
+    await tx(async (db) => requestTaskExtension(db, req.user!, id, await normalizeDue(db, wanted), comment, outbox));
+    await outbox.flush();
+    res.json({ ok: true });
+  }),
+);
+
 tasksRouter.post(
   '/tasks/:id/reopen',
   h(async (req, res) => {
@@ -265,12 +292,14 @@ tasksRouter.post(
     const input = parse(transferTaskSchema, req.body);
     const outbox = new Outbox();
     await tx(async (db) => {
-      const t = await one<{ order_id: number | null; stage_id: number | null; status: string }>(
-        `SELECT t.order_id, t.stage_id, t.status FROM tasks t WHERE t.id = $1`,
+      const t = await one<{ order_id: number | null; stage_id: number | null; status: string; due_at: Date }>(
+        `SELECT t.order_id, t.stage_id, t.status, t.due_at FROM tasks t WHERE t.id = $1`,
         [id],
         db,
       );
       if (!t) throw new HttpError(404, 'Задача не найдена');
+      // Передать задачу можно, но срок отодвинуть при этом нельзя: продление согласует директор.
+      await assertDueNotLater(db, req.user!, t.due_at, await normalizeDue(db, input.dueAt));
       const order = t.order_id
         ? await one<{ stage_id: number }>('SELECT stage_id FROM orders WHERE id = $1', [t.order_id], db)
         : null;

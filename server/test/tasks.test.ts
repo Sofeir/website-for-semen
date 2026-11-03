@@ -79,7 +79,7 @@ describe('массовое закрытие задач', () => {
       startAt: new Date().toISOString(),
       dueAt: inDays(1),
     });
-    await stas.post(`/api/tasks/${r.body.id}/transfer`, { assigneeId: users.kataev, dueAt: inDays(2), comment: 'Тебе' });
+    await stas.post(`/api/tasks/${r.body.id}/transfer`, { assigneeId: users.kataev, dueAt: inDays(1), comment: 'Тебе' });
     const task = (await semen.get(`/api/tasks/${r.body.id}`)).body;
     expect(task.steps).toHaveLength(2);
     expect(task.steps[0].doneAt).not.toBeNull();

@@ -24,6 +24,7 @@ import { importRouter } from './routes/import';
 import { customerRouter } from './routes/customer';
 import { customersRouter } from './routes/customers';
 import { calendarFeedRouter } from './routes/calendar';
+import { personalRouter } from './routes/personal';
 
 export function createApp() {
   const app = express();
@@ -75,6 +76,7 @@ export function createApp() {
   api.use(contactsRouter);
   api.use(analyticsRouter);
   api.use(notificationsRouter);
+  api.use(personalRouter);
   api.use(actsRouter);
   api.use(documentsRouter);
   api.use(filesRouter);

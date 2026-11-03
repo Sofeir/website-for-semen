@@ -36,7 +36,7 @@ export const config = {
   sessionHours: Number(process.env.SESSION_HOURS || 12),
   rememberDays: Number(process.env.REMEMBER_DAYS || 30),
   uploadDir: path.resolve(ROOT_DIR, process.env.UPLOAD_DIR || 'uploads'),
-  maxUploadMb: Number(process.env.MAX_UPLOAD_MB || 15),
+  maxUploadMb: Number(process.env.MAX_UPLOAD_MB || 30),
   publicUrl: process.env.PUBLIC_URL || 'http://localhost:5179',
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
   maxBotToken: process.env.MAX_BOT_TOKEN || '',

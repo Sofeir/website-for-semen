@@ -20,7 +20,7 @@ import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import s from './Tasks.module.css';
 
-type Scope = 'mine' | 'created' | 'watching' | 'all';
+type Scope = 'mine' | 'control' | 'created' | 'watching' | 'all';
 
 function groupTasks(tasks: TaskListItem[]) {
   const today = startOfDay();
@@ -48,7 +48,7 @@ export default function TasksPage() {
   const { can } = useAuth();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
-  const [scope, setScope] = useState<Scope>((params.get('scope') as Scope) || 'mine');
+  const [scope, setScope] = useState<Scope>((params.get('scope') as Scope) || (me.role === 'manager' ? 'control' : 'mine'));
   const [status, setStatus] = useState<'open' | 'done'>('open');
   const [q, setQ] = useState('');
   const [assignee, setAssignee] = useState('');
@@ -130,6 +130,7 @@ export default function TasksPage() {
 
   const scopeItems: { value: Scope; label: string }[] = [
     { value: 'mine', label: 'Мне' },
+    { value: 'control', label: 'Под контролем' },
     { value: 'created', label: 'Поставленные мной' },
     { value: 'watching', label: 'Наблюдаю' },
   ];

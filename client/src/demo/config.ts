@@ -12,7 +12,7 @@ export const config = {
   sessionHours: 12,
   rememberDays: 30,
   uploadDir: '',
-  maxUploadMb: 15,
+  maxUploadMb: 30,
   publicUrl: '',
   telegramBotToken: '',
   maxBotToken: '',

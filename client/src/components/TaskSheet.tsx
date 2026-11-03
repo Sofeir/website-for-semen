@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRightLeft, Check, Pencil, RotateCcw, Send } from 'lucide-react';
+import { ArrowRightLeft, CalendarClock, Check, Pencil, RotateCcw, Send } from 'lucide-react';
+import type { TaskStep } from '@sd/shared';
 import { useAuth, useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
-import { useCloseTasks, useInvalidate, useSettings, useTask, useTransferTask } from '@/api/queries';
-import { defaultDueDate, fmtWhen } from '@/lib/dates';
+import { useCloseTasks, useInvalidate, useMarkSeen, useSettings, useTask, useTransferTask } from '@/api/queries';
+import { fmtWhen } from '@/lib/dates';
 import { Button } from '@/ui/Button';
 import { DescList, ErrorBox, Pill, Spinner } from '@/ui/Display';
 import { Checkbox, Field, Textarea } from '@/ui/Form';
@@ -16,7 +17,58 @@ import { TaskFormSheet } from './TaskFormSheet';
 import { VisitDevices } from './VisitDevices';
 import s from './TaskSheet.module.css';
 
-type Mode = 'view' | 'close' | 'transfer' | 'request';
+type Mode = 'view' | 'close' | 'transfer' | 'request' | 'extend';
+
+interface ChainNode {
+  key: string;
+  name: string;
+  meta: string;
+  comment?: string | null;
+  done: boolean;
+}
+
+/**
+ * Цепочка передачи как последовательность людей: кто поставил, кому передали, кто перехватил и вернул.
+ * Если задачу передал тот, кто ею не владел (например, директор спросил исполнителя), он появляется в цепочке отдельным шагом.
+ */
+function buildChain(steps: TaskStep[]): ChainNode[] {
+  const nodes: ChainNode[] = [];
+  let holders: string[] = [];
+  let i = 0;
+  while (i < steps.length) {
+    const batch = [steps[i]];
+    while (
+      i + batch.length < steps.length &&
+      steps[i + batch.length].assignedAt === batch[0].assignedAt &&
+      steps[i + batch.length].fromUserName === batch[0].fromUserName
+    ) {
+      batch.push(steps[i + batch.length]);
+    }
+    i += batch.length;
+    const from = batch[0].fromUserName;
+    const inserted = Boolean(from && !holders.includes(from) && !batch.some((b) => b.assigneeName === from));
+    if (inserted) {
+      nodes.push({
+        key: `from-${batch[0].id}`,
+        name: from!,
+        meta: `${nodes.length ? 'передал(а) задачу' : 'поставил(а) задачу'}, ${fmtWhen(batch[0].assignedAt)}`,
+        comment: batch[0].comment,
+        done: true,
+      });
+    }
+    for (const st of batch) {
+      nodes.push({
+        key: String(st.id),
+        name: st.assigneeName,
+        meta: `${from && from !== st.assigneeName ? `от ${from}, ` : ''}${fmtWhen(st.assignedAt)}${st.dueAt ? `, срок ${fmtWhen(st.dueAt)}` : ''}`,
+        comment: inserted ? null : st.comment,
+        done: Boolean(st.doneAt),
+      });
+    }
+    holders = batch.map((b) => b.assigneeName);
+  }
+  return nodes;
+}
 
 export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose: () => void }) {
   const me = useMe();
@@ -28,6 +80,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   const settings = useSettings();
   const close = useCloseTasks();
   const transfer = useTransferTask(taskId ?? 0);
+  useMarkSeen(taskId ? `/tasks?task=${taskId}` : null);
   const [mode, setMode] = useState<Mode>('view');
   const [comment, setComment] = useState('');
   const [assignee, setAssignee] = useState('');
@@ -56,13 +109,17 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
     setComment('');
     setAssignee('');
     setError('');
-    setDue(defaultDueDate(settings.data?.work).toISOString());
-  }, [taskId, settings.data?.work]);
+  }, [taskId]);
+
+  // Срок в формах передачи и продления по умолчанию нынешний: при передаче он не меняется, при продлении выбирают позже
+  useEffect(() => {
+    if (task) setDue(task.dueAt);
+  }, [task?.id, task?.dueAt]);
 
   const canTouch = task && (task.assigneeIds.includes(me.id) || task.creatorId === me.id || can('tasks.manageAll'));
   // Просроченную задачу закрывает только руководитель: остальные просят его подтвердить.
   const needsManager = Boolean(task && task.status === 'open' && task.overdue && !me.confirmsOverdue);
-  const canEdit = task && (task.creatorId === me.id || can('tasks.manageAll')) && task.status === 'open';
+  const canEdit = Boolean(task && canTouch && task.status === 'open');
 
   const doClose = async () => {
     setError('');
@@ -92,13 +149,33 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
     if (!assignee) return setError('Выберите, кому передать');
     if (comment.trim().length < 3) return setError('Напишите причину передачи и что уже сделано');
     try {
-      await transfer.mutateAsync({ assigneeId: Number(assignee), dueAt: due, comment: comment.trim() });
+      await transfer.mutateAsync({ assigneeId: Number(assignee), dueAt: me.confirmsOverdue ? due : task!.dueAt, comment: comment.trim() });
       toast.success('Задача передана');
       setMode('view');
       setComment('');
     } catch (e) {
       setError((e as ApiError).message);
     }
+  };
+
+  const doExtend = async () => {
+    setError('');
+    if (!due || new Date(due) <= new Date(task!.dueAt)) return setError('Выберите срок позже нынешнего');
+    if (comment.trim().length < 3) return setError('Напишите, почему нужно больше времени');
+    try {
+      await api.post(`/tasks/${task!.id}/extend-request`, { dueAt: due, comment: comment.trim() });
+      toast.success('Запрос отправлен', 'Директор получил уведомление и решит');
+      setMode('view');
+      setComment('');
+    } catch (e) {
+      setError((e as ApiError).message);
+    }
+  };
+
+  const startExtend = () => {
+    setDue(new Date(Math.max(Date.now(), new Date(task!.dueAt).getTime()) + 24 * 3600_000).toISOString());
+    setComment('');
+    setMode('extend');
   };
 
   const reopen = async () => {
@@ -150,6 +227,10 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
             <Button variant="success" onClick={doRequest} icon={<Send size={18} aria-hidden />}>
               Отправить
             </Button>
+          ) : mode === 'extend' ? (
+            <Button onClick={doExtend} icon={<Send size={18} aria-hidden />}>
+              Отправить запрос
+            </Button>
           ) : (
             <Button loading={transfer.isPending} onClick={doTransfer} icon={<ArrowRightLeft size={18} aria-hidden />}>
               Передать
@@ -199,10 +280,15 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
         ) : task ? (
           <div className="stack">
             {canEdit && mode === 'view' && (
-              <div>
+              <div className={s.tools}>
                 <Button variant="ghost" size="sm" icon={<Pencil size={16} aria-hidden />} onClick={() => setEditing(true)}>
                   Изменить
                 </Button>
+                {!me.confirmsOverdue && (
+                  <Button variant="ghost" size="sm" icon={<CalendarClock size={16} aria-hidden />} onClick={startExtend}>
+                    Запросить продление
+                  </Button>
+                )}
               </div>
             )}
             {error && <ErrorBox>{error}</ErrorBox>}
@@ -220,14 +306,30 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                 <Textarea value={comment} onChange={(e) => setComment(e.target.value)} data-autofocus maxLength={2000} />
               </Field>
             )}
+            {mode === 'extend' && (
+              <>
+                <Field label="Новый крайний срок" hint={`Сейчас — ${fmtWhen(task.dueAt)}. Рабочий день до ${settings.data?.work.workEnd ?? '20:00'}`}>
+                  <DueInput value={due} onChange={setDue} />
+                </Field>
+                <Field label="Почему нужно больше времени" hint="Директор получит уведомление с этим текстом">
+                  <Textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={2000} data-autofocus />
+                </Field>
+              </>
+            )}
             {mode === 'transfer' && (
               <>
                 <Field label="Кому передать">
                   <UserSelect value={assignee} onChange={(e) => setAssignee(e.target.value)} data-autofocus />
                 </Field>
-                <Field label="Новый срок" hint={`Рабочий день до ${settings.data?.work.workEnd ?? '20:00'}`}>
-                  <DueInput value={due} onChange={setDue} />
-                </Field>
+                {me.confirmsOverdue ? (
+                  <Field label="Крайний срок" hint={`Рабочий день до ${settings.data?.work.workEnd ?? '20:00'}`}>
+                    <DueInput value={due} onChange={setDue} />
+                  </Field>
+                ) : (
+                  <p className="muted">
+                    Крайний срок остаётся прежним: {fmtWhen(task.dueAt)}. Если нужно больше времени, запросите продление: срок двигает только директор.
+                  </p>
+                )}
                 <Field label="Причина передачи и что уже сделано" hint="Увидят постановщик и руководитель">
                   <Textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={2000} />
                 </Field>
@@ -242,8 +344,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                     [task.watcherIds.length > 1 ? 'Наблюдатели' : 'Наблюдатель', task.watcherName],
                     ['Постановщик', task.creatorName],
                     ['Начало', fmtWhen(task.startAt)],
-                    ['Срок', <span className={task.overdue ? s.late : undefined}>{fmtWhen(task.dueAt)}</span>],
-                    ['Крайний срок', task.deadlineAt && fmtWhen(task.deadlineAt)],
+                    ['Крайний срок', <span className={task.overdue ? s.late : undefined}>{fmtWhen(task.dueAt)}</span>],
                     [
                       'Заявка',
                       task.orderId &&
@@ -312,16 +413,12 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                   <section>
                     <h3 className={s.chainTitle}>Цепочка передачи</h3>
                     <ol className={s.chain}>
-                      {task.steps.map((st, i) => (
-                        <li key={st.id} className={s.step} data-done={Boolean(st.doneAt)}>
+                      {buildChain(task.steps).map((st, i) => (
+                        <li key={st.key} className={s.step} data-done={st.done}>
                           <span className={s.stepNum}>{String(i + 1).padStart(2, '0')}</span>
                           <div className={s.stepBody}>
-                            <b>{st.assigneeName}</b>
-                            <span className={s.stepMeta}>
-                              {st.fromUserName ? `от ${st.fromUserName}, ` : ''}
-                              {fmtWhen(st.assignedAt)}
-                              {st.dueAt && `, срок ${fmtWhen(st.dueAt)}`}
-                            </span>
+                            <b>{st.name}</b>
+                            <span className={s.stepMeta}>{st.meta}</span>
                             {st.comment && <span className={s.stepComment}>{st.comment}</span>}
                           </div>
                         </li>

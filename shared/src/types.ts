@@ -780,3 +780,17 @@ export interface VisitsData {
   tasks: TaskListItem[];
   plans: ServicePlan[];
 }
+
+/** Личное событие календаря. */
+export interface CalendarEvent {
+  id: number;
+  title: string;
+  note: string | null;
+  startAt: string;
+}
+
+/** Напоминания сотрудника: custom = false — стандартные (за сутки, за 2 часа, за 15 минут). */
+export interface ReminderSettings {
+  custom: boolean;
+  minutes: number[];
+}

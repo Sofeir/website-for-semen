@@ -39,8 +39,7 @@ export function useServerEvents(enabled: boolean) {
         persistent: true,
         createdAt: n.createdAt,
         onOpen: () => {
-          api
-            .post(`/notifications/${n.id}/read`)
+          (n.link ? api.post('/notifications/read', { link: n.link }) : api.post(`/notifications/${n.id}/read`))
             .then(() => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'notifications' }))
             .catch(() => {});
         },

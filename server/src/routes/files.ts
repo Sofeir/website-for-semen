@@ -29,6 +29,9 @@ const ALLOWED: Record<string, string[]> = {
   '.xls': ['application/vnd.ms-excel', 'application/octet-stream'],
   '.xlsx': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/octet-stream'],
   '.txt': ['text/plain'],
+  '.mp4': ['video/mp4'],
+  '.mov': ['video/quicktime', 'video/mp4'],
+  '.webm': ['video/webm'],
 };
 
 /** Сигнатуры файлов: проверяем первые байты, чтобы под .jpg не пришёл исполняемый файл. */
@@ -45,6 +48,9 @@ const MAGIC: Record<string, (b: Buffer) => boolean> = {
   '.heic': (b) => b.subarray(4, 8).toString('latin1') === 'ftyp',
   '.heif': (b) => b.subarray(4, 8).toString('latin1') === 'ftyp',
   '.txt': (b) => !b.includes(0),
+  '.mp4': (b) => b.subarray(4, 8).toString('latin1') === 'ftyp',
+  '.mov': (b) => b.subarray(4, 8).toString('latin1') === 'ftyp' || b.subarray(4, 8).toString('latin1') === 'moov',
+  '.webm': (b) => b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3,
 };
 
 const upload = multer({
@@ -60,7 +66,7 @@ const upload = multer({
     const ext = path.extname(file.originalname).toLowerCase();
     const mimes = ALLOWED[ext];
     if (!mimes || !mimes.includes(file.mimetype)) {
-      return cb(new HttpError(400, `Файл «${file.originalname}» не подходит. Можно фото, PDF, Word, Excel, текст.`));
+      return cb(new HttpError(400, `Файл «${file.originalname}» не подходит. Можно фото, видео, PDF, Word, Excel, текст.`));
     }
     cb(null, true);
   },
