@@ -87,7 +87,11 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
     if (!contact) throw new HttpError(400, 'Этот сотрудник не из выбранной организации');
   }
 
-  if (input.fleet && client.kind === 'legal') await replaceFleet(db, clientId, input.fleet);
+  if (input.fleet && client.kind === 'legal') {
+    // Парк техники организации правят только те, кто может править клиентов: инженер при приёме парк не переписывает.
+    if (!can(actor.role, 'clients.edit') && input.clientId) throw forbidden('Менять парк техники организации может администратор или директор');
+    await replaceFleet(db, clientId, input.fleet);
+  }
 
   const stages = await activeStages(db);
   if (stages.length < 3) throw new HttpError(500, 'В справочнике меньше трёх активных этапов');
