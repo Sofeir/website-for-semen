@@ -2,7 +2,25 @@ import { Router } from 'express';
 import type { GoogleCalendarStatus } from '@sd/shared';
 import { one, pool } from '../db/pool';
 import { h, HttpError } from '../lib/http';
-import { clearGoogleUser, GoogleError, googleCheckCalendar, googleConfigured, googleServiceEmail, syncGoogleUser } from '../services/googleCalendar';
+import {
+  clearGoogleUser,
+  GoogleError,
+  googleCalendarDescription,
+  googleCheckCalendar,
+  googleConfigured,
+  googleServiceEmail,
+  syncGoogleUser,
+} from '../services/googleCalendar';
+
+/** Код подтверждения у сотрудника один и тот же, пока он его не сменит: создаётся при первом обращении. */
+async function verifyCodeOf(userId: number): Promise<string> {
+  const u = await one<{ code: string | null }>('SELECT google_verify_code AS code FROM users WHERE id = $1', [userId]);
+  if (u?.code) return u.code;
+  // Web Crypto: код работает и в демо в браузере
+  const code = `SD-${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => (b % 36).toString(36)).join('').toUpperCase()}`;
+  await pool.query('UPDATE users SET google_verify_code = $2 WHERE id = $1 AND google_verify_code IS NULL', [userId, code]);
+  return (await one<{ code: string }>('SELECT google_verify_code AS code FROM users WHERE id = $1', [userId]))!.code;
+}
 
 /** Свой Google Календарь сотрудника: ID календаря и состояние записи. Ключ сервисного аккаунта наружу не отдаётся. */
 export const googleRouter = Router();
@@ -16,6 +34,7 @@ async function status(userId: number): Promise<GoogleCalendarStatus> {
     configured: await googleConfigured(),
     serviceEmail: await googleServiceEmail(),
     calendarId: u?.calendar_id ?? null,
+    verifyCode: await verifyCodeOf(userId),
     syncedAt: u?.at ? u.at.toISOString() : null,
     error: u?.error ?? null,
   };
@@ -45,6 +64,11 @@ googleRouter.put(
         throw new HttpError(400, `Нет доступа к календарю. Поделитесь им с адресом ${email} и дайте право «Вносить изменения в мероприятия»`);
       }
       throw new HttpError(502, `Google не ответил: ${(e as Error).message}`);
+    }
+    // Календарь должен быть вашим: в его описании должен стоять код из профиля. Описание меняет только владелец календаря.
+    const code = await verifyCodeOf(req.user!.id);
+    if (!(await googleCalendarDescription(calendarId)).includes(code)) {
+      throw new HttpError(400, `В описании календаря не нашли код ${code}. Вставьте его в поле «Описание» в настройках календаря и подключите снова`);
     }
     await pool.query('UPDATE users SET google_calendar_id = $2, google_sync_error = NULL WHERE id = $1', [req.user!.id, calendarId]);
     await syncGoogleUser(req.user!.id);

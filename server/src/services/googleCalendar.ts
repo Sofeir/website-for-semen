@@ -97,6 +97,12 @@ async function gcal<T = unknown>(method: string, path: string, body?: object): P
 
 const cal = (id: string) => `/calendars/${encodeURIComponent(id)}/events`;
 
+/** Описание календаря: в нём сотрудник оставляет код, подтверждающий, что календарь его. */
+export async function googleCalendarDescription(calendarId: string): Promise<string> {
+  const meta = await gcal<{ description?: string }>('GET', `/calendars/${encodeURIComponent(calendarId)}`);
+  return meta?.description ?? '';
+}
+
 /** Проверка доступа: можно ли читать календарь. Ошибка доступа — GoogleError 404 или 403. */
 export async function googleCheckCalendar(calendarId: string) {
   await gcal('GET', `${cal(calendarId)}?maxResults=1`);

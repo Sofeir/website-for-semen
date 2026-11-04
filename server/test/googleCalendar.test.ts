@@ -84,12 +84,14 @@ describe('запись в Google Календарь', () => {
   });
 
   it('подключение: без доступа к календарю сотрудник получает понятное сообщение, с доступом календарь подключается', async () => {
+    let description = '';
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
         if (String(url).includes('oauth2')) return new Response(JSON.stringify({ access_token: 'tok', expires_in: 3600 }), { status: 200 });
         if (String(url).includes('closed')) return new Response(JSON.stringify({ error: { message: 'Not Found' } }), { status: 404 });
-        return new Response(JSON.stringify({ items: [] }), { status: 200 });
+        if (String(url).includes('/events')) return new Response(JSON.stringify({ items: [] }), { status: 200 });
+        return new Response(JSON.stringify({ description }), { status: 200 });
       }),
     );
     const kataev = await loginAs('kataev');
@@ -99,12 +101,19 @@ describe('запись в Google Календарь', () => {
     expect(denied.status).toBe(400);
     expect(denied.body.error).toContain('sync@test.iam.gserviceaccount.com');
     expect((await kataev.put('/api/me/google-calendar', { calendarId: 'нет пробелов не бывает' })).status).toBe(400);
+    // без кода в описании календарь не принимается: чужой календарь, которым поделились с сервисом, не занять
+    const noCode = await kataev.put('/api/me/google-calendar', { calendarId: 'open@example.com' });
+    expect(noCode.status).toBe(400);
+    expect(noCode.body.error).toContain(status.verifyCode);
+    description = `Мой календарь ${status.verifyCode}`;
     const ok = await kataev.put('/api/me/google-calendar', { calendarId: 'open@example.com' });
     expect(ok.status).toBe(200);
     expect(ok.body.calendarId).toBe('open@example.com');
     // тот же календарь коллеге не отдаём
     const other = await loginAs('golenkov');
     expect((await other.put('/api/me/google-calendar', { calendarId: 'OPEN@example.com' })).status).toBe(409);
+    // у каждого свой код
+    expect((await other.get('/api/me/google-calendar')).body.verifyCode).not.toBe(status.verifyCode);
     expect((await kataev.del('/api/me/google-calendar')).body.calendarId).toBeNull();
   });
 });

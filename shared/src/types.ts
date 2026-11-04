@@ -802,6 +802,8 @@ export interface GoogleCalendarStatus {
   /** Адрес сервисного аккаунта: с ним нужно поделиться календарём. */
   serviceEmail: string | null;
   calendarId: string | null;
+  /** Код для описания календаря: подтверждает, что календарь принадлежит этому сотруднику. */
+  verifyCode: string;
   syncedAt: string | null;
   error: string | null;
 }

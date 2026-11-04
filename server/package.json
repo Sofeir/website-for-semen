@@ -10,6 +10,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:reset": "tsx src/db/reset.ts",
     "staff:import": "tsx src/db/importStaff.ts",
+    "tasks:cleanup": "tsx src/db/cleanupTestTasks.ts",
     "test": "vitest run"
   },
   "dependencies": {

@@ -37,6 +37,8 @@ services:
       UPLOAD_DIR: /data/uploads
     volumes:
       - uploads:/data/uploads
+      # ключ сервисного аккаунта Google для записи в календари (см. УСТАНОВКА-НА-СЕРВЕР.md); папка может быть пустой
+      - /etc/servicedesk-google:/etc/servicedesk-google:ro
     depends_on:
       db:
         condition: service_healthy

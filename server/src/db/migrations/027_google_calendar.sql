@@ -3,6 +3,8 @@
 ALTER TABLE users ADD COLUMN google_calendar_id text;
 ALTER TABLE users ADD COLUMN google_sync_at timestamptz;
 ALTER TABLE users ADD COLUMN google_sync_error text;
+-- Код, который сотрудник вставляет в описание своего календаря: так подтверждается, что календарь его
+ALTER TABLE users ADD COLUMN google_verify_code text;
 -- Один календарь — один сотрудник: чужой календарь, уже подключённый коллегой, занять нельзя
 CREATE UNIQUE INDEX users_google_calendar_unique ON users (lower(google_calendar_id)) WHERE google_calendar_id IS NOT NULL;
 
