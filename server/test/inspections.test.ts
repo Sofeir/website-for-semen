@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pool } from '../src/db/pool';
-import { intakeLaptop, loginAs, resetDb, dict } from './helpers';
+import { intakeLaptop, loginAs, resetDb, dict, inDays } from './helpers';
 
 const thisMonth = () => {
   const d = new Date();
@@ -108,14 +108,12 @@ describe('проверка техники на выезде', () => {
     const { users } = await dict();
     const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-41');
     const clientId = (await semen.get(`/api/orders/${orderId}`)).body.clientId;
-    const day = new Date();
-    day.setHours(23, 0, 0, 0);
     const created = await semen.post('/api/tasks', {
       title: 'Выезд: клиент',
       assigneeId: users.kataev,
       clientId,
       startAt: new Date(Date.now() - 3_600_000).toISOString(),
-      dueAt: day.toISOString(),
+      dueAt: inDays(1),
       visit: true,
     });
     expect(created.status).toBe(201);
