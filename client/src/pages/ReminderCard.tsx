@@ -12,11 +12,11 @@ import { useToast } from '@/ui/Toast';
 import s from './ReminderCard.module.css';
 
 const range = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
-/** Единицы и какие числа в них можно выбрать: минуты 1–59, часы 1–23, дни 1–365. */
+/** Единицы и какие числа в них можно выбрать: минуты 1–59, часы 1–23, дни 1–30. */
 const UNITS = [
   { value: 1, label: 'минут', items: range(59) },
   { value: 60, label: 'часов', items: range(23) },
-  { value: 1440, label: 'дней', items: range(365) },
+  { value: 1440, label: 'дней', items: range(30) },
 ];
 
 /** «1440» → «1 день», «150» → «2 часа 30 минут», «15» → «15 минут». */
@@ -63,7 +63,7 @@ export function ReminderCard() {
   };
 
   const add = () => {
-    if (total > 525600) return setError('Не больше года');
+    if (total > 43200) return setError('Не больше 30 дней');
     if (q.data?.minutes.includes(total)) return setError('Такое напоминание уже есть');
     void save([...(q.data?.minutes ?? []), total]);
   };

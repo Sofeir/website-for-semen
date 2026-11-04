@@ -241,11 +241,11 @@
   text-align: left;
 }
 
-/* колесо раскрывается над полем: внизу карточки ему не за что зацепиться */
+/* колесо раскрывается под полем */
 .numPop {
   position: absolute;
   left: 0;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);
   z-index: 30;
   width: 132px;
   padding: var(--s-3);

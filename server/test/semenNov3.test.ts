@@ -152,7 +152,7 @@ describe('напоминания и личные события', () => {
     expect(put.status).toBe(200);
     expect(put.body).toEqual({ custom: true, minutes: [60, 10, 5, 1] });
     expect((await stas.put('/api/me/reminders', { minutes: [0] })).status).toBe(400);
-    expect((await stas.put('/api/me/reminders', { minutes: [600000] })).status).toBe(400);
+    expect((await stas.put('/api/me/reminders', { minutes: [50000] })).status).toBe(400);
     expect((await stas.del('/api/me/reminders')).body).toEqual({ custom: false, minutes: [1440, 120, 15] });
   });
 
