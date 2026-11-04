@@ -38,6 +38,8 @@ export const config = {
   uploadDir: path.resolve(ROOT_DIR, process.env.UPLOAD_DIR || 'uploads'),
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB || 30),
   publicUrl: process.env.PUBLIC_URL || 'http://localhost:5179',
+  /** Файл ключа сервисного аккаунта Google для записи в календари сотрудников. Пусто — синхронизация выключена. */
+  googleKeyFile: process.env.GOOGLE_SERVICE_ACCOUNT_FILE || '',
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
   maxBotToken: process.env.MAX_BOT_TOKEN || '',
   maxApiUrl: process.env.MAX_API_URL || 'https://platform-api.max.ru',

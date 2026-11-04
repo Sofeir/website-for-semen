@@ -6,6 +6,7 @@ import { channels } from './notify/channels';
 import { startMaxBot } from './notify/maxBot';
 import { runServicePlansSoon } from './services/servicePlans';
 import { notifyOverdueSoon } from './services/overdue';
+import { googleSyncSoon, syncAllGoogle } from './services/googleCalendar';
 
 async function main() {
   await migrate();
@@ -15,6 +16,9 @@ async function main() {
   setInterval(() => void runServicePlansSoon(), 10 * 60_000).unref();
   void notifyOverdueSoon();
   setInterval(() => void notifyOverdueSoon(), 5 * 60_000).unref();
+  // календари Google: после правок обновляются сразу (см. googleSyncSoon), раз в 10 минут сверяем всё целиком
+  googleSyncSoon(15_000);
+  setInterval(() => void syncAllGoogle().catch((e) => console.error('Google Календарь:', (e as Error).message)), 10 * 60_000).unref();
   app.listen(config.port, () => {
     const enabled = channels.filter((c) => c.isEnabled()).map((c) => c.label);
     console.log(`API: http://localhost:${config.port}  (внешние уведомления: ${enabled.join(', ') || 'выключены'})`);

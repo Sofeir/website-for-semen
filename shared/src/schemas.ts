@@ -590,6 +590,9 @@ export type ImportCommitInput = z.infer<typeof importCommitSchema>;
 
 // ---------- Напоминания и личные события календаря ----------
 
+/** Напоминания, пока сотрудник ничего не настроил: за сутки, за 2 часа и за 15 минут (в минутах). */
+export const DEFAULT_REMINDERS = [1440, 120, 15];
+
 /** Свой набор напоминаний: за сколько минут до срока напомнить. Можно любое число напоминаний. */
 export const reminderSettingsSchema = z.object({
   minutes: z.array(z.coerce.number().int().min(1, 'Минимум 1 минута').max(43200, 'Не больше 30 дней')).max(50, 'Не больше 50 напоминаний'),

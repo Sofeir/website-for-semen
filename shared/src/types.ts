@@ -794,3 +794,14 @@ export interface ReminderSettings {
   custom: boolean;
   minutes: number[];
 }
+
+/** Состояние записи задач и событий в Google Календарь сотрудника. */
+export interface GoogleCalendarStatus {
+  /** На сервере есть ключ сервисного аккаунта. */
+  configured: boolean;
+  /** Адрес сервисного аккаунта: с ним нужно поделиться календарём. */
+  serviceEmail: string | null;
+  calendarId: string | null;
+  syncedAt: string | null;
+  error: string | null;
+}

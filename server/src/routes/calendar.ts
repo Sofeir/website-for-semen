@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { many, one } from '../db/pool';
 import { h, HttpError } from '../lib/http';
 import { buildCalendar, type CalendarEventItem, type CalendarTask } from '../services/ical';
-import { DEFAULT_REMINDERS } from '../services/overdue';
+import { DEFAULT_REMINDERS } from '@sd/shared';
 import { config } from '../config';
 
 /**

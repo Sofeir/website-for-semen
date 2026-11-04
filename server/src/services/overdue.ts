@@ -1,4 +1,4 @@
-import { pluralRu } from '@sd/shared';
+import { DEFAULT_REMINDERS, pluralRu } from '@sd/shared';
 import { many, tx, type Db } from '../db/pool';
 import { Outbox } from '../notify/notify';
 import { formatDateTimeRu } from './workTime';
@@ -50,9 +50,6 @@ export async function notifyOverdueTasks() {
   });
   await outbox.flush();
 }
-
-/** Напоминания, которые действуют, пока сотрудник ничего не настроил: за сутки, за 2 часа и за 15 минут. */
-export const DEFAULT_REMINDERS = [1440, 120, 15];
 
 /** «1440» → «1 день», «120» → «2 часа», «15» → «15 минут». */
 export function reminderLabel(minutes: number): string {

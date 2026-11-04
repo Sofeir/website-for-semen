@@ -14,6 +14,7 @@ export const config = {
   uploadDir: '',
   maxUploadMb: 30,
   publicUrl: '',
+  googleKeyFile: '',
   telegramBotToken: '',
   maxBotToken: '',
   maxApiUrl: '',

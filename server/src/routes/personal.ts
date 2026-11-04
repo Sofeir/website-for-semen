@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { calendarEventSchema, reminderSettingsSchema, type CalendarEvent, type ReminderSettings } from '@sd/shared';
+import { calendarEventSchema, DEFAULT_REMINDERS, reminderSettingsSchema, type CalendarEvent, type ReminderSettings } from '@sd/shared';
 import { many, one, pool, tx } from '../db/pool';
 import { h, HttpError, intParam, parse } from '../lib/http';
 import { broadcast } from '../notify/hub';
-import { DEFAULT_REMINDERS } from '../services/overdue';
+import { googleSyncSoon } from '../services/googleCalendar';
 
 /** Личное: свои напоминания и свои события календаря. Чужих не видно никому, даже руководителю. */
 export const personalRouter = Router();
@@ -33,6 +33,7 @@ personalRouter.put(
       await db.query('DELETE FROM user_reminders WHERE user_id = $1', [req.user!.id]);
       for (const m of minutes) await db.query('INSERT INTO user_reminders (user_id, minutes_before) VALUES ($1, $2)', [req.user!.id, m]);
     });
+    googleSyncSoon();
     res.json(await loadReminders(req.user!.id));
   }),
 );
@@ -73,6 +74,7 @@ personalRouter.post(
       [req.user!.id, input.title, input.note, input.startAt],
     );
     broadcast('changed', { scopes: ['events'] });
+    googleSyncSoon();
     res.status(201).json({ id: row!.id });
   }),
 );
@@ -89,6 +91,7 @@ personalRouter.put(
     );
     if (!r.rowCount) throw new HttpError(404, 'Событие не найдено');
     broadcast('changed', { scopes: ['events'] });
+    googleSyncSoon();
     res.json({ ok: true });
   }),
 );
@@ -98,6 +101,7 @@ personalRouter.delete(
   h(async (req, res) => {
     await pool.query('DELETE FROM calendar_events WHERE id = $1 AND user_id = $2', [intParam(req.params.id), req.user!.id]);
     broadcast('changed', { scopes: ['events'] });
+    googleSyncSoon();
     res.json({ ok: true });
   }),
 );

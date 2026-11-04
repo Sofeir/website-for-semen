@@ -15,6 +15,7 @@ import { Checkbox, Field, Input, formStyles } from '@/ui/Form';
 import { useConfirm } from '@/ui/Confirm';
 import { useToast } from '@/ui/Toast';
 import { CalendarCard, InstallCard, LoginCard } from './ProfileExtras';
+import { GoogleCalendarCard } from './GoogleCalendarCard';
 import { ReminderCard } from './ReminderCard';
 import s from './ProfilePage.module.css';
 
@@ -43,6 +44,7 @@ export default function ProfilePage() {
           <PasswordCard />
           <InstallCard />
           <CalendarCard />
+          <GoogleCalendarCard />
         </div>
       </div>
     </>
