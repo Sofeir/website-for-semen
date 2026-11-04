@@ -227,6 +227,13 @@
   align-items: center;
 }
 
+.wheelGroup {
+  display: grid;
+  column-gap: var(--s-2);
+  align-items: center;
+  max-width: 340px;
+}
+
 .colon {
   font-size: var(--fs-lg);
   font-weight: 600;

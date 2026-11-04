@@ -5,48 +5,50 @@ import { pluralRu, type ReminderSettings } from '@sd/shared';
 import { api, ApiError } from '@/api/http';
 import { useReminders } from '@/api/queries';
 import { Button, IconButton } from '@/ui/Button';
+import { WheelGroup } from '@/ui/DateTimeInput';
 import { Card, CardHead, ErrorBox, Spinner } from '@/ui/Display';
-import { Input, Select } from '@/ui/Form';
 import { useToast } from '@/ui/Toast';
 import s from './ReminderCard.module.css';
 
-const UNITS = [
-  { value: 1, label: 'минут' },
-  { value: 60, label: 'часов' },
-  { value: 1440, label: 'дней' },
-];
+const DAYS = Array.from({ length: 31 }, (_, i) => i);
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
-/** «1440» → «1 день», «120» → «2 часа», «15» → «15 минут». */
-export function reminderText(minutes: number): string {
-  if (minutes % 1440 === 0) {
-    const d = minutes / 1440;
-    return `${d} ${pluralRu(d, 'день', 'дня', 'дней')}`;
-  }
-  if (minutes % 60 === 0) {
-    const h = minutes / 60;
-    return `${h} ${pluralRu(h, 'час', 'часа', 'часов')}`;
-  }
-  return `${minutes} ${pluralRu(minutes, 'минуту', 'минуты', 'минут')}`;
+/** «1440» → «1 день», «150» → «2 часа 30 минут», «15» → «15 минут». */
+export function reminderText(total: number): string {
+  const d = Math.floor(total / 1440);
+  const h = Math.floor((total % 1440) / 60);
+  const m = total % 60;
+  return [
+    d && `${d} ${pluralRu(d, 'день', 'дня', 'дней')}`,
+    h && `${h} ${pluralRu(h, 'час', 'часа', 'часов')}`,
+    m && `${m} ${pluralRu(m, 'минуту', 'минуты', 'минут')}`,
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 /**
  * Свои напоминания: за сколько до крайнего срока задачи и до начала события прислать уведомление.
- * Их можно добавить сколько угодно, например каждые 10 минут перед сроком.
+ * Время выбирается колёсами (дни, часы, минуты), как во времени задачи; напоминаний можно добавить сколько угодно.
  */
 export function ReminderCard() {
   const q = useReminders();
   const qc = useQueryClient();
   const toast = useToast();
-  const [amount, setAmount] = useState('30');
-  const [unit, setUnit] = useState(1);
+  const [days, setDays] = useState(0);
+  const [hours, setHours] = useState(0);
+  const [minutes, setMinutes] = useState(30);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const save = async (minutes: number[]) => {
+  const total = days * 1440 + hours * 60 + minutes;
+
+  const save = async (list: number[]) => {
     setBusy(true);
     setError('');
     try {
-      const next = await api.put<ReminderSettings>('/me/reminders', { minutes });
+      const next = await api.put<ReminderSettings>('/me/reminders', { minutes: list });
       qc.setQueryData(['reminders'], next);
     } catch (e) {
       setError((e as ApiError).message);
@@ -56,11 +58,10 @@ export function ReminderCard() {
   };
 
   const add = () => {
-    const minutes = Math.round(Number(amount.replace(',', '.')) * unit);
-    if (!Number.isFinite(minutes) || minutes < 1) return setError('Введите, за сколько напомнить');
-    if (minutes > 43200) return setError('Не больше 30 дней');
-    if (q.data?.minutes.includes(minutes)) return setError('Такое напоминание уже есть');
-    void save([...(q.data?.minutes ?? []), minutes]);
+    if (total < 1) return setError('Выберите, за сколько напомнить: хотя бы одна минута');
+    if (total > 43200) return setError('Не больше 30 дней');
+    if (q.data?.minutes.includes(total)) return setError('Такое напоминание уже есть');
+    void save([...(q.data?.minutes ?? []), total]);
   };
 
   const reset = async () => {
@@ -109,26 +110,20 @@ export function ReminderCard() {
               <p className="muted">Напоминаний нет: уведомления придут только о просрочке.</p>
             )}
             <div className={s.add}>
-              <span>Напомнить за</span>
-              <Input
-                className={s.amount}
-                type="number"
-                inputMode="decimal"
-                min={1}
-                aria-label="Сколько"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+              <b>Новое напоминание</b>
+              <WheelGroup
+                columns={[
+                  { label: 'Дни', items: DAYS, value: days, onPick: setDays },
+                  { label: 'Часы', items: HOURS, value: hours, onPick: setHours },
+                  { label: 'Минуты', items: MINUTES, value: minutes, onPick: setMinutes },
+                ]}
               />
-              <Select aria-label="Единица" value={unit} onChange={(e) => setUnit(Number(e.target.value))}>
-                {UNITS.map((u) => (
-                  <option key={u.value} value={u.value}>
-                    {u.label}
-                  </option>
-                ))}
-              </Select>
-              <Button size="sm" icon={<Plus size={16} aria-hidden />} loading={busy} onClick={add}>
-                Добавить
-              </Button>
+              <div className={s.addRow}>
+                <span className="muted">{total ? `Напомнить за ${reminderText(total)}` : 'Крутите колёсики, чтобы выбрать время'}</span>
+                <Button size="sm" icon={<Plus size={16} aria-hidden />} loading={busy} onClick={add}>
+                  Добавить
+                </Button>
+              </div>
             </div>
             {q.data?.custom && (
               <div>

@@ -268,6 +268,26 @@ function Wheel({
   );
 }
 
+/** Несколько колёс подряд (например, дни, часы, минуты): тот же выбор колесом мыши, пальцем и стрелками, что и во времени. */
+export function WheelGroup({
+  columns,
+}: {
+  columns: { label: string; items: number[]; value: number; onPick: (v: number) => void }[];
+}) {
+  return (
+    <div className={s.wheelGroup} style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}>
+      {columns.map((c) => (
+        <div key={`l-${c.label}`} className={s.timeLabel}>
+          {c.label}
+        </div>
+      ))}
+      {columns.map((c) => (
+        <Wheel key={c.label} label={c.label} items={c.items} value={c.value} initial={c.items[0]} onPick={c.onPick} />
+      ))}
+    </div>
+  );
+}
+
 /**
  * Поле даты и времени в стиле приложения вместо встроенного календаря браузера.
  * Снаружи это обычный <input type="date | time | datetime-local">: те же value, onChange, ref,
