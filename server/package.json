@@ -11,6 +11,7 @@
     "db:reset": "tsx src/db/reset.ts",
     "staff:import": "tsx src/db/importStaff.ts",
     "tasks:cleanup": "tsx src/db/cleanupTestTasks.ts",
+    "orders:cleanup": "tsx src/db/cleanupTestOrders.ts",
     "test": "vitest run"
   },
   "dependencies": {
