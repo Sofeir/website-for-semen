@@ -5,6 +5,7 @@ import { migrate } from '../src/db/migrate';
 import { createUsers, seedReference } from '../src/db/seed';
 import { _resetAllForTests } from '../src/auth/rateLimit';
 import { config } from '../src/config';
+import { DEFAULT_WORK, setSetting } from '../src/services/settings';
 
 export const PASSWORD = 'test-password-123';
 export const app = createApp();
@@ -16,6 +17,8 @@ export async function resetDb() {
   await migrate(false);
   await tx((db) => seedReference(db));
   await createUsers(PASSWORD);
+  // Конец рабочего дня в тестах 23:59: иначе при запуске вечером срок «через час» упирается в 19:00 и задача сразу просрочена
+  await setSetting('work', { ...DEFAULT_WORK, workEnd: '23:59' });
   _resetAllForTests();
 }
 

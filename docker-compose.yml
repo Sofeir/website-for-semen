@@ -37,6 +37,8 @@ services:
       UPLOAD_DIR: /data/uploads
     volumes:
       - uploads:/data/uploads
+      # ключ сервисного аккаунта Google для записи в календари (см. УСТАНОВКА-НА-СЕРВЕР.md); папка может быть пустой
+      - /etc/servicedesk-google:/etc/servicedesk-google:ro
     depends_on:
       db:
         condition: service_healthy
@@ -51,6 +53,10 @@ services:
       - ./deploy/angie.conf:/etc/angie/http.d/default.conf:ro
       # для https (см. УСТАНОВКА-НА-СЕРВЕР.md): сертификат лежит на сервере в /etc/servicedesk-ssl
       - /etc/servicedesk-ssl:/etc/ssl/servicedesk:ro
+      # домен и сертификат Let's Encrypt: настройки, сертификаты и папка проверки домена лежат на сервере (deploy/enable-domain.sh)
+      - /etc/servicedesk-https:/etc/servicedesk-https:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
     depends_on:
       - app
 

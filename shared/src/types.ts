@@ -780,3 +780,30 @@ export interface VisitsData {
   tasks: TaskListItem[];
   plans: ServicePlan[];
 }
+
+/** Личное событие календаря. */
+export interface CalendarEvent {
+  id: number;
+  title: string;
+  note: string | null;
+  startAt: string;
+}
+
+/** Напоминания сотрудника: custom = false — стандартные (за сутки, за 2 часа, за 15 минут). */
+export interface ReminderSettings {
+  custom: boolean;
+  minutes: number[];
+}
+
+/** Состояние записи задач и событий в Google Календарь сотрудника. */
+export interface GoogleCalendarStatus {
+  /** На сервере есть ключ сервисного аккаунта. */
+  configured: boolean;
+  /** Адрес сервисного аккаунта: с ним нужно поделиться календарём. */
+  serviceEmail: string | null;
+  calendarId: string | null;
+  /** Код для описания календаря: подтверждает, что календарь принадлежит этому сотруднику. */
+  verifyCode: string;
+  syncedAt: string | null;
+  error: string | null;
+}

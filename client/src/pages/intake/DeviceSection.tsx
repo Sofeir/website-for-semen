@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Controller, useWatch, type Control, type FieldErrors, type UseFormSetValue } from 'react-hook-form';
 import { History, Trash2 } from 'lucide-react';
-import type { Device, Dictionaries, IntakeInput } from '@sd/shared';
+import { REFILL_OPS, REFILL_OP_LABELS, type Device, type Dictionaries, type IntakeInput } from '@sd/shared';
 import { IconButton, cx } from '@/ui/Button';
 import { Combobox } from '@/ui/Combobox';
 import { ChipGroup, Field, Input, RadioChips, Textarea, formStyles } from '@/ui/Form';
@@ -42,6 +42,11 @@ export function DeviceSection({
   const err = errors.devices?.[index];
   const typeName = dict.deviceTypes.find((t) => t.id === Number(typeId))?.name;
   const serialRequired = typeName === 'Ноутбук' || typeName === 'Принтеры/МФУ';
+  // Картридж принимают упрощённой формой: модель, количество и что делали, как в «Заправке картриджей» из карточки клиента
+  const cartridge = typeName === 'Картридж';
+  useEffect(() => {
+    setValue(`${path}.cartridge`, cartridge);
+  }, [cartridge, path, setValue]);
 
   const types = dict.deviceTypes.filter((t) => t.isActive);
   const brands = useMemo(() => dict.brands.filter((b) => b.isActive && b.parentId === Number(typeId)), [dict.brands, typeId]);
@@ -125,6 +130,70 @@ export function DeviceSection({
         />
       </Field>
 
+      {cartridge && (
+        <>
+          <div className={formStyles.grid3}>
+            <Field label="Модель картриджа" error={err?.device?.modelText?.message} className={formStyles.span2}>
+              {(cp) => (
+                <Controller
+                  control={control}
+                  name={`${path}.device.modelText`}
+                  render={({ field }) => (
+                    <Input
+                      {...cp}
+                      value={field.value ?? ''}
+                      onChange={(e) => {
+                        field.onChange(e.target.value);
+                        setValue(`${path}.device.modelId`, null);
+                        resetExisting();
+                      }}
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder="Например: CF259A"
+                    />
+                  )}
+                />
+              )}
+            </Field>
+            <Field label="Сколько картриджей" error={err?.qty?.message}>
+              {(cp) => (
+                <Controller
+                  control={control}
+                  name={`${path}.qty`}
+                  render={({ field }) => <Input {...cp} inputMode="numeric" value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value)} />}
+                />
+              )}
+            </Field>
+            <Field label="Сумма, ₽" optional error={err?.refillAmount?.message}>
+              {(cp) => (
+                <Controller
+                  control={control}
+                  name={`${path}.refillAmount`}
+                  render={({ field }) => (
+                    <Input {...cp} inputMode="decimal" value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value)} placeholder="3500" />
+                  )}
+                />
+              )}
+            </Field>
+          </div>
+          <Field label="Что входило в заправку" group hint="Отметьте всё, что сделали, например заправка и замена чипа">
+            <Controller
+              control={control}
+              name={`${path}.refillOps`}
+              render={({ field }) => (
+                <ChipGroup
+                  label="Работы при заправке"
+                  options={REFILL_OPS.map((o) => REFILL_OP_LABELS[o])}
+                  value={(field.value ?? []).map((o) => REFILL_OP_LABELS[o])}
+                  onChange={(names) => field.onChange(REFILL_OPS.filter((o) => names.includes(REFILL_OP_LABELS[o])))}
+                />
+              )}
+            />
+          </Field>
+        </>
+      )}
+      {!cartridge && (
+        <>
       <div className={formStyles.grid3}>
         <Field label="Марка">
           {(cp) => (
@@ -329,6 +398,8 @@ export function DeviceSection({
           </Field>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

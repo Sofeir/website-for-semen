@@ -9,8 +9,8 @@ import { useConfirm } from '@/ui/Confirm';
 import { useToast } from '@/ui/Toast';
 import s from './Attachments.module.css';
 
-export const ACCEPT = '.jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,.doc,.docx,.xls,.xlsx,.txt';
-const MAX_MB = 15;
+export const ACCEPT = '.jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.mp4,.mov,.webm';
+const MAX_MB = 30;
 
 const sizeLabel = (b: number) =>
   b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} МБ` : `${Math.max(1, Math.round(b / 1024))} КБ`;
@@ -140,7 +140,7 @@ export function UploadButton({
 export function AttachHint() {
   return (
     <p className={s.hint}>
-      <Paperclip size={14} aria-hidden /> Фото, PDF, Word, Excel — до {MAX_MB} МБ каждый.
+      <Paperclip size={14} aria-hidden /> Фото, видео, PDF, Word, Excel — до {MAX_MB} МБ каждый.
     </p>
   );
 }

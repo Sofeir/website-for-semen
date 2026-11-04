@@ -1,9 +1,12 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import type {
   Inspection,
   VisitDevice,
   Act,
   ActBrief,
+  CalendarEvent,
+  ReminderSettings,
   ActInput,
   AdvanceOrderInput,
   Analytics,
@@ -76,6 +79,7 @@ export const SCOPE_KEYS: Record<string, string[]> = {
   dashboard: ['dashboard'],
   dictionaries: ['dictionaries'],
   acts: ['acts', 'act', 'order'],
+  events: ['events'],
 };
 
 export interface MeResponse {
@@ -210,7 +214,7 @@ export const useClientDevices = (id: number | null | undefined) =>
   });
 
 export interface TaskFilters {
-  scope?: 'mine' | 'created' | 'watching' | 'all';
+  scope?: 'mine' | 'created' | 'control' | 'watching' | 'all';
   status?: 'open' | 'done' | 'any';
   q?: string;
   assignee?: number | '';
@@ -235,6 +239,29 @@ export const useNotifications = () =>
     queryKey: keys.notifications,
     queryFn: () => api.get<{ items: NotificationItem[]; unread: number }>('/notifications?limit=60'),
     refetchInterval: 5 * 60_000,
+  });
+
+/** Отмечает уведомления об этой задаче или заявке прочитанными, когда человек её открыл. */
+export function useMarkSeen(link: string | null) {
+  const notes = useNotifications();
+  const qc = useQueryClient();
+  const unseen = Boolean(link && notes.data?.items.some((n) => !n.isRead && n.link === link));
+  useEffect(() => {
+    if (!link || !unseen) return;
+    api
+      .post('/notifications/read', { link })
+      .then(() => qc.invalidateQueries({ queryKey: ['notifications'] }))
+      .catch(() => {});
+  }, [link, unseen, qc]);
+}
+
+export const useReminders = () => useQuery({ queryKey: ['reminders'], queryFn: () => api.get<ReminderSettings>('/me/reminders') });
+
+export const useCalendarEvents = (from: string, to: string) =>
+  useQuery({
+    queryKey: ['events', from, to],
+    queryFn: () => api.get<CalendarEvent[]>(`/calendar-events${qs({ from, to })}`),
+    placeholderData: keepPreviousData,
   });
 
 export const useActs = (f: { order?: number } = {}) =>

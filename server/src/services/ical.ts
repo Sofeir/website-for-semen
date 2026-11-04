@@ -1,5 +1,13 @@
 /** Календарь задач в формате iCalendar (.ics) для подписки из Google Календаря, iCloud и других. */
 
+export interface CalendarEventItem {
+  id: number;
+  title: string;
+  note: string | null;
+  startAt: Date;
+  createdAt: Date;
+}
+
 export interface CalendarTask {
   id: number;
   title: string;
@@ -41,11 +49,23 @@ function fold(line: string): string {
 
 const utc = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 
+/** Напоминания календаря: у каждого сотрудника свой набор «за N минут». */
+function alarms(minutes: number[], text: string): string[] {
+  return minutes.flatMap((m) => ['BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escapeText(text)}`, `TRIGGER:-PT${m}M`, 'END:VALARM']);
+}
+
 /**
- * Одна задача — одно событие, которое заканчивается в срок задачи (полчаса до срока).
+ * Одна задача — одно событие, которое заканчивается в крайний срок задачи (полчаса до срока).
  * Закрытые задачи в ленту не попадают, поэтому календарь сам убирает их при следующем обновлении.
  */
-export function buildCalendar(tasks: CalendarTask[], origin: string, calendarName: string, now = new Date()): string {
+export function buildCalendar(
+  tasks: CalendarTask[],
+  origin: string,
+  calendarName: string,
+  now = new Date(),
+  opts: { reminders?: number[]; events?: CalendarEventItem[] } = {},
+): string {
+  const reminders = opts.reminders ?? [120];
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -70,14 +90,24 @@ export function buildCalendar(tasks: CalendarTask[], origin: string, calendarNam
       `LAST-MODIFIED:${utc(t.updatedAt)}`,
       `DTSTART:${utc(new Date(t.dueAt.getTime() - 30 * 60_000))}`,
       `DTEND:${utc(t.dueAt)}`,
-      `SUMMARY:${escapeText(`Срок: ${t.title}`)}`,
+      `SUMMARY:${escapeText(`Крайний срок: ${t.title}`)}`,
       `DESCRIPTION:${escapeText(description)}`,
       `URL:${link}`,
-      'BEGIN:VALARM',
-      'ACTION:DISPLAY',
-      `DESCRIPTION:${escapeText(`Скоро срок: ${t.title}`)}`,
-      'TRIGGER:-PT2H',
-      'END:VALARM',
+      ...alarms(reminders, `Скоро крайний срок: ${t.title}`),
+      'END:VEVENT',
+    );
+  }
+  for (const e of opts.events ?? []) {
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:event-${e.id}@servicedesk`,
+      `DTSTAMP:${utc(now)}`,
+      `LAST-MODIFIED:${utc(e.createdAt)}`,
+      `DTSTART:${utc(e.startAt)}`,
+      `DTEND:${utc(new Date(e.startAt.getTime() + 30 * 60_000))}`,
+      `SUMMARY:${escapeText(e.title)}`,
+      ...(e.note ? [`DESCRIPTION:${escapeText(e.note)}`] : []),
+      ...alarms(reminders, `Скоро: ${e.title}`),
       'END:VEVENT',
     );
   }

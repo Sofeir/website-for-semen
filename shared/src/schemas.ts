@@ -98,6 +98,11 @@ export const intakeDeviceSchema = z.object({
   kitNote: optionalText(500),
   devicePassword: optionalText(200),
   department: optionalText(120),
+  /** Приём картриджей упрощённой формой: модель, количество и что делали. Заправка записывается в работы. */
+  cartridge: z.boolean().optional(),
+  qty: z.coerce.number().int().min(1, 'Минимум 1').max(999, 'Не больше 999').default(1),
+  refillOps: z.array(z.enum(['refill', 'drum', 'roller', 'chip', 'blade'])).default(['refill']),
+  refillAmount: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().min(0).max(10_000_000).nullable()).optional(),
 });
 export type IntakeDeviceInput = z.infer<typeof intakeDeviceSchema>;
 
@@ -134,7 +139,11 @@ export const intakeSchema = z
       ctx.addIssue({ code: 'custom', path: ['clientId'], message: 'Выберите или создайте клиента' });
     }
     v.devices.forEach((d, i) => {
-      if (!d.faultIds.length && !d.faultText) {
+      if (d.cartridge) {
+        if (!d.device.modelId && !d.device.modelText?.trim()) {
+          ctx.addIssue({ code: 'custom', path: ['devices', i, 'device', 'modelText'], message: 'Напишите модель картриджа' });
+        }
+      } else if (!d.faultIds.length && !d.faultText) {
         ctx.addIssue({ code: 'custom', path: ['devices', i, 'faultText'], message: 'Опишите неисправность' });
       }
     });
@@ -330,7 +339,9 @@ export const taskSchema = z
     orderId: optionalId,
     clientId: optionalId,
     startAt: isoDate,
+    /** Крайний срок задачи. Прежнее отдельное поле «крайний срок» убрано: срок теперь один. */
     dueAt: isoDate,
+    /** Устарело и игнорируется: принимается только ради старых клиентов. */
     deadlineAt: isoDate.optional().nullable(),
     /** Чек-лист работ (например, на выезде у клиента). Пустые строки отбрасываются. */
     checklist: z.array(z.string().trim().max(300)).max(60).optional(),
@@ -338,16 +349,15 @@ export const taskSchema = z
     visit: z.boolean().optional(),
     /** Вид задачи. Если не указан, берётся по заявке и выезду: «Техника», «Выезды» или «Общие». */
     kindId: optionalId,
+    /** Файлы и фото, загруженные до создания задачи: привязываются к ней при создании. */
+    attachmentIds: z.array(id).max(20).optional(),
   })
   .superRefine((v, ctx) => {
     if (!v.assigneeId && !v.assigneeIds?.length) {
       ctx.addIssue({ code: 'custom', path: ['assigneeIds'], message: 'Выберите хотя бы одного ответственного' });
     }
     if (new Date(v.dueAt) < new Date(v.startAt)) {
-      ctx.addIssue({ code: 'custom', path: ['dueAt'], message: 'Срок раньше начала' });
-    }
-    if (v.deadlineAt && new Date(v.deadlineAt) < new Date(v.dueAt)) {
-      ctx.addIssue({ code: 'custom', path: ['deadlineAt'], message: 'Крайний срок раньше срока' });
+      ctx.addIssue({ code: 'custom', path: ['dueAt'], message: 'Крайний срок раньше начала' });
     }
   });
 export type TaskInput = z.infer<typeof taskSchema>;
@@ -577,3 +587,22 @@ export const importCommitSchema = z.object({
   mapping: z.record(z.string(), z.coerce.number().int().min(0).max(500)),
 });
 export type ImportCommitInput = z.infer<typeof importCommitSchema>;
+
+// ---------- Напоминания и личные события календаря ----------
+
+/** Напоминания, пока сотрудник ничего не настроил: за сутки, за 2 часа и за 15 минут (в минутах). */
+export const DEFAULT_REMINDERS = [1440, 120, 15];
+
+/** Свой набор напоминаний: за сколько минут до срока напомнить. Можно любое число напоминаний. */
+export const reminderSettingsSchema = z.object({
+  minutes: z.array(z.coerce.number().int().min(1, 'Минимум 1 минута').max(43200, 'Не больше 30 дней')).max(50, 'Не больше 50 напоминаний'),
+});
+export type ReminderSettingsInput = z.infer<typeof reminderSettingsSchema>;
+
+/** Личное событие в календаре: только для себя, нужно лишь начало. */
+export const calendarEventSchema = z.object({
+  title: text(200).min(2, 'Назовите событие'),
+  note: optionalText(2000),
+  startAt: isoDate,
+});
+export type CalendarEventInput = z.infer<typeof calendarEventSchema>;

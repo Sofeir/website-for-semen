@@ -87,12 +87,17 @@ describe('просрочка при передаче', () => {
     const { users } = await dict();
     const id = await overdueTask('semen', users.isakov);
     const stas = await loginAs('isakov');
-    const t = await stas.post(`/api/tasks/${id}/transfer`, { assigneeId: users.kataev, dueAt: inDays(2), comment: 'Передаю Артёму' });
+    // срок при передаче отодвинуть нельзя: продление согласует только директор
+    const later = await stas.post(`/api/tasks/${id}/transfer`, { assigneeId: users.kataev, dueAt: inDays(2), comment: 'Передаю Артёму' });
+    expect(later.status).toBe(403);
+    expect(later.body.error).toMatch(/продлени/);
+    const current = (await stas.get(`/api/tasks/${id}`)).body.dueAt;
+    const t = await stas.post(`/api/tasks/${id}/transfer`, { assigneeId: users.kataev, dueAt: current, comment: 'Передаю Артёму' });
     expect(t.status).toBe(200);
     const kataev = await loginAs('kataev');
     const detail = await kataev.get(`/api/tasks/${id}`);
     expect(detail.body.overdue).toBe(true);
-    expect(new Date(detail.body.dueAt).getTime()).toBeGreaterThan(Date.now());
+    expect(new Date(detail.body.dueAt).getTime()).toBeLessThan(Date.now());
     expect((await kataev.post('/api/tasks/close', { ids: [id], comment: null })).status).toBe(403);
     const semen = await loginAs('semen');
     expect((await semen.post('/api/tasks/close', { ids: [id], comment: null })).status).toBe(200);
@@ -103,7 +108,12 @@ describe('просрочка при передаче', () => {
     const id = await overdueTask('maria', users.isakov);
     const maria = await loginAs('maria');
     const body = { title: 'Просроченная', assigneeIds: [users.isakov], startAt: new Date().toISOString(), dueAt: inDays(3) };
-    expect((await maria.put(`/api/tasks/${id}`, body)).status).toBe(200);
+    // постановщик крайний срок не двигает; остальные поля правит
+    const denied = await maria.put(`/api/tasks/${id}`, body);
+    expect(denied.status).toBe(403);
+    expect(denied.body.error).toMatch(/продлени/);
+    const same = (await maria.get(`/api/tasks/${id}`)).body.dueAt;
+    expect((await maria.put(`/api/tasks/${id}`, { ...body, title: 'Просроченная, уточнение', startAt: new Date(new Date(same).getTime() - 3_600_000).toISOString(), dueAt: same })).status).toBe(200);
     expect((await maria.get(`/api/tasks/${id}`)).body.overdue).toBe(true);
     const semen = await loginAs('semen');
     expect((await semen.put(`/api/tasks/${id}`, body)).status).toBe(200);

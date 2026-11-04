@@ -25,6 +25,8 @@ import { filesRouter } from '../../../server/src/routes/files';
 import { importRouter } from '../../../server/src/routes/import';
 import { customerRouter } from '../../../server/src/routes/customer';
 import { customersRouter } from '../../../server/src/routes/customers';
+import { personalRouter } from '../../../server/src/routes/personal';
+import { googleRouter } from '../../../server/src/routes/google';
 import { resetDb } from './pg-shim';
 
 export const DEMO_PASSWORD = 'demo';
@@ -50,6 +52,8 @@ for (const r of [
   contactsRouter,
   analyticsRouter,
   notificationsRouter,
+  personalRouter,
+  googleRouter,
   actsRouter,
   documentsRouter,
   filesRouter,

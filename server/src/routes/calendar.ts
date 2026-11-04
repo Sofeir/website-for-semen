@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { many, one } from '../db/pool';
 import { h, HttpError } from '../lib/http';
-import { buildCalendar, type CalendarTask } from '../services/ical';
+import { buildCalendar, type CalendarEventItem, type CalendarTask } from '../services/ical';
+import { DEFAULT_REMINDERS } from '@sd/shared';
 import { config } from '../config';
 
 /**
@@ -31,12 +32,21 @@ calendarFeedRouter.get(
         ORDER BY t.due_at LIMIT 500`,
       [user.id],
     );
+    const events = await many<CalendarEventItem>(
+      `SELECT id, title, note, start_at AS "startAt", created_at AS "createdAt" FROM calendar_events
+        WHERE user_id = $1 AND start_at > now() - interval '30 days' ORDER BY start_at LIMIT 500`,
+      [user.id],
+    );
+    const own = await one<{ custom: boolean }>('SELECT reminders_custom AS custom FROM users WHERE id = $1', [user.id]);
+    const reminders = own?.custom
+      ? (await many<{ m: number }>('SELECT minutes_before AS m FROM user_reminders WHERE user_id = $1 ORDER BY minutes_before DESC', [user.id])).map((r) => r.m)
+      : DEFAULT_REMINDERS;
     const origin = `${req.protocol}://${req.get('host')}`;
     res.set({
       'Content-Type': 'text/calendar; charset=utf-8',
       'Content-Disposition': 'inline; filename="tasks.ics"',
       'Cache-Control': 'private, max-age=300',
     });
-    res.send(buildCalendar(tasks, origin, `Задачи — ${config.appName}`));
+    res.send(buildCalendar(tasks, origin, `Задачи — ${config.appName}`, new Date(), { reminders, events }));
   }),
 );

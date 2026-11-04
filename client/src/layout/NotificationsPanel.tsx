@@ -40,7 +40,8 @@ export function NotificationsPanel({ variant, onClose }: { variant: 'popover' | 
   };
 
   const open = async (id: number, link: string | null, isRead: boolean) => {
-    if (!isRead) api.post(`/notifications/${id}/read`).then(() => inv('notifications'));
+    // Уведомления об одной задаче или заявке отмечаются прочитанными вместе
+    if (!isRead) api.post(link ? '/notifications/read' : `/notifications/${id}/read`, link ? { link } : undefined).then(() => inv('notifications'));
     onClose();
     if (link) navigate(link);
   };

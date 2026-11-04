@@ -127,3 +127,9 @@
 .files {
   margin-top: 8px;
 }
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+}

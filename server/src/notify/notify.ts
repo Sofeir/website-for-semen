@@ -1,6 +1,7 @@
 import type { NotificationItem } from '@sd/shared';
 import { config } from '../config';
 import { many, pool } from '../db/pool';
+import { googleSyncSoon } from '../services/googleCalendar';
 import { channels } from './channels';
 import { broadcast, sendTo } from './hub';
 
@@ -31,6 +32,8 @@ export class Outbox {
   /** `silent`: уведомления только в ленту, без всплывающих окон (начальное наполнение базы). */
   async flush(opts: { silent?: boolean } = {}) {
     if (this.changed.size) broadcast('changed', { scopes: [...this.changed] });
+    // Календари в Google обновляются вслед за задачами
+    if (this.changed.has('tasks') || this.changed.has('orders')) googleSyncSoon();
     if (this.notices.length) await deliver(this.notices, opts.silent ?? false);
   }
 }

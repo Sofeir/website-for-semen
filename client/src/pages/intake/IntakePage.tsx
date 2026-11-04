@@ -52,6 +52,10 @@ const emptyDevice = (): IntakeInput['devices'][number] => ({
   kitNote: null,
   devicePassword: null,
   department: null,
+  cartridge: false,
+  qty: 1,
+  refillOps: ['refill'],
+  refillAmount: null,
 });
 
 type ClientMode = 'search' | 'new';

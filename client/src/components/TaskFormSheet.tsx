@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { inspectionKindOf, taskSchema, type TaskDetail, type TaskInput } from '@sd/shared';
+import { inspectionKindOf, taskSchema, type Attachment, type TaskDetail, type TaskInput } from '@sd/shared';
 import { useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
 import { useClientDevices, useInvalidate, useSettings, useTaskKinds } from '@/api/queries';
-import { defaultDueDate, startForDue } from '@/lib/dates';
+import { defaultDueDate, fmtWhen, startForDue } from '@/lib/dates';
 import { Button } from '@/ui/Button';
 import { ErrorBox } from '@/ui/Display';
 import { Field, Input, Select, Textarea, formStyles } from '@/ui/Form';
@@ -13,6 +13,7 @@ import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import { DueInput, UserMultiSelect } from './Pickers';
 import { ChecklistEditor } from './ChecklistEditor';
+import { AttachHint, AttachmentList, UploadButton } from './Attachments';
 
 interface Props {
   open: boolean;
@@ -28,6 +29,7 @@ interface Props {
 /** Создание и правка задачи. Рабочее время ограничено настройкой (по умолчанию до 19:00). */
 export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTitle, visit }: Props) {
   const [checklist, setChecklist] = useState<string[]>([]);
+  const [files, setFiles] = useState<Attachment[]>([]);
   const clientDevices = useClientDevices(open && visit && !task ? (clientId ?? null) : null);
   const visitPlaces = useMemo(() => {
     const m = new Map<string, { pc: number; printer: number }>();
@@ -51,6 +53,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
   useEffect(() => {
     if (!open) return;
     setChecklist([]);
+    setFiles([]);
     form.reset(
       task
         ? {
@@ -62,7 +65,6 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
             clientId: task.clientId,
             startAt: task.startAt,
             dueAt: task.dueAt,
-            deadlineAt: task.deadlineAt,
             kindId: task.kindId,
           }
         : {
@@ -75,7 +77,6 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
             // срок по умолчанию — завтра; начало тогда — с начала рабочего дня, а для «сегодня» — с текущего момента
             startAt: startForDue(settings.data?.work, defaultDueDate(settings.data?.work)).toISOString(),
             dueAt: defaultDueDate(settings.data?.work).toISOString(),
-            deadlineAt: null,
             kindId: null,
           },
     );
@@ -87,7 +88,14 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
   const submit = form.handleSubmit(async (values) => {
     try {
       if (task) await api.put(`/tasks/${task.id}`, values as any);
-      else await api.post('/tasks', { ...values, visit, checklist: checklist.map((x) => x.trim()).filter(Boolean) } as any);
+      else {
+        await api.post('/tasks', {
+          ...values,
+          visit,
+          checklist: checklist.map((x) => x.trim()).filter(Boolean),
+          attachmentIds: files.map((a) => a.id),
+        } as any);
+      }
       inv('tasks', 'task', 'dashboard', 'order', 'client', 'visits');
       toast.success(task ? 'Задача сохранена' : 'Задача поставлена');
       onClose();
@@ -98,6 +106,8 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
     }
   });
 
+  // Крайний срок действующей задачи меняет только тот, кто подтверждает просрочку (директор)
+  const lockedDue = Boolean(task && !me.confirmsOverdue);
   const workStart = settings.data?.work.workStart ?? '10:00';
   const workEnd = settings.data?.work.workEnd ?? '19:00';
 
@@ -170,27 +180,30 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
         </Field>
         <div className={formStyles.grid2}>
           <Field
-            label="Срок"
+            label="Крайний срок"
             error={errors.dueAt?.message}
-            hint={`Рабочий день с ${workStart} до ${workEnd}`}
+            hint={
+              lockedDue
+                ? 'Крайний срок двигает только директор. Чтобы продлить, откройте задачу и нажмите «Запросить продление»'
+                : `Рабочий день с ${workStart} до ${workEnd}`
+            }
             className={formStyles.span2}
           >
-            <Controller
-              control={form.control}
-              name="dueAt"
-              render={({ field }) => (
-                <DueInput
-                  value={field.value}
-                  onChange={(v) => {
-                    field.onChange(v);
-                    // крайний срок не может быть раньше срока: если срок ушёл дальше, крайний срок подтягивается следом
-                    const dl = form.getValues('deadlineAt');
-                    if (dl && v && new Date(dl) < new Date(v)) form.setValue('deadlineAt', v, { shouldDirty: true });
-                  }}
-                  onPreset={(start) => form.setValue('startAt', start, { shouldDirty: true, shouldValidate: true })}
-                />
-              )}
-            />
+            {lockedDue ? (
+              <Input value={task ? fmtWhen(task.dueAt) : ''} disabled readOnly />
+            ) : (
+              <Controller
+                control={form.control}
+                name="dueAt"
+                render={({ field }) => (
+                  <DueInput
+                    value={field.value}
+                    onChange={field.onChange}
+                    onPreset={(start) => form.setValue('startAt', start, { shouldDirty: true, shouldValidate: true })}
+                  />
+                )}
+              />
+            )}
           </Field>
           <Field label="Начало" error={errors.startAt?.message}>
             <Controller
@@ -203,28 +216,6 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
                   onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value).toISOString() : '')}
                 />
               )}
-            />
-          </Field>
-          <Field label="Крайний срок" optional error={errors.deadlineAt?.message} hint="Не раньше срока">
-            <Controller
-              control={form.control}
-              name="deadlineAt"
-              render={({ field }) => {
-                const due = form.watch('dueAt');
-                return (
-                  <Input
-                    type="datetime-local"
-                    min={due ? toLocal(due) : undefined}
-                    value={field.value ? toLocal(field.value) : ''}
-                    onChange={(e) => {
-                      if (!e.target.value) return field.onChange(null);
-                      const picked = new Date(e.target.value);
-                      // раньше срока выбрать нельзя: подставляем сам срок
-                      field.onChange(due && picked < new Date(due) ? due : picked.toISOString());
-                    }}
-                  />
-                );
-              }}
             />
           </Field>
         </div>
@@ -244,6 +235,15 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
             ) : (
               <span className="muted">У клиента пока нет компьютеров и принтеров. Добавьте их в карточке клиента на вкладке «Выезд».</span>
             )}
+          </Field>
+        )}
+        {!task && (
+          <Field label="Файлы и фото" optional group hint="Скриншоты, фото, видео и документы: исполнитель увидит их в задаче">
+            <div className="stack">
+              <AttachmentList items={files} compact onDeleted={(id) => setFiles((l) => l.filter((x) => x.id !== id))} />
+              <UploadButton target={{}} onUploaded={(items) => setFiles((l) => [...l, ...items])} label="Прикрепить" />
+              <AttachHint />
+            </div>
           </Field>
         )}
         {!task && !visit && (

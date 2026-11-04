@@ -27,13 +27,10 @@ export const TASK_ROW_FIELDS = `t.id, t.title, t.status, t.creator_id, t.assigne
   ARRAY(SELECT ta.user_id FROM task_assignees ta WHERE ta.task_id = t.id) AS assignee_ids`;
 
 /**
- * Сбрасывает напоминания о сроке после смены срока или исполнителя. Если до срока уже меньше суток (или 2 часов),
- * соответствующее напоминание считается отправленным: иначе оно прилетело бы сразу после создания задачи.
- * `p` — параметр со сроком.
+ * Напоминания о сроке считаются от момента remind_from: после смены срока или исполнителя он сдвигается на «сейчас».
+ * Напоминание, время которого уже прошло к этому моменту, не шлётся: иначе оно прилетело бы сразу после постановки задачи.
  */
-export const remindReset = (p: string) =>
-  `remind_day_at = CASE WHEN ${p}::timestamptz - now() <= interval '1 day' THEN now() END,
-   remind_2h_at = CASE WHEN ${p}::timestamptz - now() <= interval '2 hours' THEN now() END`;
+export const remindReset = () => `remind_from = now()`;
 
 /** Кто участвует в задаче: постановщик, нынешние ответственные и все, кто был в цепочке передачи (в том числе передавшие). */
 export async function taskParticipantIds(db: Db, taskId: number): Promise<number[]> {
@@ -84,7 +81,7 @@ export function assigneeList(input: { assigneeId?: number; assigneeIds?: number[
 export async function moveTask(db: Db, taskId: number, userId: number, due: Date) {
   await db.query(
     `UPDATE tasks SET assignee_id = $2, due_at = $3, overdue_notified_at = NULL, was_overdue = (was_overdue OR due_at < now()),
-            ${remindReset('$3')}, updated_at = now() WHERE id = $1`,
+            ${remindReset()}, updated_at = now() WHERE id = $1`,
     [taskId, userId, due],
   );
   await db.query('DELETE FROM task_assignees WHERE task_id = $1 AND user_id <> $2', [taskId, userId]);
@@ -101,16 +98,12 @@ export async function createTask(
   const people: { id: number; full_name: string }[] = [];
   for (const userId of ids) people.push(await assertActiveUser(db, userId));
   const due = await normalizeDue(db, input.dueAt);
-  const deadline = input.deadlineAt ? await normalizeDue(db, input.deadlineAt) : null;
   const watcherIds = [...new Set(input.watcherIds ?? [])].filter((w) => !ids.includes(w));
   for (const w of watcherIds) await assertActiveUser(db, w);
   const row = await one<{ id: number }>(
-    `INSERT INTO tasks (title, description, creator_id, assignee_id, order_id, client_id, stage_id, start_at, due_at, deadline_at, is_visit, kind_id,
-                        remind_day_at, remind_2h_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10, $11,
-             COALESCE($12, (SELECT id FROM task_kinds WHERE code = $13)),
-             CASE WHEN $9::timestamptz - now() <= interval '1 day' THEN now() END,
-             CASE WHEN $9::timestamptz - now() <= interval '2 hours' THEN now() END) RETURNING id`,
+    `INSERT INTO tasks (title, description, creator_id, assignee_id, order_id, client_id, stage_id, start_at, due_at, is_visit, kind_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10,
+             COALESCE($11, (SELECT id FROM task_kinds WHERE code = $12))) RETURNING id`,
     [
       input.title,
       input.description ?? null,
@@ -121,7 +114,6 @@ export async function createTask(
       input.stageId ?? null,
       input.startAt,
       due,
-      deadline,
       input.visit ?? false,
       input.kindId ?? null,
       input.visit ? 'visit' : input.orderId ? 'device' : 'general',
@@ -148,6 +140,13 @@ export async function createTask(
       actor.id,
       due,
     ]);
+  }
+  if (input.attachmentIds?.length) {
+    await db.query(
+      `UPDATE attachments SET task_id = $1
+        WHERE id = ANY ($2) AND uploaded_by = $3 AND task_id IS NULL AND order_id IS NULL AND client_id IS NULL`,
+      [row!.id, input.attachmentIds, actor.id],
+    );
   }
   // У выезда нет общего чек-листа: техника клиента проверяется по одной единице, у каждой свой бланк
   const checklist = input.visit ? [] : (input.checklist ?? []).filter(Boolean);
@@ -252,6 +251,39 @@ export async function requestTaskClose(db: Db, actor: Actor, id: number, comment
     type: 'task_close_request',
     title: `Просят подтвердить закрытие: ${t.title}`,
     body: [`Просрочена. Исполнитель: ${actor.fullName}.`, comment && `Что сделано: ${comment}`].filter(Boolean).join('\n'),
+    link: `/tasks?task=${id}`,
+  });
+  outbox.touch('tasks');
+}
+
+export const EXTEND_MESSAGE =
+  'Крайний срок двигает только директор. Нажмите «Запросить продление» в задаче: он получит уведомление и решит';
+
+/** Срок можно только сократить или оставить: отодвинуть его без согласования директора нельзя. */
+export async function assertDueNotLater(db: Db, actor: Actor, currentDue: Date, newDue: Date) {
+  if (newDue.getTime() <= currentDue.getTime() + 60_000) return;
+  if (await canConfirmOverdue(db, actor.id)) return;
+  throw new HttpError(403, EXTEND_MESSAGE);
+}
+
+/** Просьба продлить крайний срок. Получает только тот, кто подтверждает просрочку: он и меняет срок. */
+export async function requestTaskExtension(db: Db, actor: Actor, id: number, wantedDue: Date, comment: string, outbox: Outbox) {
+  const t = await one<TaskRow & { due_at: Date }>(`SELECT ${TASK_ROW_FIELDS}, t.due_at FROM tasks t WHERE t.id = $1`, [id], db);
+  if (!t) throw new HttpError(404, 'Задача не найдена');
+  if (!canTouchTask(actor, t)) throw forbidden();
+  if (t.status !== 'open') throw new HttpError(409, 'Задача уже закрыта');
+  if (wantedDue.getTime() <= t.due_at.getTime()) throw new HttpError(400, 'Новый срок должен быть позже нынешнего');
+  const confirmers = await many<{ id: number }>('SELECT id FROM users WHERE is_active AND confirms_overdue', [], db);
+  if (!confirmers.length) throw new HttpError(409, 'Не назначен тот, кто согласует продление сроков');
+  notifyParticipants(outbox, confirmers.map((m) => m.id), [actor.id], {
+    type: 'task_extend_request',
+    title: `Просят продлить срок: ${t.title}`,
+    body: [
+      `Сейчас — ${formatDateTimeRu(t.due_at)}, просят до ${formatDateTimeRu(wantedDue)}. Исполнитель: ${actor.fullName}.`,
+      comment && `Причина: ${comment}`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
     link: `/tasks?task=${id}`,
   });
   outbox.touch('tasks');

@@ -56,7 +56,14 @@ notificationsRouter.post(
   '/notifications/read',
   h(async (req, res) => {
     const ids: unknown = req.body?.ids;
-    if (Array.isArray(ids) && ids.length) {
+    const link: unknown = req.body?.link;
+    if (typeof link === 'string' && link.startsWith('/')) {
+      // Всё, что относится к одной задаче или заявке, считается прочитанным вместе: человек уже открыл её.
+      await pool.query('UPDATE notifications SET is_read = true WHERE user_id = $1 AND link = $2 AND NOT is_read', [
+        req.user!.id,
+        link.slice(0, 300),
+      ]);
+    } else if (Array.isArray(ids) && ids.length) {
       const clean = ids
         .map(Number)
         .filter((n) => Number.isInteger(n) && n > 0)
