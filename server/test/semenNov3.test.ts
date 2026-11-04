@@ -129,6 +129,8 @@ describe('срок задачи, продление и контроль', () => 
     expect((await notices('golenkov', 'Вам поручили задачу: Смена ответственных')).length).toBe(1);
     const open = (await pool.query('SELECT assignee_id FROM task_steps WHERE task_id = $1 AND done_at IS NULL', [r.body.id])).rows.map((x) => x.assignee_id);
     expect(open.sort()).toEqual([users.kataev, users.golenkov].sort());
+    // снятый не остаётся в цепочке: ни шага, ни следа передачи
+    expect((await pool.query('SELECT 1 FROM task_steps WHERE task_id = $1 AND assignee_id = $2', [r.body.id, users.isakov])).rowCount).toBe(0);
     // пустой список нельзя
     expect((await semen.put(`/api/tasks/${r.body.id}`, body([]))).status).toBe(400);
   });

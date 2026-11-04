@@ -226,7 +226,8 @@ tasksRouter.put(
           [id, wanted, wanted[0]],
         );
         await db.query('DELETE FROM task_assignees WHERE task_id = $1 AND NOT (user_id = ANY ($2))', [id, wanted]);
-        await db.query(`UPDATE task_steps SET done_at = now() WHERE task_id = $1 AND assignee_id = ANY ($2) AND done_at IS NULL`, [id, removed]);
+        // Это исправление ошибки, а не передача: снятый с задачи не остаётся в цепочке (его незавершённый шаг удаляется)
+        await db.query(`DELETE FROM task_steps WHERE task_id = $1 AND assignee_id = ANY ($2) AND done_at IS NULL`, [id, removed]);
         for (const uid of added) {
           await db.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, uid]);
           await db.query(`INSERT INTO task_steps (task_id, assignee_id, from_user_id, due_at) VALUES ($1, $2, $3, $4)`, [
@@ -251,7 +252,7 @@ tasksRouter.put(
             userId: uid,
             type: 'task_handover',
             title: `Вас сняли с задачи: ${input.title}`,
-            body: `Ответственных изменил(а): ${req.user!.fullName}.`,
+            body: `Ответственных исправил(а): ${req.user!.fullName}.`,
             link: `/tasks?task=${id}`,
           });
         }
