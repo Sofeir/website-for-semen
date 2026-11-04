@@ -5,14 +5,19 @@ import { pluralRu, type ReminderSettings } from '@sd/shared';
 import { api, ApiError } from '@/api/http';
 import { useReminders } from '@/api/queries';
 import { Button, IconButton } from '@/ui/Button';
-import { WheelGroup } from '@/ui/DateTimeInput';
+import { NumberWheelField } from '@/ui/DateTimeInput';
 import { Card, CardHead, ErrorBox, Spinner } from '@/ui/Display';
+import { Select } from '@/ui/Form';
 import { useToast } from '@/ui/Toast';
 import s from './ReminderCard.module.css';
 
-const DAYS = Array.from({ length: 31 }, (_, i) => i);
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const MINUTES = Array.from({ length: 60 }, (_, i) => i);
+const range = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
+/** Единицы и какие числа в них можно выбрать: минуты 1–59, часы 1–23, дни 1–365. */
+const UNITS = [
+  { value: 1, label: 'минут', items: range(59) },
+  { value: 60, label: 'часов', items: range(23) },
+  { value: 1440, label: 'дней', items: range(365) },
+];
 
 /** «1440» → «1 день», «150» → «2 часа 30 минут», «15» → «15 минут». */
 export function reminderText(total: number): string {
@@ -36,13 +41,13 @@ export function ReminderCard() {
   const q = useReminders();
   const qc = useQueryClient();
   const toast = useToast();
-  const [days, setDays] = useState(0);
-  const [hours, setHours] = useState(0);
-  const [minutes, setMinutes] = useState(30);
+  const [amount, setAmount] = useState(30);
+  const [unit, setUnit] = useState(1);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const total = days * 1440 + hours * 60 + minutes;
+  const items = UNITS.find((u) => u.value === unit)!.items;
+  const total = amount * unit;
 
   const save = async (list: number[]) => {
     setBusy(true);
@@ -58,8 +63,7 @@ export function ReminderCard() {
   };
 
   const add = () => {
-    if (total < 1) return setError('Выберите, за сколько напомнить: хотя бы одна минута');
-    if (total > 43200) return setError('Не больше 30 дней');
+    if (total > 525600) return setError('Не больше года');
     if (q.data?.minutes.includes(total)) return setError('Такое напоминание уже есть');
     void save([...(q.data?.minutes ?? []), total]);
   };
@@ -110,20 +114,27 @@ export function ReminderCard() {
               <p className="muted">Напоминаний нет: уведомления придут только о просрочке.</p>
             )}
             <div className={s.add}>
-              <b>Новое напоминание</b>
-              <WheelGroup
-                columns={[
-                  { label: 'Дни', items: DAYS, value: days, onPick: setDays },
-                  { label: 'Часы', items: HOURS, value: hours, onPick: setHours },
-                  { label: 'Минуты', items: MINUTES, value: minutes, onPick: setMinutes },
-                ]}
-              />
-              <div className={s.addRow}>
-                <span className="muted">{total ? `Напомнить за ${reminderText(total)}` : 'Крутите колёсики, чтобы выбрать время'}</span>
-                <Button size="sm" icon={<Plus size={16} aria-hidden />} loading={busy} onClick={add}>
-                  Добавить
-                </Button>
-              </div>
+              <span>Напомнить за</span>
+              <NumberWheelField label="Сколько" value={amount} items={items} onChange={setAmount} />
+              <Select
+                aria-label="Единица"
+                value={unit}
+                onChange={(e) => {
+                  const next = Number(e.target.value);
+                  setUnit(next);
+                  const max = UNITS.find((u) => u.value === next)!.items.length;
+                  setAmount((a) => Math.min(a, max));
+                }}
+              >
+                {UNITS.map((u) => (
+                  <option key={u.value} value={u.value}>
+                    {u.label}
+                  </option>
+                ))}
+              </Select>
+              <Button size="sm" icon={<Plus size={16} aria-hidden />} loading={busy} onClick={add}>
+                Добавить
+              </Button>
             </div>
             {q.data?.custom && (
               <div>

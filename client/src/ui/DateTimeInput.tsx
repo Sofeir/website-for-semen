@@ -10,7 +10,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { useIsMobile } from '@/lib/hooks';
 import { cx } from './Button';
 import f from './Form.module.css';
@@ -268,22 +268,52 @@ function Wheel({
   );
 }
 
-/** Несколько колёс подряд (например, дни, часы, минуты): тот же выбор колесом мыши, пальцем и стрелками, что и во времени. */
-export function WheelGroup({
-  columns,
+/**
+ * Поле с числом: выглядит как обычное поле, по нажатию раскрывается колесо с числами, как у времени.
+ * Крутится колесом мыши, пальцем и стрелками; закрывается нажатием вне колеса, Enter, Escape или «Готово».
+ */
+export function NumberWheelField({
+  value,
+  onChange,
+  items,
+  label,
 }: {
-  columns: { label: string; items: number[]; value: number; onPick: (v: number) => void }[];
+  value: number;
+  onChange: (v: number) => void;
+  items: number[];
+  label: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Enter') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
   return (
-    <div className={s.wheelGroup} style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}>
-      {columns.map((c) => (
-        <div key={`l-${c.label}`} className={s.timeLabel}>
-          {c.label}
+    <div className={s.numWrap} ref={box}>
+      <button type="button" className={cx(f.control, s.numTrigger)} aria-label={label} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span>{value}</span>
+        <ChevronDown size={16} aria-hidden />
+      </button>
+      {open && (
+        <div className={s.numPop}>
+          <Wheel label={label} items={items} value={value} initial={items[0]} onPick={onChange} />
+          <button type="button" className={s.numDone} onClick={() => setOpen(false)}>
+            Готово
+          </button>
         </div>
-      ))}
-      {columns.map((c) => (
-        <Wheel key={c.label} label={c.label} items={c.items} value={c.value} initial={c.items[0]} onPick={c.onPick} />
-      ))}
+      )}
     </div>
   );
 }

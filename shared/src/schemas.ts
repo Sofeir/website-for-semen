@@ -595,7 +595,7 @@ export const DEFAULT_REMINDERS = [1440, 120, 15];
 
 /** Свой набор напоминаний: за сколько минут до срока напомнить. Можно любое число напоминаний. */
 export const reminderSettingsSchema = z.object({
-  minutes: z.array(z.coerce.number().int().min(1, 'Минимум 1 минута').max(43200, 'Не больше 30 дней')).max(50, 'Не больше 50 напоминаний'),
+  minutes: z.array(z.coerce.number().int().min(1, 'Минимум 1 минута').max(525600, 'Не больше года')).max(50, 'Не больше 50 напоминаний'),
 });
 export type ReminderSettingsInput = z.infer<typeof reminderSettingsSchema>;
 

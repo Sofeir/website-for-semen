@@ -22,14 +22,7 @@
 
 .add {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.addRow {
-  display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
 }
