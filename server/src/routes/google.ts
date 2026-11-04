@@ -34,6 +34,9 @@ googleRouter.put(
     if (!(await googleConfigured())) throw new HttpError(409, 'Сервер пока не подключён к Google: администратору нужно добавить ключ сервисного аккаунта');
     const calendarId = typeof req.body?.calendarId === 'string' ? req.body.calendarId.trim() : '';
     if (calendarId.length < 5 || calendarId.length > 200 || /\s/.test(calendarId)) throw new HttpError(400, 'Введите ID календаря: он выглядит как адрес почты');
+    // Календарь подключает один сотрудник: чужой, уже занятый коллегой, не принять
+    const taken = await one('SELECT 1 FROM users WHERE lower(google_calendar_id) = lower($1) AND id <> $2', [calendarId, req.user!.id]);
+    if (taken) throw new HttpError(409, 'Этот календарь уже подключён другим сотрудником');
     try {
       await googleCheckCalendar(calendarId);
     } catch (e) {

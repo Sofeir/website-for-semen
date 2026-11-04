@@ -102,6 +102,9 @@ describe('запись в Google Календарь', () => {
     const ok = await kataev.put('/api/me/google-calendar', { calendarId: 'open@example.com' });
     expect(ok.status).toBe(200);
     expect(ok.body.calendarId).toBe('open@example.com');
+    // тот же календарь коллеге не отдаём
+    const other = await loginAs('golenkov');
+    expect((await other.put('/api/me/google-calendar', { calendarId: 'OPEN@example.com' })).status).toBe(409);
     expect((await kataev.del('/api/me/google-calendar')).body.calendarId).toBeNull();
   });
 });
