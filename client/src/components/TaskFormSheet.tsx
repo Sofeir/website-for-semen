@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { inspectionKindOf, taskSchema, type Attachment, type TaskDetail, type TaskInput } from '@sd/shared';
-import { useAuth, useMe } from '@/app/auth';
+import { useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
 import { useClientDevices, useInvalidate, useSettings, useTaskKinds } from '@/api/queries';
 import { defaultDueDate, fmtWhen, startForDue } from '@/lib/dates';
@@ -44,7 +44,6 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
     return [...m.entries()];
   }, [clientDevices.data]);
   const me = useMe();
-  const { can } = useAuth();
   const settings = useSettings();
   const inv = useInvalidate();
   const toast = useToast();
@@ -109,8 +108,6 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
 
   // Крайний срок действующей задачи меняет только тот, кто подтверждает просрочку (директор)
   const lockedDue = Boolean(task && !me.confirmsOverdue);
-  // Ответственных у действующей задачи меняет постановщик или руководитель; исполнитель передаёт задачу
-  const lockedAssignees = Boolean(task && task.creatorId !== me.id && !can('tasks.manageAll'));
   const workStart = settings.data?.work.workStart ?? '10:00';
   const workEnd = settings.data?.work.workEnd ?? '19:00';
 
@@ -152,14 +149,14 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
         <Field
           label="Ответственные"
           error={errors.assigneeIds?.message as string | undefined}
-          hint={lockedAssignees ? 'Чтобы сменить ответственных, передайте задачу' : 'Отметьте одного или нескольких сотрудников: уведомления придут всем'}
+          hint={task ? 'Чтобы сменить ответственных, передайте задачу' : 'Отметьте одного или нескольких сотрудников: уведомления придут всем'}
           group
         >
           <Controller
             control={form.control}
             name="assigneeIds"
             render={({ field }) => (
-              <UserMultiSelect value={field.value ?? []} onChange={field.onChange} disabled={lockedAssignees} />
+              <UserMultiSelect value={field.value ?? []} onChange={field.onChange} disabled={Boolean(task)} />
             )}
           />
         </Field>

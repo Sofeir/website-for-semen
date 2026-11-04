@@ -195,11 +195,8 @@ tasksRouter.put(
     const outbox = new Outbox();
     const wanted = assigneeList(input).sort((a, b) => a - b);
     const current = [...t.assignee_ids].sort((a, b) => a - b);
-    const assigneesChanged = wanted.length !== current.length || wanted.some((x, i) => x !== current[i]);
-    if (assigneesChanged) {
-      if (!owner) throw new HttpError(403, 'Ответственных меняет постановщик или руководитель. Исполнитель передаёт задачу');
-      if (!wanted.length) throw new HttpError(400, 'Выберите ответственного');
-      if (t.stage_id) throw new HttpError(400, 'Это задача этапа заявки: передайте задачу или смените ответственного в самой заявке');
+    if (wanted.length !== current.length || wanted.some((x, i) => x !== current[i])) {
+      throw new HttpError(400, 'Чтобы сменить исполнителя, передайте задачу');
     }
     const due = await normalizeDue(pool, input.dueAt);
     // Крайний срок: сдвинуть его в любую сторону может только тот, кто подтверждает просрочку; остальные его не меняют.
@@ -214,51 +211,8 @@ tasksRouter.put(
                 ${dueChanged ? `${remindReset()},` : ''} updated_at = now() WHERE id = $1`,
         [id, input.title, input.description, input.startAt, dueChanged ? due : t.due_at, owner ? (input.kindId ?? null) : null, confirms && dueChanged],
       );
-      if (assigneesChanged) {
-        const added = wanted.filter((x) => !current.includes(x));
-        const removed = current.filter((x) => !wanted.includes(x));
-        const names = new Map<number, string>();
-        for (const uid of added) names.set(uid, (await assertActiveUser(db, uid)).full_name);
-        // главный ответственный остаётся прежним, если он в новом списке; иначе им становится первый из списка
-        await db.query(
-          `UPDATE tasks SET assignee_id = CASE WHEN assignee_id = ANY ($2) THEN assignee_id ELSE $3 END,
-                  ${added.length ? `${remindReset()},` : ''} updated_at = now() WHERE id = $1`,
-          [id, wanted, wanted[0]],
-        );
-        await db.query('DELETE FROM task_assignees WHERE task_id = $1 AND NOT (user_id = ANY ($2))', [id, wanted]);
-        await db.query(`UPDATE task_steps SET done_at = now() WHERE task_id = $1 AND assignee_id = ANY ($2) AND done_at IS NULL`, [id, removed]);
-        for (const uid of added) {
-          await db.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, uid]);
-          await db.query(`INSERT INTO task_steps (task_id, assignee_id, from_user_id, due_at) VALUES ($1, $2, $3, $4)`, [
-            id,
-            uid,
-            req.user!.id,
-            dueChanged ? due : t.due_at,
-          ]);
-          if (uid !== req.user!.id) {
-            outbox.add({
-              userId: uid,
-              type: 'task_assigned',
-              title: `Вам поручили задачу: ${input.title}`,
-              body: `От: ${req.user!.fullName}. Срок — ${formatDateTimeRu(dueChanged ? due : t.due_at)}.`,
-              link: `/tasks?task=${id}`,
-            });
-          }
-        }
-        for (const uid of removed) {
-          if (uid === req.user!.id) continue;
-          outbox.add({
-            userId: uid,
-            type: 'task_handover',
-            title: `Вас сняли с задачи: ${input.title}`,
-            body: `Ответственных изменил(а): ${req.user!.fullName}.`,
-            link: `/tasks?task=${id}`,
-          });
-        }
-        outbox.touch('tasks');
-      }
       if (input.watcherIds && owner) {
-        const want = [...new Set(input.watcherIds)].filter((w) => !wanted.includes(w));
+        const want = [...new Set(input.watcherIds)].filter((w) => !current.includes(w));
         for (const w of want) await assertActiveUser(db, w);
         const had = (await many<{ user_id: number }>('SELECT user_id FROM task_watchers WHERE task_id = $1', [id], db)).map((r) => r.user_id);
         await db.query('DELETE FROM task_watchers WHERE task_id = $1 AND NOT (user_id = ANY ($2))', [id, want]);

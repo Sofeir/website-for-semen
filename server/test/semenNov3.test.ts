@@ -108,31 +108,6 @@ describe('срок задачи, продление и контроль', () => 
     expect((await stas.put(`/api/tasks/${r.body.id}`, body)).status).toBe(409);
   });
 
-  it('постановщик меняет ответственных при правке: новым уведомление, снятым тоже, цепочка обновляется; исполнитель не может', async () => {
-    const { users } = await dict();
-    const semen = await loginAs('semen');
-    const stas = await loginAs('isakov');
-    const r = await semen.post('/api/tasks', { title: 'Смена ответственных', assigneeId: users.isakov, startAt: new Date().toISOString(), dueAt: inDays(2) });
-    const due = (await semen.get(`/api/tasks/${r.body.id}`)).body.dueAt;
-    const body = (ids: number[]) => ({ title: 'Смена ответственных', assigneeIds: ids, startAt: new Date().toISOString(), dueAt: due });
-    // исполнитель сам список не меняет
-    expect((await stas.put(`/api/tasks/${r.body.id}`, body([users.isakov, users.kataev]))).status).toBe(403);
-    // постановщик: добавляет Катаева, потом заменяет Исакова на Тафлевича
-    expect((await semen.put(`/api/tasks/${r.body.id}`, body([users.isakov, users.kataev]))).status).toBe(200);
-    expect((await semen.get(`/api/tasks/${r.body.id}`)).body.assigneeIds.sort()).toEqual([users.isakov, users.kataev].sort());
-    expect((await notices('kataev', 'Вам поручили задачу: Смена ответственных', 'task_assigned')).length).toBe(1);
-    expect((await semen.put(`/api/tasks/${r.body.id}`, body([users.kataev, users.golenkov]))).status).toBe(200);
-    const after = (await semen.get(`/api/tasks/${r.body.id}`)).body;
-    expect(after.assigneeIds.sort()).toEqual([users.kataev, users.golenkov].sort());
-    expect([users.kataev, users.golenkov]).toContain(after.assigneeId);
-    expect((await notices('isakov', 'Вас сняли с задачи: Смена ответственных')).length).toBe(1);
-    expect((await notices('golenkov', 'Вам поручили задачу: Смена ответственных')).length).toBe(1);
-    const open = (await pool.query('SELECT assignee_id FROM task_steps WHERE task_id = $1 AND done_at IS NULL', [r.body.id])).rows.map((x) => x.assignee_id);
-    expect(open.sort()).toEqual([users.kataev, users.golenkov].sort());
-    // пустой список нельзя
-    expect((await semen.put(`/api/tasks/${r.body.id}`, body([]))).status).toBe(400);
-  });
-
   it('файлы, загруженные до создания задачи, прикрепляются к ней', async () => {
     const { users } = await dict();
     const semen = await loginAs('semen');
