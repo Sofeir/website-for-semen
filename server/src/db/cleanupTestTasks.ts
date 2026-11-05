@@ -13,6 +13,7 @@ import { many, pool, tx } from './pool';
  * Запуск (на сервере): docker compose exec app npm run tasks:cleanup --workspace server -- [--before "2026-10-20 12:00"] [--delete]
  *   без параметров     только список групп и задач, ничего не меняется
  *   --before ДАТА      выбрать задачи, созданные раньше этого момента (время сервера)
+ *   --ids 68,69,106    выбрать задачи по номерам (№ из списка); можно вместе с --before
  *   --delete           удалить выбранные задачи вместе с их файлами, шагами цепочки и уведомлениями о них
  * Заявки, клиенты и техника не удаляются: скрипт только показывает номера заявок, к которым привязаны задачи.
  */
@@ -52,15 +53,22 @@ async function main() {
   }
 
   const before = value('--before');
-  if (before) {
-    const limit = new Date(before.replace(' ', 'T'));
-    if (Number.isNaN(limit.getTime())) throw new Error(`Не понял дату «${before}». Пример: --before "2026-10-20 12:00"`);
-    const picked = rows.filter((r) => r.created_at < limit);
-    console.log(`Создано раньше ${fmt(limit)}: ${picked.length} из ${rows.length} задач.\n`);
+  const idList = (value('--ids') ?? '')
+    .split(',')
+    .map((x) => Number(x.trim()))
+    .filter((x) => Number.isInteger(x) && x > 0);
+  if (before || idList.length) {
+    const limit = before ? new Date(before.replace(' ', 'T')) : null;
+    if (limit && Number.isNaN(limit.getTime())) throw new Error(`Не понял дату «${before}». Пример: --before "2026-10-20 12:00"`);
+    const isPicked = (r: Row) => Boolean((limit && r.created_at < limit) || idList.includes(r.id));
+    const picked = rows.filter(isPicked);
+    const missing = idList.filter((id) => !rows.some((r) => r.id === id));
+    if (missing.length) console.log(`Задач с номерами ${missing.join(', ')} нет.\n`);
+    console.log(`Выбрано: ${picked.length} из ${rows.length} задач${limit ? ` (создано раньше ${fmt(limit)})` : ''}${idList.length ? ` (по номерам: ${idList.join(', ')})` : ''}.\n`);
     for (const r of picked) {
       console.log(`  №${r.id}  ${fmt(r.created_at)}  [${r.status}]  ${r.title}  (поставил: ${r.creator}; исполнитель: ${r.assignees ?? '—'}${r.order_number ? `; заявка №${r.order_number}` : ''})`);
     }
-    const kept = rows.filter((r) => r.created_at >= limit);
+    const kept = rows.filter((r) => !isPicked(r));
     console.log(`\nОстанутся: ${kept.length} задач (самая ранняя из них создана ${kept.length ? fmt(kept[0].created_at) : '—'}).`);
     if (!flag('--delete')) {
       console.log('\nЭто просмотр. Чтобы удалить перечисленные задачи, добавьте флаг --delete.');

@@ -41,6 +41,22 @@ describe('чистка тестовых заявок', () => {
     expect((await pool.query('SELECT 1 FROM clients WHERE id = $1', [old.client_id])).rowCount).toBe(0);
   });
 
+  it('задачи, созданные с указанной даты, остаются и отвязываются от удалённой заявки', async () => {
+    const { users } = await dict();
+    const s = await loginAs('semen');
+    const oldOrder = await intakeLaptop(s, users.isakov, '+7 900 000-00-21');
+    const newOrder = await intakeLaptop(s, users.isakov, '+7 900 000-00-22');
+    await pool.query(`UPDATE tasks SET created_at = now() - interval '10 days' WHERE order_id = $1`, [oldOrder]);
+    const keepFrom = new Date(Date.now() - 5 * 86_400_000);
+    const keptId = (await pool.query('SELECT id FROM tasks WHERE order_id = $1', [newOrder])).rows[0].id as number;
+    const res = await deleteOrders([oldOrder, newOrder], { keepTasksFrom: keepFrom });
+    expect(res.keptTasks).toBeGreaterThan(0);
+    expect((await pool.query('SELECT 1 FROM tasks WHERE order_id = $1 OR order_id = $2', [oldOrder, newOrder])).rowCount).toBe(0);
+    const kept = (await pool.query('SELECT order_id, stage_id FROM tasks WHERE id = $1', [keptId])).rows[0];
+    expect(kept).toEqual({ order_id: null, stage_id: null });
+    expect((await pool.query('SELECT 1 FROM tasks WHERE created_at < $1', [keepFrom])).rowCount).toBe(0);
+  });
+
   it('не удаляет клиента, у которого остались заявки', async () => {
     const { users } = await dict();
     const s = await loginAs('semen');
