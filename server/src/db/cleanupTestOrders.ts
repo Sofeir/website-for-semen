@@ -1,6 +1,6 @@
 import { config } from '../config';
 import { pool } from './pool';
-import { clientsWithoutOrders, deleteClients, deleteOrders, listOrders } from '../services/testDataCleanup';
+import { clientsWithoutOrders, deleteClients, deleteOrders, listOrders, orderTasksSplit } from '../services/testDataCleanup';
 
 /**
  * Удаление тестовых заявок, оставшихся от начального наполнения базы (демо-история за год).
@@ -9,6 +9,7 @@ import { clientsWithoutOrders, deleteClients, deleteOrders, listOrders } from '.
  * Запуск (на сервере): docker compose exec app npm run orders:cleanup --workspace server -- [--below 001101] [--delete] [--clients 5,7] [--delete-clients]
  *   без параметров          список заявок по номерам и где в нумерации разрыв
  *   --below НОМЕР           выбрать заявки с номером меньше указанного (настоящие заявки начинаются с этого номера)
+ *   --keep-tasks-from ДАТА  задачи этих заявок, созданные с этого момента, не удалять: они отвяжутся от заявки и останутся в списке задач
  *   --delete                удалить выбранные заявки
  *   --clients СПИСОК        номера клиентов (id), которых нужно удалить после чистки заявок: показываются в конце вывода
  *   --delete-clients        подтвердить удаление клиентов из списка --clients
@@ -33,14 +34,19 @@ async function main() {
     if (!Number.isInteger(limit) || limit <= 0) throw new Error(`Не понял номер «${below}». Пример: --below 001101`);
     const picked = orders.filter((o) => Number(o.number) < limit);
     const kept = orders.filter((o) => Number(o.number) >= limit);
+    const keepRaw = value('--keep-tasks-from');
+    const keepFrom = keepRaw ? new Date(keepRaw.replace(' ', 'T')) : null;
+    if (keepFrom && Number.isNaN(keepFrom.getTime())) throw new Error(`Не понял дату «${keepRaw}». Пример: --keep-tasks-from "2026-11-02 00:00"`);
+    const split = await orderTasksSplit(picked.map((o) => o.id), keepFrom);
     console.log(`Заявок с номером меньше ${below}: ${picked.length} из ${orders.length}.\n`);
     for (const o of picked) console.log(`  №${o.number}  ${fmt(o.createdAt)}  [${o.stage}]  ${o.client}: ${o.device}`);
-    console.log(`\nОстанутся: ${kept.length}. Первая из них: ${kept[0] ? `№${kept[0].number} (${fmt(kept[0].createdAt)}, ${kept[0].client})` : '—'}.`);
+    console.log(`\nЗадач этих заявок уйдёт вместе с ними: ${split.remove}. Останется (отвяжутся от заявки): ${split.keep}.`);
+    console.log(`Заявок останется: ${kept.length}. Первая из них: ${kept[0] ? `№${kept[0].number} (${fmt(kept[0].createdAt)}, ${kept[0].client})` : '—'}.`);
     if (!flag('--delete')) {
       console.log('\nЭто просмотр. Проверьте список. Чтобы удалить перечисленные заявки, добавьте флаг --delete.');
     } else if (picked.length) {
-      const r = await deleteOrders(picked.map((o) => o.id));
-      console.log(`\nУдалено: заявок ${r.orders}, задач ${r.tasks}, записей работ и заправок ${r.works}, единиц техники ${r.devices}.`);
+      const r = await deleteOrders(picked.map((o) => o.id), { keepTasksFrom: keepFrom });
+      console.log(`\nУдалено: заявок ${r.orders}, задач ${r.tasks} (сохранено задач: ${r.keptTasks}), записей работ и заправок ${r.works}, единиц техники ${r.devices}.`);
     }
   } else if (orders.length) {
     console.log(`Всего заявок: ${orders.length}. Первая №${orders[0].number} (${fmt(orders[0].createdAt)}), последняя №${orders[orders.length - 1].number} (${fmt(orders[orders.length - 1].createdAt)}).\n`);

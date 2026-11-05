@@ -49,14 +49,30 @@ export async function clientsWithoutOrders(): Promise<LeftoverClient[]> {
   );
 }
 
+/** Сколько задач выбранных заявок уйдёт вместе с ними и сколько останется (созданные с keepFrom). */
+export async function orderTasksSplit(orderIds: number[], keepFrom: Date | null): Promise<{ remove: number; keep: number }> {
+  const rows = await many<{ created_at: Date }>('SELECT created_at FROM tasks WHERE order_id = ANY ($1)', [orderIds]);
+  const keep = keepFrom ? rows.filter((r) => r.created_at >= keepFrom).length : 0;
+  return { remove: rows.length - keep, keep };
+}
+
 /**
  * Удаляет заявки по списку вместе со всем, что от них зависит: история этапов, акты, задачи (с файлами, шагами цепочки,
  * уведомлениями и напоминаниями), записи работ и заправок по этим заявкам. Файлы заявок стираются с диска.
  * Техника, у которой после этого нет ни заявок, ни записей работ, тоже удаляется. Клиенты не трогаются.
  */
-export async function deleteOrders(orderIds: number[], db?: PoolClient): Promise<{ orders: number; tasks: number; works: number; devices: number }> {
-  if (!orderIds.length) return { orders: 0, tasks: 0, works: 0, devices: 0 };
+export async function deleteOrders(
+  orderIds: number[],
+  opts: { keepTasksFrom?: Date | null } = {},
+  db?: PoolClient,
+): Promise<{ orders: number; tasks: number; keptTasks: number; works: number; devices: number }> {
+  if (!orderIds.length) return { orders: 0, tasks: 0, keptTasks: 0, works: 0, devices: 0 };
+  const keepFrom = opts.keepTasksFrom ?? null;
   const run = async (c: PoolClient) => {
+    // Задачи, созданные с указанного момента, остаются: их только отвязывают от заявки, чтобы они не ушли вместе с ней
+    const kept = keepFrom
+      ? await c.query('UPDATE tasks SET order_id = NULL, stage_id = NULL WHERE order_id = ANY ($1) AND created_at >= $2', [orderIds, keepFrom])
+      : { rowCount: 0 };
     const taskIds = (await c.query<{ id: number }>('SELECT id FROM tasks WHERE order_id = ANY ($1)', [orderIds])).rows.map((r) => r.id);
     const deviceIds = (await c.query<{ device_id: number }>('SELECT DISTINCT device_id FROM orders WHERE id = ANY ($1)', [orderIds])).rows.map(
       (r) => r.device_id,
@@ -79,7 +95,7 @@ export async function deleteOrders(orderIds: number[], db?: PoolClient): Promise
       [deviceIds],
     );
     for (const f of stored) fs.rmSync(path.join(config.uploadDir, path.basename(f)), { force: true });
-    return { orders: orderIds.length, tasks: taskIds.length, works: works.rowCount ?? 0, devices: devices.rowCount ?? 0 };
+    return { orders: orderIds.length, tasks: taskIds.length, keptTasks: kept.rowCount ?? 0, works: works.rowCount ?? 0, devices: devices.rowCount ?? 0 };
   };
   return db ? run(db) : tx(run);
 }
