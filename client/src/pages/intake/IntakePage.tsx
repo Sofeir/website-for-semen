@@ -24,10 +24,9 @@ import { dueDaysFor } from '@/lib/stages';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
 import { ClientPicker } from '@/components/ClientPicker';
 import { ContactPicker } from '@/components/ContactPicker';
-import { FleetEditor, emptyFleetRow, fleetTotals } from '@/components/FleetEditor';
 import { DueInput, UserSelect } from '@/components/Pickers';
 import { Button } from '@/ui/Button';
-import { Accordion, Card, ErrorBox, PageHeader, Spinner } from '@/ui/Display';
+import { Card, ErrorBox, PageHeader, Spinner } from '@/ui/Display';
 import { Field, Input, Segmented, Textarea, formStyles } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
@@ -222,7 +221,8 @@ export default function IntakePage() {
           contactId: kind === 'legal' ? (contact?.id ?? null) : null,
           requesterName: kind === 'legal' ? (contact?.fullName ?? values.requesterName) : null,
           attachmentIds: files.map((f) => f.id),
-          fleet: kind === 'legal' && fleet ? fleet.filter((r) => r.department.trim()) : null,
+          // Чек-лист парка при приёме не меняем: он заполняется в карточке организации
+          fleet: null,
         };
         const r = await api.post<IntakeResult>('/intake', payload as any);
         inv('orders', 'dashboard', 'clients', 'tasks');
@@ -269,6 +269,8 @@ export default function IntakePage() {
   const responsibleId = useWatch({ control, name: 'responsibleId' });
   const newClient = useWatch({ control, name: 'newClient' });
   const summaryClient = client?.name || (mode === 'new' ? newClient?.name : '') || '';
+  // Картриджи сразу идут в работу (заправка), без диагностики
+  const allCartridges = !!watchedDevices?.length && watchedDevices.every((d) => d.cartridge);
   const departments = useMemo(() => (fleet ?? []).map((r) => r.department).filter(Boolean), [fleet]);
 
   if (!dict.data) return <Spinner />;
@@ -422,25 +424,14 @@ export default function IntakePage() {
             )}
           </Card>
 
-          {kind === 'legal' && (
-            <Card>
-              <Accordion
-                title={<span className={s.accTitle}>Чек-лист парка техники</span>}
-                meta={fleet?.length ? `${fleetTotals(fleet).pc} ПК, ${fleetTotals(fleet).mfu} МФУ` : 'не заполнен'}
-              >
-                <FleetEditor rows={fleet ?? [emptyFleetRow()]} onChange={setFleet} />
-              </Accordion>
-            </Card>
-          )}
-
           <Card>
             <h2 className={s.sectionTitle}>
               <span className={s.sectionNum}>03</span>
-              Диагностика
+              {allCartridges ? 'В работу' : 'Диагностика'}
             </h2>
             <div className="stack">
               <div className={formStyles.grid2}>
-                <Field label="Ответственный" error={errors.responsibleId?.message}>
+                <Field label={allCartridges ? 'Исполнитель' : 'Ответственный'} error={errors.responsibleId?.message}>
                   <UserSelect {...register('responsibleId')} preferRoles={['diagnostician', 'master']} />
                 </Field>
                 <Field
@@ -501,7 +492,7 @@ export default function IntakePage() {
               )}
               <dt>Техника</dt>
               <dd>{deviceNames.length ? deviceNames.join(', ') : <span className={s.missing}>тип не выбран</span>}</dd>
-              <dt>Диагностика</dt>
+              <dt>{allCartridges ? 'Исполнитель' : 'Диагностика'}</dt>
               <dd>{responsibleName ?? '—'}</dd>
             </dl>
           </div>

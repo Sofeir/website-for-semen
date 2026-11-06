@@ -19,8 +19,10 @@ describe('приём техники инженером', () => {
       dueAt: inDays(1),
       fleet: [{ department: 'Бухгалтерия', pcCount: 3, mfuCount: 1 }],
     };
-    const denied = await stas.post('/api/intake', { ...base, clientId: org.body.id });
-    expect(denied.status).toBe(403);
+    // Приём не блокируется, но парк организации от инженера не меняется
+    const withFleet = await stas.post('/api/intake', { ...base, clientId: org.body.id });
+    expect(withFleet.status).toBe(201);
+    expect((await pool.query('SELECT 1 FROM fleet_rows WHERE client_id = $1', [org.body.id])).rowCount).toBe(0);
     const plain = await stas.post('/api/intake', { ...base, clientId: org.body.id, fleet: null });
     expect(plain.status).toBe(201);
   });
