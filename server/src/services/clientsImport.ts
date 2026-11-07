@@ -29,7 +29,7 @@ export interface SkippedRow {
 export interface ImportPlan {
   create: NewClient[];
   skipped: SkippedRow[];
-  /** Серые строки: пропущены, потому что организации больше нет. */
+  /** Сколько серых строк (организаций, которых в 1С уже нет) попало в файл. По решению заказчика добавляются тоже; skipGray их пропускает. */
   gray: number;
   /** Клиенты, у которых ИНН не из 10/12 цифр или КПП не из 9 (в 1С цифры потерялись): записаны как в файле, без достройки. */
   unusual: string[];
@@ -44,9 +44,10 @@ const clean = (v: unknown) => String(v ?? '').replace(/\s+/g, ' ').trim();
 /** Ключ для сравнения названий: без регистра, кавычек и пробелов. */
 const nameKey = (v: string) => v.toLowerCase().replace(/[\s"«»“”„'.,]/g, '');
 
-export async function readCounterparties(file: string): Promise<CounterpartyRow[]> {
+export async function readCounterparties(source: string | Buffer): Promise<CounterpartyRow[]> {
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(file);
+  if (typeof source === 'string') await wb.xlsx.readFile(source);
+  else await wb.xlsx.load(source as any);
   const ws = wb.worksheets[0];
   if (!ws) throw new Error('В файле нет листов');
   const head = HEADERS.map((_, i) => clean(ws.getRow(1).getCell(i + 1).text));
@@ -74,10 +75,10 @@ export function digitsOnly(raw: string): string | null {
 export const looksLikePhone = (raw: string) => /[+()]/.test(raw);
 
 /**
- * Решает, кого заводить. Серые строки (организации больше нет) пропускаются. Не создаёт клиента, если такой ИНН уже есть
+ * Решает, кого заводить: все строки, в том числе серые (так решил заказчик; skipGray их пропускает). Не создаёт клиента, если такой ИНН уже есть
  * в базе или раньше в файле (в сервисе юрлицо ищется по ИНН), и если уже есть клиент с таким же названием.
  */
-export async function planClientsImport(rows: CounterpartyRow[], db?: Db, opts: { onlyGray?: boolean } = {}): Promise<ImportPlan> {
+export async function planClientsImport(rows: CounterpartyRow[], db?: Db, opts: { skipGray?: boolean } = {}): Promise<ImportPlan> {
   const existing = await many<{ id: number; name: string; inn: string | null }>('SELECT id, name, inn FROM clients', [], db);
   const byInn = new Map<string, string>();
   const byName = new Map<string, string>();
@@ -87,10 +88,9 @@ export async function planClientsImport(rows: CounterpartyRow[], db?: Db, opts: 
   }
   const plan: ImportPlan = { create: [], skipped: [], gray: 0, unusual: [] };
   for (const r of rows) {
-    // Серые строки обычно пропускаем; с onlyGray наоборот: заводим только их
-    if (r.gray !== !!opts.onlyGray) {
-      if (r.gray) plan.gray++;
-      continue;
+    if (r.gray) {
+      plan.gray++;
+      if (opts.skipGray) continue;
     }
     const phone = looksLikePhone(r.inn);
     const inn = phone ? r.inn : digitsOnly(r.inn);

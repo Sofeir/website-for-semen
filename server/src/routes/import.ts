@@ -3,11 +3,12 @@ import path from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
 import ExcelJS from 'exceljs';
-import { importCommitSchema, IMPORT_FIELDS, normalizePhone, type ImportField, type ImportPreview } from '@sd/shared';
+import { importCommitSchema, IMPORT_FIELDS, normalizePhone, type CounterpartiesPreview, type ImportField, type ImportPreview } from '@sd/shared';
 import { many, one, tx } from '../db/pool';
 import { h, HttpError, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { broadcast } from '../notify/hub';
+import { importClients, planClientsImport, readCounterparties, type CounterpartyRow } from '../services/clientsImport';
 
 export const importRouter = Router();
 
@@ -260,5 +261,60 @@ importRouter.post(
     pending.delete(input.token);
     broadcast('changed', { scopes: ['clients'] });
     res.json(stats);
+  }),
+);
+
+/** Разобранные планы загрузки контрагентов ждут подтверждения 30 минут. */
+const pendingCounterparties = new Map<string, { userId: number; rows: CounterpartyRow[]; expires: number }>();
+
+/**
+ * Загрузка контрагентов из выгрузки 1С (колонки: «Наименование в программе», ИНН, КПП, «Ответственный», «Полное наименование»).
+ * Сначала просмотр, ничего не пишется. Потом подтверждение: клиенты добавляются одной операцией.
+ */
+importRouter.post(
+  '/import/counterparties/preview',
+  requirePermission('import.run'),
+  upload.single('file'),
+  h(async (req, res) => {
+    const file = req.file;
+    if (!file) throw new HttpError(400, 'Выберите файл Excel (.xlsx)');
+    if (path.extname(file.originalname).toLowerCase() !== '.xlsx') throw new HttpError(400, 'Подходит только файл .xlsx');
+    let rows;
+    try {
+      rows = await readCounterparties(file.buffer);
+    } catch (e) {
+      throw new HttpError(400, (e as Error).message.startsWith('Первая строка') ? (e as Error).message : 'Не удалось прочитать файл. Это должна быть выгрузка контрагентов из 1С в .xlsx');
+    }
+    if (!rows.length) throw new HttpError(400, 'В файле нет строк с данными');
+    const plan = await planClientsImport(rows);
+    const token = crypto.randomBytes(16).toString('hex');
+    for (const [k, v] of pendingCounterparties) if (v.expires < Date.now()) pendingCounterparties.delete(k);
+    pendingCounterparties.set(token, { userId: req.user!.id, rows, expires: Date.now() + 30 * 60_000 });
+    const preview: CounterpartiesPreview = {
+      token,
+      totalRows: rows.length,
+      gray: plan.gray,
+      willCreate: plan.create.length,
+      skipped: plan.skipped,
+      unusual: plan.unusual,
+    };
+    res.json(preview);
+  }),
+);
+
+importRouter.post(
+  '/import/counterparties/commit',
+  requirePermission('import.run'),
+  h(async (req, res) => {
+    const token = typeof req.body?.token === 'string' ? req.body.token : '';
+    const job = pendingCounterparties.get(token);
+    if (!job || job.userId !== req.user!.id || job.expires < Date.now()) {
+      throw new HttpError(410, 'Файл устарел. Загрузите его ещё раз.');
+    }
+    // Пока файл ждал, клиентов могли добавить вручную, поэтому дубли проверяем заново
+    const created = await importClients(await planClientsImport(job.rows));
+    pendingCounterparties.delete(token);
+    broadcast('changed', { scopes: ['clients'] });
+    res.json({ created });
   }),
 );

@@ -9,11 +9,10 @@ import { importClients, planClientsImport, readCounterparties } from '../service
  *   без --apply   только просмотр: сколько клиентов добавится, кого пропустят и почему
  *   --apply       добавить клиентов (одной операцией: либо все, либо ни одного)
  *   --all         в просмотре показать и список всех новых клиентов
- *   --only-gray   наоборот: добавить только серые строки (организации, которых больше нет), остальные пропустить
+ *   --skip-gray   не добавлять серые строки (организации, которых в 1С больше нет); по умолчанию добавляются все
  * Файл должен быть внутри контейнера: docker compose cp контрагенты.xlsx app:/tmp/kontragenty.xlsx
  * Все контрагенты заводятся как юрлица: название из «Наименования в программе», ИНН и КПП из файла (только цифры,
  * недостающие цифры не достраиваются), «Полное наименование» уходит в заметку, если отличается от названия.
- * Серые строки файла (организации больше нет) пропускаются.
  * Клиента пропускают, если его ИНН или название уже есть в базе (или раньше в файле): ИНН у юрлица в сервисе должен быть один.
  */
 const args = process.argv.slice(2);
@@ -23,8 +22,8 @@ async function main() {
   const file = args.find((a) => !a.startsWith('--'));
   if (!file) throw new Error('Укажите файл: npm run clients:import --workspace server -- /tmp/kontragenty.xlsx');
   const rows = await readCounterparties(path.resolve(file));
-  const plan = await planClientsImport(rows, undefined, { onlyGray: flag('--only-gray') });
-  console.log(`Строк в файле: ${rows.length}. Серых (пропущены, организации нет): ${plan.gray}. Будет добавлено клиентов: ${plan.create.length}. Пропущено как дубли: ${plan.skipped.length}.\n`);
+  const plan = await planClientsImport(rows, undefined, { skipGray: flag('--skip-gray') });
+  console.log(`Строк в файле: ${rows.length}. Из них серых: ${plan.gray}. Будет добавлено клиентов: ${plan.create.length}. Пропущено как дубли: ${plan.skipped.length}.\n`);
 
   if (plan.skipped.length) {
     console.log('Пропущены (клиент уже есть, добавьте вручную, если это другая организация):');

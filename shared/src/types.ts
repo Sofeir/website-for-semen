@@ -690,6 +690,18 @@ export interface ImportPreview {
   suggested: Record<string, number>;
 }
 
+/** Просмотр загрузки контрагентов из выгрузки 1С: что добавится и что пропустят. */
+export interface CounterpartiesPreview {
+  token: string;
+  totalRows: number;
+  /** Серых строк в файле (организации, которых в 1С уже нет); они добавляются тоже. */
+  gray: number;
+  willCreate: number;
+  skipped: { line: number; name: string; reason: string }[];
+  /** Добавятся, но ИНН не из 10/12 цифр или КПП не из 9: цифры записаны как в файле. */
+  unusual: string[];
+}
+
 export interface Paged<T> {
   items: T[];
   total: number;
