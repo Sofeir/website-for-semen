@@ -78,6 +78,17 @@ export function assigneeList(input: { assigneeId?: number; assigneeIds?: number[
   return [...new Set([...(input.assigneeIds ?? []), ...(input.assigneeId ? [input.assigneeId] : [])])];
 }
 
+/**
+ * Уведомления «просрочена» по задачам, которые больше не просрочены (закрыты или срок перенесён вперёд), отмечаем прочитанными:
+ * красный счётчик не должен висеть из-за устаревшего уведомления. Сами уведомления остаются, в них видно нынешнее состояние задачи.
+ */
+export async function settleOverdueNotices(db: Db, taskIds: number[]) {
+  if (!taskIds.length) return;
+  await db.query(`UPDATE notifications SET is_read = true WHERE type = 'task_overdue' AND NOT is_read AND link = ANY ($1)`, [
+    taskIds.map((id) => `/tasks?task=${id}`),
+  ]);
+}
+
 /** Задача целиком переходит одному сотруднику: он становится единственным ответственным, срок и напоминания обновляются. */
 export async function moveTask(db: Db, taskId: number, userId: number, due: Date) {
   await db.query(
@@ -86,6 +97,7 @@ export async function moveTask(db: Db, taskId: number, userId: number, due: Date
     [taskId, userId, due],
   );
   await db.query('DELETE FROM task_assignees WHERE task_id = $1 AND user_id <> $2', [taskId, userId]);
+  if (due.getTime() > Date.now()) await settleOverdueNotices(db, [taskId]);
 }
 
 export async function createTask(
@@ -230,6 +242,7 @@ export async function closeTasks(
     });
   }
   for (const id of ids) if (!rows.find((r) => r.id === id)) skipped.push(id);
+  await settleOverdueNotices(db, closed);
   outbox.touch('tasks');
   return { closed, skipped, needConfirm };
 }

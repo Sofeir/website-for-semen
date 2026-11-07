@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRightLeft, CalendarClock, Check, Pencil, RotateCcw, Send, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, CalendarClock, Check, ClipboardList, Pencil, RotateCcw, Send, Trash2 } from 'lucide-react';
 import type { TaskStep } from '@sd/shared';
 import { useAuth, useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
 import { useCloseTasks, useInvalidate, useMarkSeen, useSettings, useTask, useTransferTask } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
-import { Button } from '@/ui/Button';
+import { Button, ButtonLink } from '@/ui/Button';
 import { DescList, ErrorBox, Pill, Spinner } from '@/ui/Display';
 import { Checkbox, Field, Textarea } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
@@ -230,6 +230,11 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
     } else if (mode === 'view') {
       footer = (
         <>
+          {task.isStageTask && task.orderId && can('workspace.view') && (
+            <ButtonLink to={`/orders/${task.orderId}`} icon={<ClipboardList size={18} aria-hidden />}>
+              Открыть заявку №{task.orderNumber}
+            </ButtonLink>
+          )}
           <Button variant="secondary" icon={<ArrowRightLeft size={18} aria-hidden />} onClick={() => setMode('transfer')}>
             Передать
           </Button>
@@ -379,6 +384,12 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
             )}
             {mode === 'view' && (
               <>
+                {task.status === 'open' && task.isStageTask && task.orderId && can('workspace.view') && (
+                  <p className={s.stageHint}>
+                    Это задача этапа заявки №{task.orderNumber}. Чтобы выполнить этап (например, согласовать), откройте заявку и переведите её дальше:
+                    задача закроется сама. Закрывать её здесь не нужно.
+                  </p>
+                )}
                 {task.description && <p className={s.desc}>{task.description}</p>}
                 <DescList
                   items={[

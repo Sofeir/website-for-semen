@@ -19,6 +19,7 @@ import {
   reopenTask,
   requestTaskClose,
   requestTaskExtension,
+  settleOverdueNotices,
   EXTEND_MESSAGE,
   TASK_ROW_FIELDS,
   transferTask,
@@ -216,6 +217,7 @@ tasksRouter.put(
                 ${dueChanged ? `${remindReset()},` : ''} updated_at = now() WHERE id = $1`,
         [id, input.title, input.description, input.startAt, dueChanged ? due : t.due_at, owner ? (input.kindId ?? null) : null, confirms && dueChanged],
       );
+      if (dueChanged && due.getTime() > Date.now()) await settleOverdueNotices(db, [id]);
       if (assigneesChanged) {
         const added = wanted.filter((x) => !current.includes(x));
         const removed = current.filter((x) => !wanted.includes(x));
