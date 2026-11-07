@@ -19,12 +19,14 @@ import {
   reopenTask,
   requestTaskClose,
   requestTaskExtension,
+  settleOverdueNotices,
   EXTEND_MESSAGE,
   TASK_ROW_FIELDS,
   transferTask,
 } from '../services/tasks';
 import { reassignOrder } from '../services/orders';
-import { isAssignee, isWatcher, likeEscape, TASK_SELECT } from '../services/sql';
+import { deleteTasksForever } from '../services/testDataCleanup';
+import { isAssignee, isWatcher, likeEscape, TASK_AWAITING_ISSUE, TASK_OVERDUE, TASK_SELECT } from '../services/sql';
 import { assertTaskVisible } from '../services/access';
 import { runServicePlansSoon } from '../services/servicePlans';
 import { formatDateTimeRu } from '../services/workTime';
@@ -67,7 +69,8 @@ tasksRouter.get(
     const status = String(req.query.status || 'open');
     if (status === 'open') where.push(`t.status = 'open'`);
     else if (status === 'done') where.push(`t.status <> 'open'`);
-    if (req.query.overdue === '1') where.push(`t.status = 'open' AND (t.due_at < now() OR t.was_overdue)`);
+    if (req.query.overdue === '1') where.push(TASK_OVERDUE);
+    if (req.query.awaiting === '1') where.push(TASK_AWAITING_ISSUE);
     if (req.query.from && req.query.to) {
       add((p) => `t.due_at >= ${p}`, new Date(String(req.query.from)));
       add((p) => `t.due_at < ${p}`, new Date(String(req.query.to)));
@@ -214,6 +217,7 @@ tasksRouter.put(
                 ${dueChanged ? `${remindReset()},` : ''} updated_at = now() WHERE id = $1`,
         [id, input.title, input.description, input.startAt, dueChanged ? due : t.due_at, owner ? (input.kindId ?? null) : null, confirms && dueChanged],
       );
+      if (dueChanged && due.getTime() > Date.now()) await settleOverdueNotices(db, [id]);
       if (assigneesChanged) {
         const added = wanted.filter((x) => !current.includes(x));
         const removed = current.filter((x) => !wanted.includes(x));
@@ -324,6 +328,26 @@ tasksRouter.post(
   }),
 );
 
+/**
+ * Удалить закрытую задачу навсегда (директор и администратор). Вместе с ней уходят файлы, цепочка, уведомления; из отчётов она пропадает.
+ * Открытую задачу не удаляем: её сначала закрывают.
+ */
+tasksRouter.delete(
+  '/tasks/:id',
+  requirePermission('tasks.manageAll'),
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const t = await one<{ status: string }>('SELECT status FROM tasks WHERE id = $1', [id]);
+    if (!t) throw new HttpError(404, 'Задача не найдена');
+    if (t.status === 'open') throw new HttpError(409, 'Удалить можно только закрытую задачу. Сначала закройте её');
+    await deleteTasksForever([id]);
+    const outbox = new Outbox();
+    outbox.touch('tasks', 'dashboard');
+    await outbox.flush();
+    res.json({ ok: true });
+  }),
+);
+
 tasksRouter.post(
   '/tasks/:id/reopen',
   h(async (req, res) => {
@@ -342,6 +366,7 @@ tasksRouter.post(
     const id = intParam(req.params.id);
     const input = parse(transferTaskSchema, req.body);
     const outbox = new Outbox();
+    let requested = false;
     await tx(async (db) => {
       const t = await one<{ order_id: number | null; stage_id: number | null; status: string; due_at: Date }>(
         `SELECT t.order_id, t.stage_id, t.status, t.due_at FROM tasks t WHERE t.id = $1`,
@@ -349,8 +374,18 @@ tasksRouter.post(
         db,
       );
       if (!t) throw new HttpError(404, 'Задача не найдена');
-      // Передать задачу можно, но срок отодвинуть при этом нельзя: продление согласует директор.
-      await assertDueNotLater(db, req.user!, t.due_at, await normalizeDue(db, input.dueAt));
+      const due = await normalizeDue(db, input.dueAt);
+      if (input.assigneeId === req.user!.id) {
+        // Себе передать может любой. Срок при этом можно сдвинуть, пока он не прошёл; у просроченной задачи срок согласует директор.
+        if (t.status === 'open' && t.due_at.getTime() < Date.now() && !(await canConfirmOverdue(db, req.user!.id))) {
+          await requestTaskExtension(db, req.user!, id, due, input.comment, outbox);
+          requested = true;
+          return;
+        }
+      } else {
+        // Передать другому можно, но срок отодвинуть при этом нельзя: продление согласует директор.
+        await assertDueNotLater(db, req.user!, t.due_at, due);
+      }
       const order = t.order_id
         ? await one<{ stage_id: number }>('SELECT stage_id FROM orders WHERE id = $1', [t.order_id], db)
         : null;
@@ -367,7 +402,7 @@ tasksRouter.post(
       }
     });
     await outbox.flush();
-    res.json({ ok: true });
+    res.json({ ok: true, requested });
   }),
 );
 

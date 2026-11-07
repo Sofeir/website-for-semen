@@ -3,6 +3,7 @@ import { many, one, type Db } from '../db/pool';
 import { forbidden, HttpError } from '../lib/http';
 import type { Notice, Outbox } from '../notify/notify';
 import { getWorkSettings } from './settings';
+import { TASK_AWAITING_ISSUE } from './sql';
 import { clampToWorkEnd, formatDateTimeRu } from './workTime';
 
 export interface Actor {
@@ -77,6 +78,17 @@ export function assigneeList(input: { assigneeId?: number; assigneeIds?: number[
   return [...new Set([...(input.assigneeIds ?? []), ...(input.assigneeId ? [input.assigneeId] : [])])];
 }
 
+/**
+ * Уведомления «просрочена» по задачам, которые больше не просрочены (закрыты или срок перенесён вперёд), отмечаем прочитанными:
+ * красный счётчик не должен висеть из-за устаревшего уведомления. Сами уведомления остаются, в них видно нынешнее состояние задачи.
+ */
+export async function settleOverdueNotices(db: Db, taskIds: number[]) {
+  if (!taskIds.length) return;
+  await db.query(`UPDATE notifications SET is_read = true WHERE type = 'task_overdue' AND NOT is_read AND link = ANY ($1)`, [
+    taskIds.map((id) => `/tasks?task=${id}`),
+  ]);
+}
+
 /** Задача целиком переходит одному сотруднику: он становится единственным ответственным, срок и напоминания обновляются. */
 export async function moveTask(db: Db, taskId: number, userId: number, due: Date) {
   await db.query(
@@ -85,6 +97,7 @@ export async function moveTask(db: Db, taskId: number, userId: number, due: Date
     [taskId, userId, due],
   );
   await db.query('DELETE FROM task_assignees WHERE task_id = $1 AND user_id <> $2', [taskId, userId]);
+  if (due.getTime() > Date.now()) await settleOverdueNotices(db, [taskId]);
 }
 
 export async function createTask(
@@ -197,7 +210,7 @@ export async function closeTasks(
 ) {
   const rows = (
     await db.query<TaskRow & { overdue: boolean }>(
-      `SELECT ${TASK_ROW_FIELDS}, (t.due_at < now() OR t.was_overdue) AS overdue FROM tasks t WHERE t.id = ANY ($1) FOR UPDATE OF t`,
+      `SELECT ${TASK_ROW_FIELDS}, ((t.due_at < now() OR t.was_overdue) AND NOT ${TASK_AWAITING_ISSUE}) AS overdue FROM tasks t WHERE t.id = ANY ($1) FOR UPDATE OF t`,
       [ids],
     )
   ).rows;
@@ -229,6 +242,7 @@ export async function closeTasks(
     });
   }
   for (const id of ids) if (!rows.find((r) => r.id === id)) skipped.push(id);
+  await settleOverdueNotices(db, closed);
   outbox.touch('tasks');
   return { closed, skipped, needConfirm };
 }
@@ -236,7 +250,7 @@ export async function closeTasks(
 /** Запрос: подтвердите закрытие просроченной задачи. Получает только тот, кто подтверждает просрочку. */
 export async function requestTaskClose(db: Db, actor: Actor, id: number, comment: string, outbox: Outbox) {
   const t = await one<TaskRow & { overdue: boolean }>(
-    `SELECT ${TASK_ROW_FIELDS}, (t.due_at < now() OR t.was_overdue) AS overdue FROM tasks t WHERE t.id = $1`,
+    `SELECT ${TASK_ROW_FIELDS}, ((t.due_at < now() OR t.was_overdue) AND NOT ${TASK_AWAITING_ISSUE}) AS overdue FROM tasks t WHERE t.id = $1`,
     [id],
     db,
   );
@@ -322,7 +336,10 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
   if (!t) throw new HttpError(404, 'Задача не найдена');
   if (!canTouchTask(actor, t)) throw forbidden();
   if (t.status !== 'open') throw new HttpError(409, 'Задача уже закрыта');
-  if (t.assignee_ids.length === 1 && t.assignee_ids[0] === input.assigneeId) throw new HttpError(400, 'Задача уже у этого сотрудника');
+  // Себе задачу передать можно: так исполнитель переносит свой срок и оставляет запись в цепочке. Другому — только если задача ещё не у него.
+  if (input.assigneeId !== actor.id && t.assignee_ids.length === 1 && t.assignee_ids[0] === input.assigneeId) {
+    throw new HttpError(400, 'Задача уже у этого сотрудника');
+  }
   const next = await assertActiveUser(db, input.assigneeId);
   const due = await normalizeDue(db, input.dueAt);
   await db.query(`UPDATE task_steps SET done_at = now() WHERE task_id = $1 AND done_at IS NULL`, [id]);

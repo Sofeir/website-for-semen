@@ -44,7 +44,7 @@ ordersRouter.get(
     if (req.query.mine === '1') add((p) => `o.responsible_id = ${p}`, req.user!.id);
     if (req.query.kind === 'person' || req.query.kind === 'legal') add((p) => `c.kind = ${p}`, req.query.kind);
     if (req.query.client) add((p) => `o.client_id = ${p}`, Number(req.query.client));
-    if (req.query.overdue === '1') where.push(`o.stage_due_at < now() AND NOT s.is_final`);
+    if (req.query.overdue === '1') where.push(`o.stage_due_at < now() AND NOT s.is_final AND s.code <> 'ready'`);
     // По умолчанию выданные показываем только за последние 14 дней, чтобы список не разрастался.
     if (req.query.issued === 'all') {
       /* все */

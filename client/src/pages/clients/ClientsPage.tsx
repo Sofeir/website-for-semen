@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Building2, Search, UserPlus, UserRound, Users } from 'lucide-react';
+import { Building2, FileSpreadsheet, Search, UserPlus, UserRound, Users } from 'lucide-react';
 import { formatPhone } from '@sd/shared';
 import { useAuth } from '@/app/auth';
 import { useClients } from '@/api/queries';
 import { useDebounced, useDocumentTitle, useIsDesktop } from '@/lib/hooks';
 import { ClientFormSheet } from '@/components/ClientFormSheet';
+import { CounterpartiesImportSheet } from '@/components/CounterpartiesImportSheet';
 import { ArrowLink, Button } from '@/ui/Button';
 import { Card, EmptyState, ErrorBox, PageHeader, Pill, Spinner, Tabs } from '@/ui/Display';
 import { Input } from '@/ui/Form';
@@ -23,6 +24,7 @@ export default function ClientsPage() {
   const [q, setQ] = useState('');
   const [limit, setLimit] = useState(PAGE);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const dq = useDebounced(q.trim(), 250);
   const clients = useClients({ q: dq, kind: tab === 'all' ? undefined : tab, limit });
   const items = clients.data?.items ?? [];
@@ -33,11 +35,18 @@ export default function ClientsPage() {
         title="Клиенты"
         subtitle={clients.data ? `${clients.data.total} в базе` : undefined}
         actions={
-          can('clients.create') && (
-            <Button size="sm" icon={<UserPlus size={18} aria-hidden />} onClick={() => setCreating(true)}>
-              Новый клиент
-            </Button>
-          )
+          <>
+            {can('import.run') && (
+              <Button size="sm" variant="secondary" icon={<FileSpreadsheet size={18} aria-hidden />} onClick={() => setImporting(true)}>
+                Импорт из Excel
+              </Button>
+            )}
+            {can('clients.create') && (
+              <Button size="sm" icon={<UserPlus size={18} aria-hidden />} onClick={() => setCreating(true)}>
+                Новый клиент
+              </Button>
+            )}
+          </>
         }
       />
       <div className={s.toolbar}>
@@ -146,6 +155,7 @@ export default function ClientsPage() {
       )}
 
       <ClientFormSheet open={creating} onClose={() => setCreating(false)} defaultKind={tab === 'legal' ? 'legal' : 'person'} />
+      <CounterpartiesImportSheet open={importing} onClose={() => setImporting(false)} />
     </>
   );
 }

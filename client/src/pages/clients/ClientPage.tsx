@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { formatPhone, inspectionKindOf, type Contact, type FleetRowDto } from '@sd/shared';
 import { useAuth } from '@/app/auth';
+import { useConfirm } from '@/ui/Confirm';
 import { api, ApiError } from '@/api/http';
 import { useClient, useContacts, useInvalidate } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
@@ -49,6 +50,7 @@ export default function ClientPage() {
   const { can } = useAuth();
   const inv = useInvalidate();
   const toast = useToast();
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [params] = useSearchParams();
@@ -67,6 +69,24 @@ export default function ClientPage() {
   useEffect(() => {
     if (c) setFleet(c.fleet.length ? c.fleet : [emptyFleetRow()]);
   }, [c]);
+
+  const removeClient = async () => {
+    const ok = await confirm({
+      title: 'Удалить клиента?',
+      body: `Клиент «${c?.name}» исчезнет вместе с его техникой и записями работ. Удалить можно только клиента без заявок. Вернуть его будет нельзя.`,
+      confirm: 'Удалить',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.del(`/clients/${id}`);
+      inv('clients', 'client', 'tasks');
+      toast.success('Клиент удалён');
+      navigate('/clients');
+    } catch (e) {
+      toast.error('Не получилось удалить', (e as ApiError).message);
+    }
+  };
 
   if (q.isLoading) return <Spinner />;
   if (q.isError || !c) return <ErrorBox error={q.error} />;
@@ -192,6 +212,11 @@ export default function ClientPage() {
           {can('clients.edit') && (
             <Button variant="secondary" icon={<Pencil size={18} aria-hidden />} onClick={() => setEditing(true)}>
               Изменить
+            </Button>
+          )}
+          {can('clients.edit') && (
+            <Button variant="danger" icon={<Trash2 size={18} aria-hidden />} onClick={removeClient}>
+              Удалить
             </Button>
           )}
         </div>

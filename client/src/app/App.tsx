@@ -14,8 +14,8 @@ import { AuthProvider, useAuth } from './auth';
 
 const LoginPage = lazy(() => import('@/pages/LoginPage'));
 const RegisterPage = lazy(() => import('@/pages/RegisterPage'));
-const CustomersPage = lazy(() => import('@/pages/customers/CustomersPage'));
 const VisitsPage = lazy(() => import('@/pages/visits/VisitsPage'));
+const ReadyPage = lazy(() => import('@/pages/orders/ReadyPage'));
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'));
 const AnalyticsPage = lazy(() => import('@/pages/reports/AnalyticsPage'));
 const CustomerShell = lazy(() => import('@/pages/customer/CustomerShell').then((m) => ({ default: m.CustomerShell })));
@@ -136,11 +136,11 @@ export function App() {
                         }
                       />
                       <Route
-                        path="customers"
+                        path="ready"
                         element={
-                          <RequirePermission permission="customers.manage">
-                            <CustomersPage />
-                          </RequirePermission>
+                          <Workspace>
+                            <ReadyPage />
+                          </Workspace>
                         }
                       />
                       <Route path="tasks" element={<TasksPage />} />

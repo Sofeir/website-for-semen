@@ -1,5 +1,14 @@
 /** Общие SQL-фрагменты для списков: одинаковые поля в заявках, задачах, карточке клиента. */
 
+/**
+ * Задача этапа «Готово»: техника сделана и ждёт выдачи. Такая задача не считается просроченной, у неё отдельный статус «Ожидает выдачи».
+ * Условие для задачи с псевдонимом `t`.
+ */
+export const TASK_AWAITING_ISSUE = `(t.status = 'open' AND EXISTS (SELECT 1 FROM stages ws WHERE ws.id = t.stage_id AND ws.code = 'ready'))`;
+
+/** Открытая просроченная задача (кроме ожидающих выдачи). Для псевдонима `t`. */
+export const TASK_OVERDUE = `(t.status = 'open' AND (t.due_at < now() OR t.was_overdue) AND NOT ${TASK_AWAITING_ISSUE})`;
+
 export const DEVICE_TITLE = `concat_ws(' ', dt.name, coalesce(b.name, d.brand_text), coalesce(m.name, d.model_text))`;
 
 export const ORDER_SELECT = `
@@ -12,8 +21,8 @@ export const ORDER_SELECT = `
          o.stage_id AS "stageId", s.code AS "stageCode", s.name AS "stageName", s.sort AS "stageSort", s.color AS "stageColor",
          o.responsible_id AS "responsibleId", u.full_name AS "responsibleName",
          o.stage_started_at AS "stageStartedAt", o.stage_due_at AS "stageDueAt",
-         o.created_at AS "createdAt", o.issued_at AS "issuedAt",
-         (o.stage_due_at IS NOT NULL AND o.stage_due_at < now() AND NOT s.is_final) AS overdue
+         o.created_at AS "createdAt", o.issued_at AS "issuedAt", o.outcome,
+         (o.stage_due_at IS NOT NULL AND o.stage_due_at < now() AND NOT s.is_final AND s.code <> 'ready') AS overdue
     FROM orders o
     JOIN clients c ON c.id = o.client_id
     JOIN devices d ON d.id = o.device_id
@@ -42,7 +51,7 @@ export const TASK_SELECT = `
          ARRAY(SELECT tw.user_id FROM task_watchers tw WHERE tw.task_id = t.id ORDER BY tw.user_id) AS "watcherIds",
          (SELECT string_agg(wu.full_name, ', ' ORDER BY wu.full_name)
             FROM task_watchers tw JOIN users wu ON wu.id = tw.user_id WHERE tw.task_id = t.id) AS "watcherName",
-         (t.status = 'open' AND (t.due_at < now() OR t.was_overdue)) AS overdue
+         ${TASK_OVERDUE} AS overdue, ${TASK_AWAITING_ISSUE} AS "awaitingIssue"
     FROM tasks t
     JOIN users ua ON ua.id = t.assignee_id
     JOIN users uc ON uc.id = t.creator_id

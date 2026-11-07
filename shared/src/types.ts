@@ -157,6 +157,8 @@ export interface OrderListItem {
   stageDueAt: string | null;
   createdAt: string;
   issuedAt: string | null;
+  /** Итог: отремонтировано или клиент отказался от ремонта (известен с этапа «Готово»). */
+  outcome: 'repaired' | 'declined' | null;
   overdue: boolean;
 }
 
@@ -308,6 +310,8 @@ export interface TaskListItem {
   kindName: string | null;
   kindColor: string | null;
   overdue: boolean;
+  /** Задача этапа «Готово»: техника сделана и ждёт выдачи (не считается просроченной). */
+  awaitingIssue: boolean;
 }
 
 export interface TaskKind {
@@ -341,6 +345,9 @@ export interface NotificationItem {
   link: string | null;
   isRead: boolean;
   createdAt: string;
+  /** Нынешнее состояние задачи, если уведомление о задаче (null — уведомление не о задаче или задачи уже нет). */
+  taskState?: 'open' | 'overdue' | 'awaiting' | 'closed' | null;
+  taskDueAt?: string | null;
 }
 
 export interface DictItem {
@@ -681,6 +688,18 @@ export interface ImportPreview {
   rows: string[][];
   totalRows: number;
   suggested: Record<string, number>;
+}
+
+/** Просмотр загрузки контрагентов из выгрузки 1С: что добавится и что пропустят. */
+export interface CounterpartiesPreview {
+  token: string;
+  totalRows: number;
+  /** Серых строк в файле (организации, которых в 1С уже нет); они добавляются тоже. */
+  gray: number;
+  willCreate: number;
+  skipped: { line: number; name: string; reason: string }[];
+  /** Добавятся, но ИНН не из 10/12 цифр или КПП не из 9: цифры записаны как в файле. */
+  unusual: string[];
 }
 
 export interface Paged<T> {

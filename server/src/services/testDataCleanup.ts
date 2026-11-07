@@ -100,6 +100,24 @@ export async function deleteOrders(
   return db ? run(db) : tx(run);
 }
 
+/**
+ * Удаляет задачи навсегда: вместе с файлами, шагами цепочки, уведомлениями и напоминаниями о них. Из отчётов и списков они пропадают сами.
+ * Возвращает, сколько задач удалено.
+ */
+export async function deleteTasksForever(ids: number[]): Promise<number> {
+  if (!ids.length) return 0;
+  const stored = await tx(async (db) => {
+    const files = (await db.query<{ stored_name: string }>('SELECT stored_name FROM attachments WHERE task_id = ANY ($1)', [ids])).rows;
+    await db.query('DELETE FROM attachments WHERE task_id = ANY ($1)', [ids]);
+    await db.query('DELETE FROM notifications WHERE link = ANY ($1)', [ids.map((id) => `/tasks?task=${id}`)]);
+    await db.query(`DELETE FROM reminders_sent WHERE kind = 'task' AND ref_id = ANY ($1)`, [ids]);
+    await db.query('DELETE FROM tasks WHERE id = ANY ($1)', [ids]);
+    return files.map((f) => f.stored_name);
+  });
+  for (const f of stored) fs.rmSync(path.join(config.uploadDir, path.basename(f)), { force: true });
+  return ids.length;
+}
+
 /** Удаляет клиентов по явному списку. Клиентов с заявками и с учётной записью заказчика не трогает. */
 export async function deleteClients(clientIds: number[]): Promise<number> {
   if (!clientIds.length) return 0;

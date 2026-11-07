@@ -54,6 +54,7 @@ export function TaskRow({ task, selected, onToggle, onOpen, showAssignee, checkL
               </span>
             )}
             {task.clientName && !task.orderNumber && <span className={s.metaItem}>{task.clientName}</span>}
+            {task.awaitingIssue && <Pill tone="violet">Ожидает выдачи</Pill>}
             {task.fromCustomer && <Pill tone="blue">от заказчика</Pill>}
             {task.kindName && <Pill tone={task.kindColor ?? 'outline'}>{task.kindName}</Pill>}
             {task.checklistTotal > 0 && (

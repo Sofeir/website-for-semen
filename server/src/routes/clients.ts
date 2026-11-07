@@ -13,6 +13,7 @@ import { many, one, pool, tx } from '../db/pool';
 import { h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { createClient, replaceFleet, updateClient } from '../services/clients';
+import { deleteClients } from '../services/testDataCleanup';
 import { CLIENT_FIELDS, DEVICE_SELECT, isAssignee, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT, taskAccess } from '../services/sql';
 import { broadcast } from '../notify/hub';
 import {
@@ -257,6 +258,30 @@ clientsRouter.put(
     await runServicePlans();
     broadcast('changed', { scopes: ['clients', 'tasks'] });
     res.json({ plan: await getServicePlan(id) });
+  }),
+);
+
+/**
+ * Удаление клиента. Нельзя, если у него есть заявки (они хранят историю ремонтов) или личный кабинет заказчика.
+ * Техника и записи работ клиента уходят вместе с ним, задачи остаются без привязки к клиенту.
+ */
+clientsRouter.delete(
+  '/clients/:id',
+  requirePermission('clients.edit'),
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const c = await one<{ name: string; orders: number; accounts: number }>(
+      `SELECT name, (SELECT count(*)::int FROM orders WHERE client_id = c.id) AS orders,
+              (SELECT count(*)::int FROM users WHERE client_id = c.id) AS accounts
+         FROM clients c WHERE c.id = $1`,
+      [id],
+    );
+    if (!c) throw new HttpError(404, 'Клиент не найден');
+    if (c.orders) throw new HttpError(409, `У клиента есть заявки (${c.orders}): удалить можно только клиента без заявок`);
+    if (c.accounts) throw new HttpError(409, 'У клиента есть личный кабинет заказчика: сначала отключите его');
+    await deleteClients([id]);
+    broadcast('changed', { scopes: ['clients', 'tasks'] });
+    res.json({ ok: true });
   }),
 );
 
