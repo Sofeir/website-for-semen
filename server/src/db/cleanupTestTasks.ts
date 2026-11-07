@@ -1,7 +1,6 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { config } from '../config';
-import { many, pool, tx } from './pool';
+import { many, pool } from './pool';
+import { deleteTasksForever } from '../services/testDataCleanup';
 
 /**
  * Удаление тестовых задач, оставшихся от начального наполнения базы (демо-данные).
@@ -75,20 +74,8 @@ async function main() {
       return;
     }
     if (!picked.length) return;
-    const ids = picked.map((r) => r.id);
-    const files = await tx(async (db) => {
-      const stored = await many<{ stored_name: string }>('SELECT stored_name FROM attachments WHERE task_id = ANY ($1)', [ids], db);
-      await db.query('DELETE FROM attachments WHERE task_id = ANY ($1)', [ids]);
-      await db.query(
-        `DELETE FROM notifications WHERE link = ANY ($1)`,
-        [ids.map((id) => `/tasks?task=${id}`)],
-      );
-      await db.query(`DELETE FROM reminders_sent WHERE kind = 'task' AND ref_id = ANY ($1)`, [ids]);
-      await db.query('DELETE FROM tasks WHERE id = ANY ($1)', [ids]);
-      return stored.map((s) => s.stored_name);
-    });
-    for (const f of files) fs.rmSync(path.join(config.uploadDir, path.basename(f)), { force: true });
-    console.log(`\nУдалено задач: ${ids.length}.`);
+    console.log(`
+Удалено задач: ${await deleteTasksForever(picked.map((r) => r.id))}.`);
     return;
   }
 

@@ -283,12 +283,14 @@ importRouter.post(
     try {
       rows = await readCounterparties(file.buffer);
     } catch (e) {
-      throw new HttpError(400, (e as Error).message.startsWith('Первая строка') ? (e as Error).message : 'Не удалось прочитать файл. Это должна быть выгрузка контрагентов из 1С в .xlsx');
+      const msg = (e as Error).message;
+      throw new HttpError(400, /^(Первая строка|В файле)/.test(msg) ? msg : 'Не удалось прочитать файл. Это должна быть выгрузка контрагентов из 1С в .xlsx');
     }
     if (!rows.length) throw new HttpError(400, 'В файле нет строк с данными');
     const plan = await planClientsImport(rows);
     const token = crypto.randomBytes(16).toString('hex');
-    for (const [k, v] of pendingCounterparties) if (v.expires < Date.now()) pendingCounterparties.delete(k);
+    // У одного человека ждёт подтверждения только последний файл; просроченные удаляем
+    for (const [k, v] of pendingCounterparties) if (v.expires < Date.now() || v.userId === req.user!.id) pendingCounterparties.delete(k);
     pendingCounterparties.set(token, { userId: req.user!.id, rows, expires: Date.now() + 30 * 60_000 });
     const preview: CounterpartiesPreview = {
       token,

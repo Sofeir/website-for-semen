@@ -24,6 +24,7 @@ import {
   transferTask,
 } from '../services/tasks';
 import { reassignOrder } from '../services/orders';
+import { deleteTasksForever } from '../services/testDataCleanup';
 import { isAssignee, isWatcher, likeEscape, TASK_AWAITING_ISSUE, TASK_OVERDUE, TASK_SELECT } from '../services/sql';
 import { assertTaskVisible } from '../services/access';
 import { runServicePlansSoon } from '../services/servicePlans';
@@ -320,6 +321,26 @@ tasksRouter.post(
     if (Number.isNaN(wanted.getTime())) throw new HttpError(400, 'Выберите новый срок');
     const outbox = new Outbox();
     await tx(async (db) => requestTaskExtension(db, req.user!, id, await normalizeDue(db, wanted), comment, outbox));
+    await outbox.flush();
+    res.json({ ok: true });
+  }),
+);
+
+/**
+ * Удалить закрытую задачу навсегда (директор и администратор). Вместе с ней уходят файлы, цепочка, уведомления; из отчётов она пропадает.
+ * Открытую задачу не удаляем: её сначала закрывают.
+ */
+tasksRouter.delete(
+  '/tasks/:id',
+  requirePermission('tasks.manageAll'),
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const t = await one<{ status: string }>('SELECT status FROM tasks WHERE id = $1', [id]);
+    if (!t) throw new HttpError(404, 'Задача не найдена');
+    if (t.status === 'open') throw new HttpError(409, 'Удалить можно только закрытую задачу. Сначала закройте её');
+    await deleteTasksForever([id]);
+    const outbox = new Outbox();
+    outbox.touch('tasks', 'dashboard');
     await outbox.flush();
     res.json({ ok: true });
   }),

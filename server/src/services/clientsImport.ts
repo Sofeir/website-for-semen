@@ -38,6 +38,9 @@ export interface ImportPlan {
 /** Цвет шрифта серых строк в выгрузке (так 1С показывает организации, которых больше нет). */
 const GRAY_FONT = 'FF807A59';
 
+/** Больше строк в выгрузке контрагентов не читаем: файл с миллионом строк не должен съесть память сервера. */
+export const MAX_COUNTERPARTY_ROWS = 5000;
+
 const HEADERS = ['Наименование в программе', 'ИНН', 'КПП', 'Ответственный', 'Полное наименование'];
 
 const clean = (v: unknown) => String(v ?? '').replace(/\s+/g, ' ').trim();
@@ -50,6 +53,7 @@ export async function readCounterparties(source: string | Buffer): Promise<Count
   else await wb.xlsx.load(source as any);
   const ws = wb.worksheets[0];
   if (!ws) throw new Error('В файле нет листов');
+  if (ws.rowCount > MAX_COUNTERPARTY_ROWS + 1) throw new Error(`В файле больше ${MAX_COUNTERPARTY_ROWS} строк. Разделите его на части`);
   const head = HEADERS.map((_, i) => clean(ws.getRow(1).getCell(i + 1).text));
   if (head[0] !== HEADERS[0] || head[1] !== HEADERS[1]) {
     throw new Error(`Первая строка должна содержать колонки: ${HEADERS.join(', ')}. Сейчас: ${head.join(', ')}`);

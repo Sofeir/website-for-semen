@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRightLeft, CalendarClock, Check, Pencil, RotateCcw, Send } from 'lucide-react';
+import { ArrowRightLeft, CalendarClock, Check, Pencil, RotateCcw, Send, Trash2 } from 'lucide-react';
 import type { TaskStep } from '@sd/shared';
 import { useAuth, useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
@@ -11,6 +11,7 @@ import { DescList, ErrorBox, Pill, Spinner } from '@/ui/Display';
 import { Checkbox, Field, Textarea } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { AttachHint, AttachmentList, UploadButton } from './Attachments';
+import { useConfirm } from '@/ui/Confirm';
 import { useToast } from '@/ui/Toast';
 import { DueInput, UserSelect } from './Pickers';
 import { TaskFormSheet } from './TaskFormSheet';
@@ -76,6 +77,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   const q = useTask(taskId);
   const task = q.data;
   const toast = useToast();
+  const confirm = useConfirm();
   const inv = useInvalidate();
   const settings = useSettings();
   const close = useCloseTasks();
@@ -181,6 +183,25 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
     setMode('extend');
   };
 
+  // Временная возможность: удалить закрытую задачу навсегда, без доступа к серверу
+  const removeTask = async () => {
+    const ok = await confirm({
+      title: 'Удалить задачу навсегда?',
+      body: 'Задача исчезнет отовсюду, в том числе из отчётов, вместе с файлами и историей. Вернуть её будет нельзя.',
+      confirm: 'Удалить',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.del(`/tasks/${task!.id}`);
+      inv('tasks', 'task', 'dashboard', 'order', 'report', 'notifications');
+      toast.success('Задача удалена');
+      onClose();
+    } catch (e) {
+      toast.error('Не получилось удалить', (e as ApiError).message);
+    }
+  };
+
   const reopen = async () => {
     try {
       await api.post(`/tasks/${task!.id}/reopen`);
@@ -195,9 +216,16 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   if (task && canTouch) {
     if (task.status !== 'open') {
       footer = (
-        <Button variant="secondary" icon={<RotateCcw size={18} aria-hidden />} onClick={reopen}>
-          Вернуть в работу
-        </Button>
+        <>
+          {can('tasks.manageAll') && (
+            <Button variant="danger" icon={<Trash2 size={18} aria-hidden />} onClick={removeTask}>
+              Удалить
+            </Button>
+          )}
+          <Button variant="secondary" icon={<RotateCcw size={18} aria-hidden />} onClick={reopen}>
+            Вернуть в работу
+          </Button>
+        </>
       );
     } else if (mode === 'view') {
       footer = (
