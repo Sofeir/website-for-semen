@@ -1,5 +1,6 @@
 import type { Content, StyleDictionary, TDocumentDefinitions } from 'pdfmake/interfaces';
 import type { CompanySettings } from '@sd/shared';
+import { LOGO_PNG } from '../logo';
 
 /**
  * Общий вид документов. Шаблоны лежат отдельно от маршрутов:
@@ -26,27 +27,44 @@ export const styles: StyleDictionary = {
   td: { fontSize: 9.5, color: COLORS.ink },
 };
 
-export function header(company: CompanySettings): Content {
-  const req = [
+/** Шапка всех документов: название, чем занимается сервис, адрес и телефон. Текст утвердил заказчик, поэтому он здесь, а не в настройках. */
+export const DOCUMENT_HEADER = {
+  name: 'АСофт-Сервис',
+  about:
+    'Системное администрирование, ремонт компьютерной техники, печатающих устройств, планшетов, мобильных телефонов, заправка картриджей, восстановление информации с поврежденных носителей',
+  address: 'Адрес: г. Екатеринбург, ул. Героев России 2, этаж 4',
+  phone: 'Тел.: +7 (343) 219-73-73',
+};
+
+/** Реквизиты юрлица из настроек: название, ИНН/КПП, ОГРН. Пусто, если не заполнены. */
+export function requisitesLine(company: CompanySettings): string {
+  return [
     company.legalName,
     company.inn && `ИНН ${company.inn}${company.kpp ? ` / КПП ${company.kpp}` : ''}`,
     company.ogrn && `ОГРН ${company.ogrn}`,
   ]
     .filter(Boolean)
     .join(', ');
-  const contacts = [company.address, company.phone, company.email, company.site].filter(Boolean).join('  ·  ');
+}
+
+export function header(company: CompanySettings): Content {
+  const req = requisitesLine(company);
+  const contacts = [DOCUMENT_HEADER.address, DOCUMENT_HEADER.phone, company.email, company.site].filter(Boolean).join('  ·  ');
   return {
     columns: [
+      { width: 46, image: LOGO_PNG, fit: [42, 42], margin: [0, 0, 0, 0] },
       {
         width: '*',
         stack: [
-          { text: company.name || 'Сервисный центр', style: 'company' },
-          req ? { text: req, style: 'small', margin: [0, 2, 0, 0] } : '',
-          contacts ? { text: contacts, style: 'small', margin: [0, 1, 0, 0] } : '',
+          { text: DOCUMENT_HEADER.name, style: 'company', fontSize: 15 },
+          { text: DOCUMENT_HEADER.about, style: 'small', margin: [0, 1, 0, 0] },
+          { text: contacts, style: 'small', margin: [0, 1, 0, 0] },
+          req ? { text: req, style: 'small', margin: [0, 1, 0, 0] } : '',
           company.workHours ? { text: `Режим работы: ${company.workHours}`, style: 'small', margin: [0, 1, 0, 0] } : '',
         ],
       },
     ],
+    columnGap: 10,
   };
 }
 

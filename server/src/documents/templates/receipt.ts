@@ -1,6 +1,7 @@
 import type { Content } from 'pdfmake/interfaces';
 import type { CompanySettings } from '@sd/shared';
-import { baseDocument, COLORS, fmtDate, fmtDateTime } from './common';
+import { LOGO_PNG } from '../logo';
+import { baseDocument, COLORS, DOCUMENT_HEADER, fmtDate, fmtDateTime, requisitesLine } from './common';
 
 export interface ReceiptData {
   company: CompanySettings;
@@ -105,8 +106,8 @@ export function receiptTemplate(d: ReceiptData) {
   const company = d.company;
   const terms = company.receiptTerms?.trim() || DEFAULT_RECEIPT_TERMS;
   const customerName = client.kind === 'legal' ? client.contactPerson || client.name : client.name;
-  const contacts = [company.address, company.phone, company.workHours].filter(Boolean).join(' · ');
-  const requisites = [company.legalName, company.inn && `ИНН ${company.inn}`].filter(Boolean).join(', ');
+  const contacts = [DOCUMENT_HEADER.address, DOCUMENT_HEADER.phone, company.workHours].filter(Boolean).join(' · ');
+  const requisites = requisitesLine(company);
 
   const copy = (dev: ReceiptData['devices'][number], whose: string): Content => {
     // Длинная неисправность или комментарий занимают лишние строки — тогда мельче пункты договора,
@@ -119,16 +120,18 @@ export function receiptTemplate(d: ReceiptData) {
       stack: [
         {
           columns: [
+            { width: 30, image: LOGO_PNG, fit: [28, 28] },
             {
               width: '*',
               stack: [
-                { text: company.name || 'Сервисный центр', fontSize: 10, bold: true, color: COLORS.ink },
-                requisites ? { text: requisites, fontSize: 6.5, color: COLORS.muted } : '',
-                contacts ? { text: contacts, fontSize: 6.5, color: COLORS.muted } : '',
+                { text: DOCUMENT_HEADER.name, fontSize: 10, bold: true, color: COLORS.ink },
+                { text: DOCUMENT_HEADER.about, fontSize: 5.2, color: COLORS.muted, lineHeight: 1 },
+                { text: [contacts, requisites].filter(Boolean).join(' · '), fontSize: 6, color: COLORS.muted },
               ],
             },
             { width: 'auto', text: whose, fontSize: 7, bold: true, color: COLORS.accent, alignment: 'right' },
           ],
+          columnGap: 6,
         },
         {
           text: [
