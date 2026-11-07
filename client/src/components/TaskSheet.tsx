@@ -258,6 +258,10 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                   <Pill tone="red" dot>
                     Просрочена
                   </Pill>
+                ) : task.awaitingIssue ? (
+                  <Pill tone="violet" dot>
+                    Ожидает выдачи
+                  </Pill>
                 ) : (
                   <Pill tone="blue" dot>
                     В работе

@@ -24,7 +24,7 @@ import {
   transferTask,
 } from '../services/tasks';
 import { reassignOrder } from '../services/orders';
-import { isAssignee, isWatcher, likeEscape, TASK_SELECT } from '../services/sql';
+import { isAssignee, isWatcher, likeEscape, TASK_AWAITING_ISSUE, TASK_OVERDUE, TASK_SELECT } from '../services/sql';
 import { assertTaskVisible } from '../services/access';
 import { runServicePlansSoon } from '../services/servicePlans';
 import { formatDateTimeRu } from '../services/workTime';
@@ -67,7 +67,8 @@ tasksRouter.get(
     const status = String(req.query.status || 'open');
     if (status === 'open') where.push(`t.status = 'open'`);
     else if (status === 'done') where.push(`t.status <> 'open'`);
-    if (req.query.overdue === '1') where.push(`t.status = 'open' AND (t.due_at < now() OR t.was_overdue)`);
+    if (req.query.overdue === '1') where.push(TASK_OVERDUE);
+    if (req.query.awaiting === '1') where.push(TASK_AWAITING_ISSUE);
     if (req.query.from && req.query.to) {
       add((p) => `t.due_at >= ${p}`, new Date(String(req.query.from)));
       add((p) => `t.due_at < ${p}`, new Date(String(req.query.to)));

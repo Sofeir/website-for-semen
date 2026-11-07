@@ -31,10 +31,12 @@ function groupTasks(tasks: TaskListItem[]) {
     { key: 'today', title: 'Сегодня', items: [] },
     { key: 'tomorrow', title: 'Завтра', items: [] },
     { key: 'later', title: 'Позже', items: [] },
+    { key: 'awaiting', title: 'Ожидают выдачи', items: [] },
   ];
   for (const t of tasks) {
     const due = new Date(t.dueAt);
-    if (t.overdue) groups[0].items.push(t);
+    if (t.awaitingIssue) groups[4].items.push(t);
+    else if (t.overdue) groups[0].items.push(t);
     else if (due < tomorrow) groups[1].items.push(t);
     else if (due < after) groups[2].items.push(t);
     else groups[3].items.push(t);

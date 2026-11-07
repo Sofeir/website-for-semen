@@ -308,6 +308,8 @@ export interface TaskListItem {
   kindName: string | null;
   kindColor: string | null;
   overdue: boolean;
+  /** Задача этапа «Готово»: техника сделана и ждёт выдачи (не считается просроченной). */
+  awaitingIssue: boolean;
 }
 
 export interface TaskKind {

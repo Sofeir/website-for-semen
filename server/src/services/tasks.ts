@@ -3,6 +3,7 @@ import { many, one, type Db } from '../db/pool';
 import { forbidden, HttpError } from '../lib/http';
 import type { Notice, Outbox } from '../notify/notify';
 import { getWorkSettings } from './settings';
+import { TASK_AWAITING_ISSUE } from './sql';
 import { clampToWorkEnd, formatDateTimeRu } from './workTime';
 
 export interface Actor {
@@ -197,7 +198,7 @@ export async function closeTasks(
 ) {
   const rows = (
     await db.query<TaskRow & { overdue: boolean }>(
-      `SELECT ${TASK_ROW_FIELDS}, (t.due_at < now() OR t.was_overdue) AS overdue FROM tasks t WHERE t.id = ANY ($1) FOR UPDATE OF t`,
+      `SELECT ${TASK_ROW_FIELDS}, ((t.due_at < now() OR t.was_overdue) AND NOT ${TASK_AWAITING_ISSUE}) AS overdue FROM tasks t WHERE t.id = ANY ($1) FOR UPDATE OF t`,
       [ids],
     )
   ).rows;
@@ -236,7 +237,7 @@ export async function closeTasks(
 /** Запрос: подтвердите закрытие просроченной задачи. Получает только тот, кто подтверждает просрочку. */
 export async function requestTaskClose(db: Db, actor: Actor, id: number, comment: string, outbox: Outbox) {
   const t = await one<TaskRow & { overdue: boolean }>(
-    `SELECT ${TASK_ROW_FIELDS}, (t.due_at < now() OR t.was_overdue) AS overdue FROM tasks t WHERE t.id = $1`,
+    `SELECT ${TASK_ROW_FIELDS}, ((t.due_at < now() OR t.was_overdue) AND NOT ${TASK_AWAITING_ISSUE}) AS overdue FROM tasks t WHERE t.id = $1`,
     [id],
     db,
   );

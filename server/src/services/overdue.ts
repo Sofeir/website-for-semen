@@ -1,6 +1,7 @@
 import { DEFAULT_REMINDERS, pluralRu } from '@sd/shared';
 import { many, tx, type Db } from '../db/pool';
 import { Outbox } from '../notify/notify';
+import { TASK_AWAITING_ISSUE } from './sql';
 import { formatDateTimeRu } from './workTime';
 
 interface OverdueRow {
@@ -27,7 +28,7 @@ export async function notifyOverdueTasks() {
               (SELECT string_agg(u.full_name, ', ' ORDER BY u.full_name) FROM task_assignees ta JOIN users u ON u.id = ta.user_id WHERE ta.task_id = t.id) AS assignee_names,
               ARRAY(SELECT s.from_user_id FROM task_steps s WHERE s.task_id = t.id AND s.done_at IS NULL AND s.from_user_id IS NOT NULL) AS delegator_ids
          FROM tasks t
-        WHERE t.status = 'open' AND t.due_at < now() AND t.overdue_notified_at IS NULL
+        WHERE t.status = 'open' AND t.due_at < now() AND t.overdue_notified_at IS NULL AND NOT ${TASK_AWAITING_ISSUE}
         FOR UPDATE OF t`,
       [],
       db,
