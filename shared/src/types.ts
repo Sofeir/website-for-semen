@@ -157,6 +157,8 @@ export interface OrderListItem {
   stageDueAt: string | null;
   createdAt: string;
   issuedAt: string | null;
+  /** Итог: отремонтировано или клиент отказался от ремонта (известен с этапа «Готово»). */
+  outcome: 'repaired' | 'declined' | null;
   overdue: boolean;
 }
 

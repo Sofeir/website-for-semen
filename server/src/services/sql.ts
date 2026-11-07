@@ -21,7 +21,7 @@ export const ORDER_SELECT = `
          o.stage_id AS "stageId", s.code AS "stageCode", s.name AS "stageName", s.sort AS "stageSort", s.color AS "stageColor",
          o.responsible_id AS "responsibleId", u.full_name AS "responsibleName",
          o.stage_started_at AS "stageStartedAt", o.stage_due_at AS "stageDueAt",
-         o.created_at AS "createdAt", o.issued_at AS "issuedAt",
+         o.created_at AS "createdAt", o.issued_at AS "issuedAt", o.outcome,
          (o.stage_due_at IS NOT NULL AND o.stage_due_at < now() AND NOT s.is_final AND s.code <> 'ready') AS overdue
     FROM orders o
     JOIN clients c ON c.id = o.client_id

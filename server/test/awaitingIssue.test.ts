@@ -30,6 +30,10 @@ describe('статус «Ожидает выдачи»', () => {
     expect((await semen.get('/api/dashboard')).body.overdue.map((t: any) => t.id)).not.toContain(taskId);
     expect((await semen.get('/api/orders?overdue=1')).body.map((o: any) => o.id)).not.toContain(id);
 
+    // страница «Готовая техника»: заявка этапа «Готово» отдаётся с итогом ремонта
+    const ready = (await semen.get(`/api/orders?stage=${stage.ready}`)).body.find((o: any) => o.id === id);
+    expect(ready).toMatchObject({ deviceType: 'Ноутбук', outcome: 'repaired' });
+
     await notifyOverdueTasks();
     const notified = await pool.query(`SELECT 1 FROM notifications WHERE type = 'task_overdue' AND link = $1`, [`/tasks?task=${taskId}`]);
     expect(notified.rowCount).toBe(0);
