@@ -16,7 +16,6 @@ import type {
   ContactHit,
   Client,
   CloseTasksInput,
-  CustomerAccount,
   CustomerCompany,
   CustomerOrder,
   CustomerOrderDetail,
@@ -63,7 +62,6 @@ export const keys = {
   notifications: ['notifications'] as const,
   acts: (f?: object) => ['acts', f ?? {}] as const,
   act: (id: number) => ['act', id] as const,
-  customers: ['customers'] as const,
   customerTasks: ['customerTasks'] as const,
   customerOrders: ['customerOrders'] as const,
   customerOrder: (id: number) => ['customerOrder', id] as const,
@@ -74,7 +72,6 @@ export const keys = {
 export const SCOPE_KEYS: Record<string, string[]> = {
   orders: ['orders', 'order', 'dashboard', 'customerOrders', 'customerOrder', 'deviceWorks', 'clientWorks', 'report'],
   tasks: ['tasks', 'task', 'dashboard', 'order', 'customerTasks', 'visits', 'taskKinds'],
-  customers: ['customers'],
   clients: ['clients', 'client', 'deviceWorks', 'clientWorks', 'report', 'clientDevices', 'clientInspections', 'visitDevices', 'servicePlan', 'servicePlans', 'visits'],
   dashboard: ['dashboard'],
   dictionaries: ['dictionaries'],
@@ -270,7 +267,6 @@ export const useActs = (f: { order?: number } = {}) =>
 export const useAct = (id: number) =>
   useQuery({ queryKey: keys.act(id), queryFn: () => api.get<Act>(`/acts/${id}`), enabled: id > 0 });
 
-export const useCustomers = () => useQuery({ queryKey: keys.customers, queryFn: () => api.get<CustomerAccount[]>('/customers') });
 
 export const useCustomerTasks = () =>
   useQuery({ queryKey: keys.customerTasks, queryFn: () => api.get<CustomerTask[]>('/customer/tasks') });

@@ -9,7 +9,6 @@ import {
   Settings2,
   Truck,
   Sun,
-  UserCheck,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -32,7 +31,6 @@ export const NAV: NavItem[] = [
   { to: '/calendar', label: 'Календарь', icon: CalendarDays },
   { to: '/visits', label: 'Выезды', icon: Truck, permission: 'workspace.view' },
   { to: '/clients', label: 'Клиенты', icon: Users, permission: 'workspace.view' },
-  { to: '/customers', label: 'Заказчики', icon: UserCheck, permission: 'customers.manage' },
   { to: '/acts', label: 'Акты', icon: FileText, permission: 'workspace.view' },
   { to: '/reports', label: 'Отчёты', icon: BarChart3, permission: 'reports.view' },
   { to: '/analytics', label: 'Аналитика', icon: LineChart, permission: 'reports.view' },

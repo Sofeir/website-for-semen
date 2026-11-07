@@ -14,7 +14,6 @@ import { AuthProvider, useAuth } from './auth';
 
 const LoginPage = lazy(() => import('@/pages/LoginPage'));
 const RegisterPage = lazy(() => import('@/pages/RegisterPage'));
-const CustomersPage = lazy(() => import('@/pages/customers/CustomersPage'));
 const VisitsPage = lazy(() => import('@/pages/visits/VisitsPage'));
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'));
 const AnalyticsPage = lazy(() => import('@/pages/reports/AnalyticsPage'));
@@ -133,14 +132,6 @@ export function App() {
                           <Workspace>
                             <ClientPage />
                           </Workspace>
-                        }
-                      />
-                      <Route
-                        path="customers"
-                        element={
-                          <RequirePermission permission="customers.manage">
-                            <CustomersPage />
-                          </RequirePermission>
                         }
                       />
                       <Route path="tasks" element={<TasksPage />} />
