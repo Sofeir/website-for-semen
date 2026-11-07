@@ -322,7 +322,10 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
   if (!t) throw new HttpError(404, 'Задача не найдена');
   if (!canTouchTask(actor, t)) throw forbidden();
   if (t.status !== 'open') throw new HttpError(409, 'Задача уже закрыта');
-  if (t.assignee_ids.length === 1 && t.assignee_ids[0] === input.assigneeId) throw new HttpError(400, 'Задача уже у этого сотрудника');
+  // Себе задачу передать можно: так исполнитель переносит свой срок и оставляет запись в цепочке. Другому — только если задача ещё не у него.
+  if (input.assigneeId !== actor.id && t.assignee_ids.length === 1 && t.assignee_ids[0] === input.assigneeId) {
+    throw new HttpError(400, 'Задача уже у этого сотрудника');
+  }
   const next = await assertActiveUser(db, input.assigneeId);
   const due = await normalizeDue(db, input.dueAt);
   await db.query(`UPDATE task_steps SET done_at = now() WHERE task_id = $1 AND done_at IS NULL`, [id]);

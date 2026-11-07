@@ -342,6 +342,7 @@ tasksRouter.post(
     const id = intParam(req.params.id);
     const input = parse(transferTaskSchema, req.body);
     const outbox = new Outbox();
+    let requested = false;
     await tx(async (db) => {
       const t = await one<{ order_id: number | null; stage_id: number | null; status: string; due_at: Date }>(
         `SELECT t.order_id, t.stage_id, t.status, t.due_at FROM tasks t WHERE t.id = $1`,
@@ -349,8 +350,18 @@ tasksRouter.post(
         db,
       );
       if (!t) throw new HttpError(404, 'Задача не найдена');
-      // Передать задачу можно, но срок отодвинуть при этом нельзя: продление согласует директор.
-      await assertDueNotLater(db, req.user!, t.due_at, await normalizeDue(db, input.dueAt));
+      const due = await normalizeDue(db, input.dueAt);
+      if (input.assigneeId === req.user!.id) {
+        // Себе передать может любой. Срок при этом можно сдвинуть, пока он не прошёл; у просроченной задачи срок согласует директор.
+        if (t.status === 'open' && t.due_at.getTime() < Date.now() && !(await canConfirmOverdue(db, req.user!.id))) {
+          await requestTaskExtension(db, req.user!, id, due, input.comment, outbox);
+          requested = true;
+          return;
+        }
+      } else {
+        // Передать другому можно, но срок отодвинуть при этом нельзя: продление согласует директор.
+        await assertDueNotLater(db, req.user!, t.due_at, due);
+      }
       const order = t.order_id
         ? await one<{ stage_id: number }>('SELECT stage_id FROM orders WHERE id = $1', [t.order_id], db)
         : null;
@@ -367,7 +378,7 @@ tasksRouter.post(
       }
     });
     await outbox.flush();
-    res.json({ ok: true });
+    res.json({ ok: true, requested });
   }),
 );
 

@@ -416,7 +416,9 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
   if (!(can(actor.role, 'orders.assign') || order.responsible_id === actor.id)) {
     throw forbidden('Передать заявку может ответственный или руководитель');
   }
-  if (order.responsible_id === input.responsibleId) throw new HttpError(400, 'Заявка уже у этого сотрудника');
+  // Себе заявку передать можно (перенос срока с записью в цепочке); другому — только если она ещё не у него
+  const toSelf = input.responsibleId === actor.id;
+  if (order.responsible_id === input.responsibleId && !toSelf) throw new HttpError(400, 'Заявка уже у этого сотрудника');
   const stage = await one<{ is_final: boolean; name: string }>(
     'SELECT is_final, name FROM stages WHERE id = $1',
     [order.stage_id],
@@ -434,7 +436,9 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
     [orderId],
     db,
   );
-  if (currentDue?.d) await assertDueNotLater(db, actor, currentDue.d, due);
+  // Себе передают с любым сроком, пока срок не прошёл; после просрочки срок двигает только директор
+  const selfBeforeDue = toSelf && !!currentDue?.d && currentDue.d.getTime() >= Date.now();
+  if (currentDue?.d && !selfBeforeDue) await assertDueNotLater(db, actor, currentDue.d, due);
 
   await db.query('UPDATE order_history SET finished_at = now() WHERE order_id = $1 AND finished_at IS NULL', [orderId]);
   await db.query(

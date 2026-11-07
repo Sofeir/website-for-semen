@@ -362,7 +362,7 @@ export function useCloseTasks() {
 export function useTransferTask(id: number) {
   const inv = useInvalidate();
   return useMutation({
-    mutationFn: (input: TransferTaskInput) => api.post(`/tasks/${id}/transfer`, input as any),
+    mutationFn: (input: TransferTaskInput) => api.post<{ ok: true; requested: boolean }>(`/tasks/${id}/transfer`, input as any),
     onSuccess: () => inv('tasks', 'task', 'dashboard', 'order', 'orders'),
   });
 }

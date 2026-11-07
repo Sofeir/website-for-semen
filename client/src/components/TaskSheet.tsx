@@ -144,13 +144,16 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
     }
   };
 
+  // Передача самому себе: переносит срок, пока он не прошёл; у просроченной задачи срок согласует директор
+  const toSelf = assignee !== '' && Number(assignee) === me.id;
   const doTransfer = async () => {
     setError('');
     if (!assignee) return setError('Выберите, кому передать');
     if (comment.trim().length < 3) return setError('Напишите причину передачи и что уже сделано');
     try {
-      await transfer.mutateAsync({ assigneeId: Number(assignee), dueAt: me.confirmsOverdue ? due : task!.dueAt, comment: comment.trim() });
-      toast.success('Задача передана');
+      const r = await transfer.mutateAsync({ assigneeId: Number(assignee), dueAt: me.confirmsOverdue || toSelf ? due : task!.dueAt, comment: comment.trim() });
+      if (r.requested) toast.success('Запрос отправлен', 'Задача просрочена: срок согласует директор, он получил уведомление');
+      else toast.success(toSelf ? 'Срок обновлён' : 'Задача передана');
       setMode('view');
       setComment('');
     } catch (e) {
@@ -321,8 +324,15 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                 <Field label="Кому передать">
                   <UserSelect value={assignee} onChange={(e) => setAssignee(e.target.value)} data-autofocus />
                 </Field>
-                {me.confirmsOverdue ? (
-                  <Field label="Крайний срок" hint={`Рабочий день до ${settings.data?.work.workEnd ?? '20:00'}`}>
+                {me.confirmsOverdue || toSelf ? (
+                  <Field
+                    label="Крайний срок"
+                    hint={
+                      toSelf && task.overdue && !me.confirmsOverdue
+                        ? 'Задача просрочена: новый срок согласует директор, ему уйдёт запрос'
+                        : `Рабочий день до ${settings.data?.work.workEnd ?? '20:00'}`
+                    }
+                  >
                     <DueInput value={due} onChange={setDue} />
                   </Field>
                 ) : (
