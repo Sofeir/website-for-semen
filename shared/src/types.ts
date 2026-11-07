@@ -343,6 +343,9 @@ export interface NotificationItem {
   link: string | null;
   isRead: boolean;
   createdAt: string;
+  /** Нынешнее состояние задачи, если уведомление о задаче (null — уведомление не о задаче или задачи уже нет). */
+  taskState?: 'open' | 'overdue' | 'awaiting' | 'closed' | null;
+  taskDueAt?: string | null;
 }
 
 export interface DictItem {

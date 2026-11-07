@@ -25,6 +25,56 @@
   min-height: 52px;
 }
 
+.headActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s-1);
+  margin-left: auto;
+}
+
+.row {
+  position: relative;
+}
+
+/* корзина в правом верхнем углу карточки; кнопка отдельная, чтобы не открывать задачу при удалении */
+.trash {
+  position: absolute;
+  top: var(--s-2);
+  right: var(--s-2);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  color: var(--ink-800);
+  opacity: 0.7;
+}
+
+.trash:hover,
+.trash:focus-visible {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--red-700, #b42318);
+}
+
+.row .item {
+  padding-right: calc(var(--s-3) + 28px);
+}
+
+.state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: 2px;
+}
+
+.stateDue {
+  font-size: var(--fs-xs);
+  color: var(--ink-800);
+}
+
 .headTitle {
   font-size: var(--fs-md);
 }
