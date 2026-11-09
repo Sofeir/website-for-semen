@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export function useMediaQuery(query: string) {
   const [matches, setMatches] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches);
@@ -33,4 +34,15 @@ export function useDocumentTitle(title: string) {
       document.title = prev;
     };
   }, [title]);
+}
+
+/**
+ * Возврат на тот экран, откуда человек пришёл (готовая техника, задачи, поиск), а не в «общий» список.
+ * Если пришли по прямой ссылке и истории нет, остаётся запасной адрес.
+ */
+export function useBack(fallback: string) {
+  const navigate = useNavigate();
+  const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+  const hasHistory = idx > 0;
+  return { hasHistory, goBack: () => (hasHistory ? navigate(-1) : navigate(fallback)) };
 }

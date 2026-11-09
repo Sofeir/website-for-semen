@@ -184,8 +184,16 @@ tasksRouter.put(
   h(async (req, res) => {
     const id = intParam(req.params.id);
     const input = parse(taskSchema, req.body);
-    const t = await one<{ creator_id: number; assignee_ids: number[]; status: string; stage_id: number | null; due_at: Date }>(
-      `SELECT t.creator_id, t.status, t.stage_id, t.due_at, ARRAY(SELECT ta.user_id FROM task_assignees ta WHERE ta.task_id = t.id) AS assignee_ids
+    const t = await one<{
+      creator_id: number;
+      assignee_ids: number[];
+      status: string;
+      stage_id: number | null;
+      due_at: Date;
+      order_id: number | null;
+      assignee_id: number;
+    }>(
+      `SELECT t.creator_id, t.status, t.stage_id, t.due_at, t.order_id, t.assignee_id, ARRAY(SELECT ta.user_id FROM task_assignees ta WHERE ta.task_id = t.id) AS assignee_ids
          FROM tasks t WHERE t.id = $1`,
       [id],
     );
@@ -205,11 +213,19 @@ tasksRouter.put(
       if (t.stage_id) throw new HttpError(400, 'Это задача этапа заявки: передайте задачу или смените ответственного в самой заявке');
     }
     const due = await normalizeDue(pool, input.dueAt);
-    // Крайний срок: сдвинуть его в любую сторону может только тот, кто подтверждает просрочку; остальные его не меняют.
+    // Крайний срок: пока задача не просрочена, его двигает любой сотрудник (продление — с причиной); просроченной — только директор.
     const dueChanged = Math.abs(due.getTime() - t.due_at.getTime()) > 60_000;
     // Перенос срока просроченной задачи не делает её «непросроченной»: снять отметку может только тот, кто подтверждает просрочку.
     const confirms = await canConfirmOverdue(pool, req.user!.id);
-    if (dueChanged && !confirms) throw new HttpError(403, EXTEND_MESSAGE);
+    const dueReason = (input.dueReason ?? '').trim();
+    if (dueChanged && !confirms) {
+      const state = await one<{ overdue: boolean }>(
+        `SELECT ((t.due_at < now() OR t.was_overdue) AND NOT ${TASK_AWAITING_ISSUE}) AS overdue FROM tasks t WHERE t.id = $1`,
+        [id],
+      );
+      if (state?.overdue) throw new HttpError(403, EXTEND_MESSAGE);
+      if (due.getTime() > t.due_at.getTime() && dueReason.length < 3) throw new HttpError(400, 'Напишите причину продления срока');
+    }
     await tx(async (db) => {
       await db.query(
         `UPDATE tasks SET title = $2, description = $3, start_at = $4, due_at = $5,
@@ -218,6 +234,20 @@ tasksRouter.put(
         [id, input.title, input.description, input.startAt, dueChanged ? due : t.due_at, owner ? (input.kindId ?? null) : null, confirms && dueChanged],
       );
       if (dueChanged && due.getTime() > Date.now()) await settleOverdueNotices(db, [id]);
+      if (dueChanged && t.stage_id && t.order_id && t.status === 'open') {
+        // У задачи этапа срок один с заявкой: двигаем и срок этапа, иначе заявка останется «просроченной»
+        await db.query('UPDATE orders SET stage_due_at = $2, updated_at = now() WHERE id = $1 AND stage_id = $3', [t.order_id, due, t.stage_id]);
+      }
+      if (dueChanged && !confirms && dueReason) {
+        // Причина и новый срок остаются в цепочке задачи: по ней видно, кто и почему переносил
+        await db.query(`INSERT INTO task_steps (task_id, assignee_id, from_user_id, due_at, comment) VALUES ($1, $2, $3, $4, $5)`, [
+          id,
+          t.assignee_id,
+          req.user!.id,
+          due,
+          `Срок перенесён: ${dueReason}`,
+        ]);
+      }
       if (assigneesChanged) {
         const added = wanted.filter((x) => !current.includes(x));
         const removed = current.filter((x) => !wanted.includes(x));
@@ -368,8 +398,8 @@ tasksRouter.post(
     const outbox = new Outbox();
     let requested = false;
     await tx(async (db) => {
-      const t = await one<{ order_id: number | null; stage_id: number | null; status: string; due_at: Date }>(
-        `SELECT t.order_id, t.stage_id, t.status, t.due_at FROM tasks t WHERE t.id = $1`,
+      const t = await one<{ order_id: number | null; stage_id: number | null; status: string; due_at: Date; was_overdue: boolean }>(
+        `SELECT t.order_id, t.stage_id, t.status, t.due_at, t.was_overdue FROM tasks t WHERE t.id = $1`,
         [id],
         db,
       );
@@ -383,8 +413,8 @@ tasksRouter.post(
           return;
         }
       } else {
-        // Передать другому можно, но срок отодвинуть при этом нельзя: продление согласует директор.
-        await assertDueNotLater(db, req.user!, t.due_at, due);
+        // Передать другому можно и срок поменять, пока задача не просрочена; просроченной срок двигает директор.
+        await assertDueNotLater(db, req.user!, t.due_at, due, t.was_overdue);
       }
       const order = t.order_id
         ? await one<{ stage_id: number }>('SELECT stage_id FROM orders WHERE id = $1', [t.order_id], db)

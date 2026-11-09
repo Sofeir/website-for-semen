@@ -328,7 +328,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                 <Button variant="ghost" size="sm" icon={<Pencil size={16} aria-hidden />} onClick={() => setEditing(true)}>
                   Изменить
                 </Button>
-                {!me.confirmsOverdue && (
+                {!me.confirmsOverdue && task.overdue && (
                   <Button variant="ghost" size="sm" icon={<CalendarClock size={16} aria-hidden />} onClick={startExtend}>
                     Запросить продление
                   </Button>
@@ -365,7 +365,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                 <Field label="Кому передать">
                   <UserSelect value={assignee} onChange={(e) => setAssignee(e.target.value)} data-autofocus />
                 </Field>
-                {me.confirmsOverdue || toSelf ? (
+                {me.confirmsOverdue || toSelf || !task.overdue ? (
                   <Field
                     label="Крайний срок"
                     hint={
@@ -378,7 +378,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                   </Field>
                 ) : (
                   <p className="muted">
-                    Крайний срок остаётся прежним: {fmtWhen(task.dueAt)}. Если нужно больше времени, запросите продление: срок двигает только директор.
+                    Задача просрочена, срок остаётся прежним: {fmtWhen(task.dueAt)}. Если нужно больше времени, запросите продление: срок двигает только директор.
                   </p>
                 )}
                 <Field label="Причина передачи и что уже сделано" hint="Увидят постановщик и руководитель">

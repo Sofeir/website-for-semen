@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { can as canRole, type LoginInput, type Me, type Permission } from '@sd/shared';
 import { api, ApiError, setCsrfToken, setUnauthorizedHandler } from '@/api/http';
 import { keys, type MeResponse } from '@/api/queries';
+import { forgetPushOnServer } from '@/lib/push';
 
 interface AuthState {
   user: Me | null;
@@ -65,6 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         qc.setQueryData(keys.me, r);
       },
       async logout() {
+        // Устройство перестаёт получать уведомления этого человека: следующий вошедший на нём получит свои (разрешение в браузере остаётся)
+        await forgetPushOnServer();
         await api.post('/auth/logout').catch(() => {});
         setCsrfToken('');
         qc.removeQueries({ predicate: (q) => q.queryKey[0] !== keys.me[0] });

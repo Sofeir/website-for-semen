@@ -83,6 +83,15 @@ export function ClientReportSheet({ clientId, month, onClose }: { clientId: numb
               <ExternalLink size={16} aria-hidden /> Открыть клиента
             </Link>
           )}
+          {!import.meta.env.VITE_DEMO && r && (
+            <Button
+              variant="secondary"
+              icon={<Download size={18} aria-hidden />}
+              onClick={() => (window.location.href = `/api/reports/client/${r.clientId}/works.xlsx?month=${month}`)}
+            >
+              Excel
+            </Button>
+          )}
           <Button icon={<Download size={18} aria-hidden />} onClick={csv} disabled={!r || Boolean(empty)}>
             Скачать CSV
           </Button>

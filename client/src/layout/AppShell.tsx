@@ -11,6 +11,7 @@ import { ButtonLink, IconButton, cx } from '@/ui/Button';
 import { Avatar, Spinner } from '@/ui/Display';
 import { Sheet } from '@/ui/Sheet';
 import { useIsMobile } from '@/lib/hooks';
+import { setAppBadgeCount, syncPush } from '@/lib/push';
 import { Brand } from './Brand';
 import { NAV, bottomNav } from './nav';
 import { NotificationsPanel } from './NotificationsPanel';
@@ -42,6 +43,12 @@ export function AppShell() {
   const unread = notifications.data?.unread ?? 0;
 
   useServerEvents(true);
+
+  // Число непрочитанных на иконке приложения; устройство, уже получившее разрешение, заново сообщает серверу о себе
+  useEffect(() => setAppBadgeCount(unread), [unread]);
+  useEffect(() => {
+    void syncPush();
+  }, []);
 
   useEffect(() => {
     setMoreOpen(false);

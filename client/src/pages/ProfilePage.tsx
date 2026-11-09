@@ -17,6 +17,7 @@ import { useToast } from '@/ui/Toast';
 import { CalendarCard, InstallCard, LoginCard } from './ProfileExtras';
 import { GoogleCalendarCard } from './GoogleCalendarCard';
 import { ReminderCard } from './ReminderCard';
+import { PushCard } from '@/components/PushCard';
 import s from './ProfilePage.module.css';
 
 export default function ProfilePage() {
@@ -37,6 +38,7 @@ export default function ProfilePage() {
       <div className={s.grid}>
         <div className="stack">
           <Channels me={me} />
+          <PushCard />
           <ReminderCard />
         </div>
         <div className="stack">

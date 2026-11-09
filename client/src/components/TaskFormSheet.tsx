@@ -87,8 +87,12 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
   const rootError = (errors.root?.message as string) || '';
 
   const submit = form.handleSubmit(async (values) => {
+    if (task && extending && (values.dueReason ?? '').trim().length < 3) {
+      form.setError('dueReason', { message: 'Напишите причину продления срока' });
+      return;
+    }
     try {
-      if (task) await api.put(`/tasks/${task.id}`, values as any);
+      if (task) await api.put(`/tasks/${task.id}`, { ...values, dueReason: extending ? values.dueReason : null } as any);
       else {
         await api.post('/tasks', {
           ...values,
@@ -107,8 +111,11 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
     }
   });
 
-  // Крайний срок действующей задачи меняет только тот, кто подтверждает просрочку (директор)
-  const lockedDue = Boolean(task && !me.confirmsOverdue);
+  // Срок действующей задачи двигает любой сотрудник, пока она не просрочена; просроченной — только тот, кто подтверждает просрочку (директор)
+  const lockedDue = Boolean(task && task.overdue && !me.confirmsOverdue);
+  // Отодвинуть срок может не только директор — тогда нужна причина, она остаётся в цепочке задачи
+  const watchedDue = form.watch('dueAt');
+  const extending = Boolean(task && !me.confirmsOverdue && watchedDue && new Date(watchedDue).getTime() > new Date(task.dueAt).getTime() + 60_000);
   // Ответственных у действующей задачи меняет постановщик или руководитель; исполнитель передаёт задачу
   const lockedAssignees = Boolean(task && task.creatorId !== me.id && !can('tasks.manageAll'));
   const workStart = settings.data?.work.workStart ?? '10:00';
@@ -187,7 +194,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
             error={errors.dueAt?.message}
             hint={
               lockedDue
-                ? 'Крайний срок двигает только директор. Чтобы продлить, откройте задачу и нажмите «Запросить продление»'
+                ? 'Задача просрочена: срок двигает только директор. Чтобы продлить, откройте задачу и нажмите «Запросить продление»'
                 : `Рабочий день с ${workStart} до ${workEnd}`
             }
             className={formStyles.span2}
@@ -222,6 +229,11 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
             />
           </Field>
         </div>
+        {extending && (
+          <Field label="Причина продления срока" error={errors.dueReason?.message} hint="Например: ждём запчасть. Руководитель увидит причину в истории задачи">
+            <Textarea {...form.register('dueReason')} rows={2} maxLength={500} />
+          </Field>
+        )}
         <Field label="Подробности" optional error={errors.description?.message}>
           <Textarea {...form.register('description')} rows={4} />
         </Field>

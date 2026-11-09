@@ -20,7 +20,7 @@ import { api, ApiError } from '@/api/http';
 import { useAuth, useMe } from '@/app/auth';
 import { useDictionaries, useInvalidate, useOrder } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
-import { useDocumentTitle } from '@/lib/hooks';
+import { useBack, useDocumentTitle } from '@/lib/hooks';
 import { AdvanceSheet, ReassignSheet, ReopenSheet } from '@/components/AdvanceSheet';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
 import { DeviceJournalSheet } from '@/components/DeviceJournalSheet';
@@ -33,11 +33,13 @@ import { Button, ButtonLink, IconButton, cx } from '@/ui/Button';
 import { Card, CardHead, DescList, EmptyState, ErrorBox, NumberTag, Pill, Plate, Spinner, StagePill } from '@/ui/Display';
 import { Field, Input, formStyles } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
+import { CARTRIDGE_TYPE } from '@/lib/stages';
 import { useToast } from '@/ui/Toast';
 import s from './OrderPage.module.css';
 
 export default function OrderPage() {
   const id = Number(useParams().id);
+  const back = useBack('/orders');
   const q = useOrder(id);
   const dict = useDictionaries();
   const me = useMe();
@@ -61,15 +63,25 @@ export default function OrderPage() {
   const stages = dict.data.stages.filter((st) => st.isActive);
   const isIssued = Boolean(o.issuedAt);
   const canReassign = !isIssued && (can('orders.assign') || o.responsibleId === me.id);
-  const target = { ...o, hasAct: o.acts.length > 0 };
+  // Картриджам акт не нужен: предупреждения «акта нет» при выдаче им не показываем
+  const target = { ...o, hasAct: o.acts.length > 0 || o.device.deviceType === CARTRIDGE_TYPE };
   const history = [...o.history].reverse();
+  // Срок этапа живёт в задаче этапа: правят его там (сотрудник — пока не просрочено, директор — всегда)
+  const stageTask = o.tasks.find((t) => t.isStageTask && t.status === 'open');
   const canEditAgreed = can('orders.assign') || o.responsibleId === me.id;
 
   return (
     <div className={s.page}>
-      <Link to="/orders" className={s.back}>
+      <Link
+        to="/orders"
+        className={s.back}
+        onClick={(e) => {
+          e.preventDefault();
+          back.goBack();
+        }}
+      >
         <ArrowLeft size={18} aria-hidden />
-        Все заявки
+        {back.hasHistory ? 'Назад' : 'Все заявки'}
       </Link>
 
       <header className={s.head}>
@@ -373,7 +385,14 @@ export default function OrderPage() {
               {!isIssued && (
                 <div>
                   <dt>Срок</dt>
-                  <dd className={cx(o.overdue && s.nowLate)}>{fmtWhen(o.stageDueAt)}</dd>
+                  <dd className={cx(o.overdue && s.nowLate)}>
+                    {fmtWhen(o.stageDueAt)}
+                    {stageTask && (
+                      <Button variant="ghost" size="sm" onClick={() => setTaskId(stageTask.id)} style={{ marginLeft: 6 }}>
+                        Изменить
+                      </Button>
+                    )}
+                  </dd>
                 </div>
               )}
             </dl>

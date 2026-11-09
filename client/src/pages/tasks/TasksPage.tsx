@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { CheckCheck, CheckCircle2, ListPlus, Search, X } from 'lucide-react';
@@ -8,7 +8,7 @@ import { useAuth, useMe } from '@/app/auth';
 import { ApiError } from '@/api/http';
 import { useCloseTasks, useTaskKinds, useTasks, type TaskFilters } from '@/api/queries';
 import { addDays, startOfDay } from '@/lib/dates';
-import { useDebounced, useDocumentTitle } from '@/lib/hooks';
+import { useBack, useDebounced, useDocumentTitle } from '@/lib/hooks';
 import { UserSelect } from '@/components/Pickers';
 import { TaskRow } from '@/components/TaskRow';
 import { TaskSheet } from '@/components/TaskSheet';
@@ -72,6 +72,9 @@ export default function TasksPage() {
   const [comment, setComment] = useState('');
   const [creating, setCreating] = useState(false);
   const openTaskId = Number(params.get('task')) || null;
+  // Задача открыта по ссылке с другого экрана (готовая техника, заявка, уведомление): при закрытии возвращаем туда же, а не оставляем в «Задачах»
+  const fromElsewhere = useRef(Boolean(params.get('task')));
+  const back = useBack('/tasks');
 
   const allTasks = tasks.data ?? [];
   const list = useMemo(
@@ -299,7 +302,14 @@ export default function TasksPage() {
         </Field>
       </Sheet>
 
-      <TaskSheet taskId={openTaskId} onClose={() => setTaskParam(null)} />
+      <TaskSheet
+        taskId={openTaskId}
+        onClose={() => {
+          if (fromElsewhere.current && back.hasHistory) back.goBack();
+          else setTaskParam(null);
+          fromElsewhere.current = false;
+        }}
+      />
       <TaskFormSheet open={creating} onClose={() => setCreating(false)} />
     </>
   );

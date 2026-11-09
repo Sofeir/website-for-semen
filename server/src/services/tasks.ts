@@ -271,13 +271,16 @@ export async function requestTaskClose(db: Db, actor: Actor, id: number, comment
 }
 
 export const EXTEND_MESSAGE =
-  'Крайний срок двигает только директор. Нажмите «Запросить продление» в задаче: он получит уведомление и решит';
+  'Задача просрочена: срок двигает только директор. Нажмите «Запросить продление» в задаче: он получит уведомление и решит';
 
-/** Срок можно только сократить или оставить: отодвинуть его без согласования директора нельзя. */
-export async function assertDueNotLater(db: Db, actor: Actor, currentDue: Date, newDue: Date) {
-  if (newDue.getTime() <= currentDue.getTime() + 60_000) return;
+/**
+ * Срок задачи или этапа может менять любой сотрудник, пока срок не прошёл. Если задача уже просрочена (срок вышел или она
+ * была просрочена раньше), двигает срок только директор, остальные просят его через «Запросить продление».
+ */
+export async function assertDueNotLater(db: Db, actor: Actor, currentDue: Date, newDue: Date, wasOverdue = false) {
+  if (Math.abs(newDue.getTime() - currentDue.getTime()) <= 60_000) return;
   if (await canConfirmOverdue(db, actor.id)) return;
-  throw new HttpError(403, EXTEND_MESSAGE);
+  if (wasOverdue || currentDue.getTime() < Date.now()) throw new HttpError(403, EXTEND_MESSAGE);
 }
 
 /** Просьба продлить крайний срок. Получает только тот, кто подтверждает просрочку: он и меняет срок. */
