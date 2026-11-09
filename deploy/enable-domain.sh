@@ -66,6 +66,10 @@ step "5. Настройки домена для Angie"
 CONF="/etc/servicedesk-https/$DOMAIN.conf"
 cat > "$CONF" <<'EOF'
 # Создано deploy/enable-domain.sh. Домен __DOMAIN__: http перенаправляет на https.
+# Вход и регистрация: не чаще 30 запросов в минуту с одного адреса (всплеск до 10), остальное блокируется с кодом 429.
+limit_req_zone $binary_remote_addr zone=sd_auth:10m rate=30r/m;
+limit_req_status 429;
+
 server {
     listen 80;
     server_name __DOMAIN__;
@@ -83,7 +87,10 @@ server {
     ssl_certificate     /etc/letsencrypt/live/__DOMAIN__/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/__DOMAIN__/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_tickets off;
+    server_tokens off;
     add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
     add_header X-Robots-Tag "noindex, nofollow" always;
 
     set $app_upstream app:8431;
@@ -108,6 +115,17 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ~ ^/api/auth/(login|register)$ {
+        limit_req zone=sd_auth burst=10 nodelay;
+        proxy_pass http://$app_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
     }
 
     location / {

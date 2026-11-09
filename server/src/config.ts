@@ -33,6 +33,10 @@ export const config = {
     .map((s) => s.trim())
     .filter(Boolean),
   cookieSecure: bool(process.env.COOKIE_SECURE, false),
+  /** Стоимость хеша пароля (bcrypt). Выше — дольше подбор по украденной базе и чуть дольше вход. */
+  bcryptRounds: Number(process.env.BCRYPT_ROUNDS) || (process.env.NODE_ENV === 'production' ? 12 : 10),
+  /** Ограничение частоты запросов. В тестах выключено: они шлют сотни запросов за секунды. */
+  rateLimit: !isTest && !bool(process.env.RATE_LIMIT_OFF, false),
   sessionHours: Number(process.env.SESSION_HOURS || 12),
   rememberDays: Number(process.env.REMEMBER_DAYS || 30),
   uploadDir: path.resolve(ROOT_DIR, process.env.UPLOAD_DIR || 'uploads'),

@@ -6,7 +6,14 @@ import { one, pool } from '../db/pool';
 import { forbidden, HttpError } from '../lib/http';
 import type { Actor } from '../services/tasks';
 
-export const SESSION_COOKIE = 'sd_session';
+/**
+ * По https cookie получает префикс __Host-: браузер принимает такую cookie только с флагом Secure, на весь сайт и без домена,
+ * так что её нельзя подменить с соседнего поддомена (adminstart.ru держит на других поддоменах чужие сайты).
+ */
+export const SESSION_COOKIE = config.cookieSecure ? '__Host-sd_session' : 'sd_session';
+
+/** Сколько входов одновременно держим у одного человека: больше — самые старые закрываются. */
+const MAX_SESSIONS_PER_USER = 15;
 
 export interface SessionUser extends Actor {
   login: string;
@@ -33,6 +40,12 @@ export async function createSession(res: Response, userId: number, remember: boo
   const csrf = randomToken();
   const ttlMs = remember ? config.rememberDays * 86400_000 : config.sessionHours * 3600_000;
   const expires = new Date(Date.now() + ttlMs);
+  // Старые просроченные входы убираем, а у человека оставляем не больше MAX_SESSIONS_PER_USER последних
+  await pool.query('DELETE FROM sessions WHERE expires_at < now()');
+  await pool.query(
+    `DELETE FROM sessions WHERE user_id = $1 AND id NOT IN (SELECT id FROM sessions WHERE user_id = $1 ORDER BY last_seen_at DESC LIMIT $2)`,
+    [userId, MAX_SESSIONS_PER_USER - 1],
+  );
   await pool.query(
     `INSERT INTO sessions (id, user_id, csrf_token, remember, expires_at, user_agent) VALUES ($1, $2, $3, $4, $5, $6)`,
     [sha256(token), userId, csrf, remember, expires, userAgent?.slice(0, 300) ?? null],

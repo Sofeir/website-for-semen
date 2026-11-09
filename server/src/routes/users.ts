@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import bcrypt from 'bcryptjs';
 import { can, userCreateSchema, userUpdateSchema } from '@sd/shared';
 import { many, one, pool } from '../db/pool';
 import { h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
+import { hashPassword } from '../auth/password';
 
 export const usersRouter = Router();
 
@@ -29,7 +29,7 @@ usersRouter.post(
     if (exists) throw new HttpError(409, 'Такой логин уже занят', { fields: { login: 'Такой логин уже занят' } });
     const row = await one(
       `INSERT INTO users (login, password_hash, full_name, role, phone, email, position) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-      [u.login, await bcrypt.hash(u.password, 10), u.fullName, u.role, u.phone, u.email, u.position],
+      [u.login, await hashPassword(u.password), u.fullName, u.role, u.phone, u.email, u.position],
     );
     res.status(201).json({ id: row.id });
   }),
@@ -60,7 +60,7 @@ usersRouter.put(
     if (u.position !== undefined) add('position', u.position);
     if (u.email !== undefined) add('email', u.email);
     if (u.isActive !== undefined) add('is_active', u.isActive);
-    if (u.password) add('password_hash', await bcrypt.hash(u.password, 10));
+    if (u.password) add('password_hash', await hashPassword(u.password));
     if (!sets.length) return res.json({ ok: true });
     const r = await pool.query(`UPDATE users SET ${sets.join(', ')} WHERE id = $1 AND role <> 'customer'`, vals);
     if (!r.rowCount) throw new HttpError(404, 'Сотрудник не найден');

@@ -5,6 +5,8 @@
 const WINDOW_MS = 15 * 60_000;
 const MAX_FAILS = 5;
 const MAX_IP_FAILS = 30;
+/** Подбор пароля одного логина с разных адресов: столько неудач за окно, и вход этого логина закрывается до конца окна. */
+const MAX_LOGIN_FAILS = 60;
 
 const fails = new Map<string, number[]>();
 
@@ -20,14 +22,15 @@ function recent(key: string) {
 export function loginRetryAfter(ip: string, login: string): number {
   const pair = recent(`${ip}|${login.toLowerCase()}`);
   const byIp = recent(ip);
-  const blocked = pair.length >= MAX_FAILS ? pair : byIp.length >= MAX_IP_FAILS ? byIp : null;
+  const byLogin = recent(`login|${login.toLowerCase()}`);
+  const blocked = pair.length >= MAX_FAILS ? pair : byIp.length >= MAX_IP_FAILS ? byIp : byLogin.length >= MAX_LOGIN_FAILS ? byLogin : null;
   if (!blocked) return 0;
   return Math.ceil((blocked[0] + WINDOW_MS - Date.now()) / 1000);
 }
 
 export function registerLoginFail(ip: string, login: string) {
   const now = Date.now();
-  for (const key of [`${ip}|${login.toLowerCase()}`, ip]) {
+  for (const key of [`${ip}|${login.toLowerCase()}`, ip, `login|${login.toLowerCase()}`]) {
     fails.set(key, [...recent(key), now]);
   }
 }

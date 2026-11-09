@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { changeLoginSchema, changePasswordSchema, loginSchema, normalizePhone, profileSchema, registerSchema, type Me, type MaxLink } from '@sd/shared';
+import { weakPasswordReason, changeLoginSchema, changePasswordSchema, loginSchema, normalizePhone, profileSchema, registerSchema, type Me, type MaxLink } from '@sd/shared';
 import { one, pool, tx } from '../db/pool';
 import { h, HttpError, parse } from '../lib/http';
 import { isReservedLogin, RESERVED_LOGIN_MESSAGE } from '../lib/reservedLogins';
 import { createSession, destroySession, requireAuth } from '../auth/session';
+import { hashPassword, needsRehash } from '../auth/password';
 import { loginRetryAfter, registerLoginFail, resetLoginFails } from '../auth/rateLimit';
 import { channels } from '../notify/channels';
 import { createLinkCode, formatCode, getBotUsername } from '../notify/maxLink';
@@ -53,6 +54,10 @@ authRouter.post(
       throw new HttpError(401, 'Неверный логин или пароль');
     }
     resetLoginFails(ip, input.login);
+    // Пароль верный, а хеш сделан по старой, более слабой стоимости: пересчитываем его, пока пароль в руках
+    if (needsRehash(user.password_hash)) {
+      await pool.query('UPDATE users SET password_hash = $2 WHERE id = $1', [user.id, await hashPassword(input.password)]);
+    }
     // Пароль верный, но руководитель ещё не открыл доступ — говорим об этом прямо, а не «неверный пароль».
     if (user.pending)
       throw new HttpError(403, 'Регистрация ждёт подтверждения руководителем. Мы свяжемся с вами по указанному телефону.', {
@@ -77,13 +82,18 @@ authRouter.post(
     if (recent.length >= REGISTER_LIMIT) throw new HttpError(429, 'Слишком много регистраций с этого адреса. Попробуйте позже.');
     const taken = await one('SELECT 1 FROM users WHERE lower(login) = lower($1)', [input.login]);
     if (taken) throw new HttpError(409, 'Такой логин уже занят', { fields: { login: 'Такой логин уже занят' } });
+    const weak = weakPasswordReason(input.password, input.login);
+    if (weak) throw new HttpError(400, weak, { fields: { password: weak } });
+    // Заявки на регистрацию ждут руководителя: если их накопились сотни, кто-то засоряет базу
+    const waiting = await one<{ n: number }>('SELECT count(*)::int AS n FROM users WHERE pending');
+    if ((waiting?.n ?? 0) >= 100) throw new HttpError(429, 'Сейчас регистрация закрыта: много заявок ждут проверки. Позвоните в сервис-центр.');
     if (isReservedLogin(input.login)) throw new HttpError(409, RESERVED_LOGIN_MESSAGE, { fields: { login: RESERVED_LOGIN_MESSAGE } });
     await pool.query(
       `INSERT INTO users (login, password_hash, full_name, role, phone, email, reg_kind, reg_contact, pending)
        VALUES ($1, $2, $3, 'customer', $4, $5, $6, $7, true)`,
       [
         input.login,
-        await bcrypt.hash(input.password, 10),
+        await hashPassword(input.password),
         input.fullName,
         input.phone,
         input.email,
@@ -149,7 +159,9 @@ authRouter.post(
     if (!u || !(await bcrypt.compare(p.current, u.password_hash))) {
       throw new HttpError(400, 'Текущий пароль не подходит', { fields: { current: 'Текущий пароль не подходит' } });
     }
-    await pool.query('UPDATE users SET password_hash = $2 WHERE id = $1', [req.user!.id, await bcrypt.hash(p.next, 10)]);
+    const weak = weakPasswordReason(p.next, req.user!.login);
+    if (weak) throw new HttpError(400, weak, { fields: { next: weak } });
+    await pool.query('UPDATE users SET password_hash = $2 WHERE id = $1', [req.user!.id, await hashPassword(p.next)]);
     // Остальные сессии пользователя закрываем.
     await pool.query('DELETE FROM sessions WHERE user_id = $1 AND id <> $2', [req.user!.id, req.user!.sessionId]);
     res.json({ ok: true });

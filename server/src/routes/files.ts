@@ -103,6 +103,8 @@ filesRouter.post(
         if (!MAGIC[ext]?.(head)) throw new HttpError(400, `Содержимое «${fixName(f.originalname)}» не совпадает с расширением`);
       }
       let linkedClient = clientId;
+      // К заявке файлы прикрепляет тот, кому она видна: мастер не может «подбросить» файл в чужую заявку
+      if (orderId) await assertOrderVisible(req.user!, orderId);
       if (orderId) {
         const o = await one<{ client_id: number }>('SELECT client_id FROM orders WHERE id = $1', [orderId]);
         if (!o) throw new HttpError(400, 'Заявка не найдена');

@@ -9,6 +9,9 @@ services:
       POSTGRES_USER: servicedesk
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Задайте DB_PASSWORD в файле .env}
       POSTGRES_DB: servicedesk
+    # процессам в контейнере нельзя получать больше прав, чем у них есть
+    security_opt:
+      - no-new-privileges:true
     volumes:
       - pgdata:/var/lib/postgresql/data
     # Для pgAdmin: только с самого сервера (порт 5433, чтобы не мешать другим базам на сервере).
@@ -35,6 +38,11 @@ services:
       TRUST_PROXY: "1"
       DATABASE_URL: postgres://servicedesk:${DB_PASSWORD:?Задайте DB_PASSWORD в файле .env}@db:5432/servicedesk
       UPLOAD_DIR: /data/uploads
+    # приложению не нужны особые возможности системы: убираем все, оставляя обычную работу с файлами и сетью
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     volumes:
       - uploads:/data/uploads
       # ключ сервисного аккаунта Google для записи в календари (см. УСТАНОВКА-НА-СЕРВЕР.md); папка может быть пустой
@@ -46,6 +54,8 @@ services:
   angie:
     image: docker.angie.software/angie:latest
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "80:80"
       - "443:443"
