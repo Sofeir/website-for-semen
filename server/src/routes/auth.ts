@@ -6,7 +6,7 @@ import { h, HttpError, parse } from '../lib/http';
 import { isReservedLogin, RESERVED_LOGIN_MESSAGE } from '../lib/reservedLogins';
 import { createSession, destroySession, requireAuth } from '../auth/session';
 import { hashPassword, needsRehash } from '../auth/password';
-import { loginRetryAfter, registerLoginFail, resetLoginFails } from '../auth/rateLimit';
+import { clearLoginSpray, loginDelayMs, loginRetryAfter, registerLoginFail, resetLoginFails } from '../auth/rateLimit';
 import { channels } from '../notify/channels';
 import { createLinkCode, formatCode, getBotUsername } from '../notify/maxLink';
 import { Outbox } from '../notify/notify';
@@ -44,6 +44,9 @@ authRouter.post(
       res.set('Retry-After', String(wait));
       throw new HttpError(429, `Слишком много попыток. Попробуйте через ${Math.ceil(wait / 60)} мин.`);
     }
+    // Логин подбирают с разных адресов: каждую попытку подержим, чтобы перебор стал бессмысленным (верный пароль всё равно пускает)
+    const slow = loginDelayMs(input.login);
+    if (slow) await new Promise((r) => setTimeout(r, slow));
     const user = await one<{ id: number; password_hash: string; is_active: boolean; pending: boolean }>(
       'SELECT id, password_hash, is_active, pending FROM users WHERE lower(login) = lower($1)',
       [input.login],
@@ -54,6 +57,7 @@ authRouter.post(
       throw new HttpError(401, 'Неверный логин или пароль');
     }
     resetLoginFails(ip, input.login);
+    clearLoginSpray(input.login);
     // Пароль верный, а хеш сделан по старой, более слабой стоимости: пересчитываем его, пока пароль в руках
     if (needsRehash(user.password_hash)) {
       await pool.query('UPDATE users SET password_hash = $2 WHERE id = $1', [user.id, await hashPassword(input.password)]);
@@ -84,9 +88,10 @@ authRouter.post(
     if (taken) throw new HttpError(409, 'Такой логин уже занят', { fields: { login: 'Такой логин уже занят' } });
     const weak = weakPasswordReason(input.password, input.login);
     if (weak) throw new HttpError(400, weak, { fields: { password: weak } });
-    // Заявки на регистрацию ждут руководителя: если их накопились сотни, кто-то засоряет базу
-    const waiting = await one<{ n: number }>('SELECT count(*)::int AS n FROM users WHERE pending');
-    if ((waiting?.n ?? 0) >= 100) throw new HttpError(429, 'Сейчас регистрация закрыта: много заявок ждут проверки. Позвоните в сервис-центр.');
+    // Не завалить базу: заявки без ответа руководителя месяц не живут, а с одного телефона ждать могут не больше двух
+    await pool.query(`DELETE FROM users WHERE pending AND role = 'customer' AND created_at < now() - interval '30 days'`);
+    const samePhone = await one<{ n: number }>(`SELECT count(*)::int AS n FROM users WHERE pending AND phone = $1`, [input.phone]);
+    if ((samePhone?.n ?? 0) >= 2) throw new HttpError(409, 'Заявка с этим телефоном уже ждёт проверки. Мы свяжемся с вами.');
     if (isReservedLogin(input.login)) throw new HttpError(409, RESERVED_LOGIN_MESSAGE, { fields: { login: RESERVED_LOGIN_MESSAGE } });
     await pool.query(
       `INSERT INTO users (login, password_hash, full_name, role, phone, email, reg_kind, reg_contact, pending)

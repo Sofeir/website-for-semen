@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { pool } from '../src/db/pool';
 import { app } from './helpers';
-import { loginRetryAfter, registerLoginFail, _resetAllForTests } from '../src/auth/rateLimit';
+import { loginDelayMs, loginRetryAfter, registerLoginFail, _resetAllForTests } from '../src/auth/rateLimit';
 import { createLimiter } from '../src/lib/requestLimit';
 import { config } from '../src/config';
 import { weakPasswordReason } from '@sd/shared';
@@ -20,11 +20,12 @@ describe('ограничитель частоты запросов', () => {
     expect(l.take('b')).toBe(0);
   });
 
-  it('перебор одного логина с разных адресов тоже останавливается', () => {
+  it('перебор одного логина с разных адресов замедляется, но настоящего владельца не запирает', () => {
     _resetAllForTests();
     for (let i = 0; i < 60; i++) registerLoginFail(`10.0.0.${i}`, 'semen');
-    expect(loginRetryAfter('10.9.9.9', 'semen')).toBeGreaterThan(0);
-    expect(loginRetryAfter('10.9.9.9', 'kataev')).toBe(0);
+    expect(loginDelayMs('semen')).toBeGreaterThan(0);
+    expect(loginRetryAfter('10.9.9.9', 'semen')).toBe(0); // вход не закрыт
+    expect(loginDelayMs('kataev')).toBe(0);
     _resetAllForTests();
   });
 });
@@ -52,6 +53,16 @@ describe('пароли', () => {
       kind: 'person', fullName: 'Иван Тестов', contactPerson: null, phone: '+7 900 000-00-77', email: null, login: 'ivan.t', password: 'password1',
     });
     expect(res.status).toBe(400);
+  });
+
+  it('с одного телефона в очереди не больше двух заявок на регистрацию', async () => {
+    const reg = (login: string) =>
+      request(app).post('/api/auth/register').send({
+        kind: 'person', fullName: 'Пётр Очередной', contactPerson: null, phone: '+7 900 555-12-34', email: null, login, password: 'Каменный-луг-77',
+      });
+    expect((await reg('queue.one')).status).toBe(201);
+    expect((await reg('queue.two')).status).toBe(201);
+    expect((await reg('queue.three')).status).toBe(409);
   });
 
   it('при входе старый слабый хеш пересчитывается по текущей стоимости', async () => {
