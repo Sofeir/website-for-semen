@@ -18,6 +18,7 @@ const SWAPS: Record<string, string> = {
   'documents/render': 'render.ts',
   'routes/files': 'stubs.ts',
   'routes/import': 'stubs.ts',
+  'routes/reportsXlsx': 'stubs.ts',
 };
 
 function demoSwap(): Plugin {

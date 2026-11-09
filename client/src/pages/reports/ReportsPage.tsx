@@ -115,14 +115,24 @@ export default function ReportsPage() {
         title="Отчёты"
         subtitle="По месяцам: заявки, ремонты, заправки картриджей, выезды. Нажмите на клиента, чтобы увидеть, что именно сделали."
         actions={
-          <Button
-            variant="secondary"
-            icon={<Download size={18} aria-hidden />}
-            onClick={() => report && downloadCsv(`otchet-${month}.csv`, reportCsv(report, scope))}
-            disabled={!report}
-          >
-            Скачать CSV
-          </Button>
+          <>
+            {!import.meta.env.VITE_DEMO && (
+              <Button
+                icon={<Download size={18} aria-hidden />}
+                onClick={() => (window.location.href = `/api/reports/works.xlsx?month=${month}`)}
+              >
+                Картриджи и ремонты, Excel
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              icon={<Download size={18} aria-hidden />}
+              onClick={() => report && downloadCsv(`otchet-${month}.csv`, reportCsv(report, scope))}
+              disabled={!report}
+            >
+              Скачать CSV
+            </Button>
+          </>
         }
       />
 

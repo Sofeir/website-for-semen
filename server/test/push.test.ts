@@ -6,7 +6,7 @@ beforeAll(resetDb);
 afterAll(() => pool.end());
 
 const sub = (n: number) => ({
-  endpoint: `https://push.example.test/send/device-${n}`,
+  endpoint: `https://fcm.googleapis.com/fcm/send/device-${n}`,
   keys: { p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM', auth: 'tBHItJI5svbpez7KI4CCXg' },
 });
 
@@ -21,6 +21,10 @@ describe('уведомления на устройство (Web Push)', () => {
     expect((await semen.post('/api/push/subscribe', sub(1))).status).toBe(200); // повтор не плодит записей
     expect((await pool.query('SELECT 1 FROM push_subscriptions')).rowCount).toBe(1);
     expect((await semen.post('/api/push/subscribe', { endpoint: 'не адрес', keys: {} })).status).toBe(400);
+    // чужие адреса не принимаем: сервер не должен ходить куда попало
+    for (const endpoint of ['http://fcm.googleapis.com/x', 'https://127.0.0.1/x', 'https://evil.example.com/x', 'https://fcm.googleapis.com.evil.com/x', 'https://fcm.googleapis.com:8443/x']) {
+      expect((await semen.post('/api/push/subscribe', { ...sub(1), endpoint })).status).toBe(400);
+    }
 
     // устройство перешло к другому сотруднику: подписка теперь его, у Семёна её нет
     const stas = await loginAs('isakov');

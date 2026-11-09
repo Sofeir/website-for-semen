@@ -33,6 +33,27 @@ async function init() {
   return row.public_key;
 }
 
+/**
+ * Куда сервер вообще согласен слать: только https и только службы push самих браузеров. Иначе подписку можно было бы
+ * использовать, чтобы заставить сервер обращаться к любому адресу, в том числе внутри сети.
+ */
+const PUSH_HOSTS = [
+  /^fcm\.googleapis\.com$/,
+  /^updates\.push\.services\.mozilla\.com$/,
+  /\.push\.services\.mozilla\.com$/,
+  /\.push\.apple\.com$/,
+  /\.notify\.windows\.com$/,
+];
+
+export function isAllowedPushEndpoint(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint);
+    return url.protocol === 'https:' && !url.port && PUSH_HOSTS.some((re) => re.test(url.hostname));
+  } catch {
+    return false;
+  }
+}
+
 export function pushPublicKey(): Promise<string> {
   if (!ready) {
     ready = init().catch((e) => {
@@ -52,7 +73,8 @@ interface SubRow {
 
 /** Отправляет уведомление на все устройства человека. Устройства, которые отказались принимать (удалили приложение), забываем. */
 export async function sendPush(userId: number, payload: PushPayload): Promise<number> {
-  const subs = await many<SubRow>('SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1', [userId]);
+  const all = await many<SubRow>('SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1', [userId]);
+  const subs = all.filter((s) => isAllowedPushEndpoint(s.endpoint));
   if (!subs.length) return 0;
   await pushPublicKey();
   const body = JSON.stringify(payload);

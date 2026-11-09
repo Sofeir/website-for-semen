@@ -14,3 +14,7 @@ filesRouter.delete('/files/:id', unavailable);
 export const importRouter = Router();
 importRouter.post('/import/preview', unavailable);
 importRouter.post('/import/commit', unavailable);
+
+export const reportsXlsxRouter = Router();
+reportsXlsxRouter.get('/reports/works.xlsx', unavailable);
+reportsXlsxRouter.get('/reports/client/:id/works.xlsx', unavailable);

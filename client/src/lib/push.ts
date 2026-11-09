@@ -58,6 +58,17 @@ export async function disablePush(): Promise<PushState> {
   return 'off';
 }
 
+/** При выходе: сервер забывает это устройство за выходящим сотрудником. Подписка в самом браузере остаётся, чтобы следующий вошедший мог её занять. */
+export async function forgetPushOnServer() {
+  try {
+    if (!supported()) return;
+    const sub = await (await registration()).pushManager.getSubscription();
+    if (sub) await api.post('/push/unsubscribe', { endpoint: sub.endpoint });
+  } catch {
+    // нет связи или воркера: при следующем входе подписка всё равно перейдёт к тому, кто войдёт
+  }
+}
+
 /** Если разрешение уже выдано, а сервер о подписке забыл (сменили пользователя, очистили базу), подписываем заново без вопросов. */
 export async function syncPush() {
   try {

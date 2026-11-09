@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { one, pool } from '../db/pool';
-import { h, parse } from '../lib/http';
-import { pushPublicKey, sendPush } from '../notify/push';
+import { h, HttpError, parse } from '../lib/http';
+import { isAllowedPushEndpoint, pushPublicKey, sendPush } from '../notify/push';
 
 export const pushRouter = Router();
 
@@ -23,6 +23,7 @@ pushRouter.post(
   '/push/subscribe',
   h(async (req, res) => {
     const input = parse(subscribeSchema, req.body);
+    if (!isAllowedPushEndpoint(input.endpoint)) throw new HttpError(400, 'Этот адрес уведомлений не поддерживается');
     await pool.query(
       `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, user_agent) VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, user_agent = EXCLUDED.user_agent`,
