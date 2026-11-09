@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { PackageCheck } from 'lucide-react';
 import { useDictionaries, useOrders } from '@/api/queries';
-import { useDocumentTitle } from '@/lib/hooks';
+import { useDocumentTitle, useIsMobile } from '@/lib/hooks';
 import { OrderRow } from '@/components/OrderRow';
 import { Card, EmptyState, ErrorBox, PageHeader, Spinner, Tabs } from '@/ui/Display';
 import { Segmented } from '@/ui/Form';
@@ -16,6 +16,7 @@ const CARTRIDGE_TYPE = 'Картридж';
 /** Готовая техника: заявки на этапе «Готово», которые ждут выдачи клиенту. */
 export default function ReadyPage() {
   useDocumentTitle('Готовая техника');
+  const mobile = useIsMobile();
   const dict = useDictionaries();
   const ready = dict.data?.stages.find((st) => st.isActive && st.code === 'ready');
   const orders = useOrders({ stage: ready?.id ?? '', sort: 'old' }, Boolean(ready));
@@ -49,6 +50,7 @@ export default function ReadyPage() {
         />
         <Segmented
           label="Итог"
+          block={mobile}
           layoutId="ready-result"
           value={result}
           onChange={setResult}
