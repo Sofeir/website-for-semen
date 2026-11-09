@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { pool } from '../src/db/pool';
 import { app } from './helpers';
-import { loginDelayMs, loginRetryAfter, registerLoginFail, _resetAllForTests } from '../src/auth/rateLimit';
+import { loginRetryAfter, registerLoginFail, reserveLoginSlot, _resetAllForTests } from '../src/auth/rateLimit';
 import { createLimiter } from '../src/lib/requestLimit';
 import { config } from '../src/config';
 import { weakPasswordReason } from '@sd/shared';
@@ -20,12 +20,17 @@ describe('ограничитель частоты запросов', () => {
     expect(l.take('b')).toBe(0);
   });
 
-  it('перебор одного логина с разных адресов замедляется, но настоящего владельца не запирает', () => {
+  it('перебор одного логина с разных адресов идёт по очереди, параллельными запросами это не обойти', () => {
     _resetAllForTests();
+    expect(reserveLoginSlot('semen')).toBe(0); // пока подбора нет, без задержки
     for (let i = 0; i < 60; i++) registerLoginFail(`10.0.0.${i}`, 'semen');
-    expect(loginDelayMs('semen')).toBeGreaterThan(0);
-    expect(loginRetryAfter('10.9.9.9', 'semen')).toBe(0); // вход не закрыт
-    expect(loginDelayMs('kataev')).toBe(0);
+    expect(loginRetryAfter('10.9.9.9', 'semen')).toBe(0); // сам вход не закрыт
+    // десять запросов одновременно: первые получают места в очереди с промежутком, лишним отказ
+    const slots = Array.from({ length: 10 }, () => reserveLoginSlot('semen'));
+    expect(slots[0]).toBe(0);
+    expect(slots[1]).toBeGreaterThanOrEqual(2900);
+    expect(slots.filter((s) => s === null).length).toBeGreaterThan(0);
+    expect(reserveLoginSlot('kataev')).toBe(0);
     _resetAllForTests();
   });
 });

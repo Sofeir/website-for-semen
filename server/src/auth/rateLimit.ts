@@ -31,9 +31,23 @@ export function loginRetryAfter(ip: string, login: string): number {
   return Math.ceil((blocked[0] + WINDOW_MS - Date.now()) / 1000);
 }
 
-/** Сколько миллисекунд подержать попытку входа, если этот логин сейчас подбирают с разных адресов. Верный пароль пускает и так. */
-export function loginDelayMs(login: string): number {
-  return recent(`login|${login.toLowerCase()}`).length >= MAX_LOGIN_FAILS ? SLOW_LOGIN_MS : 0;
+/** Сколько попыток может стоять в очереди на один логин, пока его подбирают; остальным — «подождите» (429). */
+const MAX_QUEUE = 3;
+const nextSlot = new Map<string, number>();
+
+/**
+ * Если логин сейчас подбирают с разных адресов, попытки входа идут по одной с промежутком SLOW_LOGIN_MS, в порядке очереди.
+ * Параллельными запросами это не обойти: слот занимается сразу. Возвращает, сколько мс ждать своей очереди,
+ * или null, если очередь заполнена (тогда ответ 429, а владелец логина может повторить через несколько секунд).
+ */
+export function reserveLoginSlot(login: string): number | null {
+  const key = login.toLowerCase();
+  if (recent(`login|${key}`).length < MAX_LOGIN_FAILS) return 0;
+  const now = Date.now();
+  const at = Math.max(now, nextSlot.get(key) ?? 0);
+  if (at - now > SLOW_LOGIN_MS * MAX_QUEUE) return null;
+  nextSlot.set(key, at + SLOW_LOGIN_MS);
+  return at - now;
 }
 
 export function registerLoginFail(ip: string, login: string) {
@@ -54,4 +68,5 @@ export function clearLoginSpray(login: string) {
 
 export function _resetAllForTests() {
   fails.clear();
+  nextSlot.clear();
 }

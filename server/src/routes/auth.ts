@@ -6,7 +6,7 @@ import { h, HttpError, parse } from '../lib/http';
 import { isReservedLogin, RESERVED_LOGIN_MESSAGE } from '../lib/reservedLogins';
 import { createSession, destroySession, requireAuth } from '../auth/session';
 import { hashPassword, needsRehash } from '../auth/password';
-import { clearLoginSpray, loginDelayMs, loginRetryAfter, registerLoginFail, resetLoginFails } from '../auth/rateLimit';
+import { clearLoginSpray, loginRetryAfter, registerLoginFail, reserveLoginSlot, resetLoginFails } from '../auth/rateLimit';
 import { channels } from '../notify/channels';
 import { createLinkCode, formatCode, getBotUsername } from '../notify/maxLink';
 import { Outbox } from '../notify/notify';
@@ -44,9 +44,13 @@ authRouter.post(
       res.set('Retry-After', String(wait));
       throw new HttpError(429, `Слишком много попыток. Попробуйте через ${Math.ceil(wait / 60)} мин.`);
     }
-    // Логин подбирают с разных адресов: каждую попытку подержим, чтобы перебор стал бессмысленным (верный пароль всё равно пускает)
-    const slow = loginDelayMs(input.login);
-    if (slow) await new Promise((r) => setTimeout(r, slow));
+    // Логин подбирают с разных адресов: попытки идут по одной в порядке очереди, лишние получают отказ. Подбор упирается в ~20 попыток в минуту.
+    const slot = reserveLoginSlot(input.login);
+    if (slot === null) {
+      res.set('Retry-After', '10');
+      throw new HttpError(429, 'Для этого логина сейчас много попыток входа. Подождите немного и повторите.');
+    }
+    if (slot > 0) await new Promise((r) => setTimeout(r, slot));
     const user = await one<{ id: number; password_hash: string; is_active: boolean; pending: boolean }>(
       'SELECT id, password_hash, is_active, pending FROM users WHERE lower(login) = lower($1)',
       [input.login],
@@ -90,6 +94,9 @@ authRouter.post(
     if (weak) throw new HttpError(400, weak, { fields: { password: weak } });
     // Не завалить базу: заявки без ответа руководителя месяц не живут, а с одного телефона ждать могут не больше двух
     await pool.query(`DELETE FROM users WHERE pending AND role = 'customer' AND created_at < now() - interval '30 days'`);
+    // И общий потолок на случай атаки с множества телефонов и адресов: база не должна расти без предела
+    const waiting = await one<{ n: number }>('SELECT count(*)::int AS n FROM users WHERE pending');
+    if ((waiting?.n ?? 0) >= 500) throw new HttpError(429, 'Сейчас много заявок на регистрацию. Позвоните в сервис-центр, мы подключим вас вручную.');
     const samePhone = await one<{ n: number }>(`SELECT count(*)::int AS n FROM users WHERE pending AND phone = $1`, [input.phone]);
     if ((samePhone?.n ?? 0) >= 2) throw new HttpError(409, 'Заявка с этим телефоном уже ждёт проверки. Мы свяжемся с вами.');
     if (isReservedLogin(input.login)) throw new HttpError(409, RESERVED_LOGIN_MESSAGE, { fields: { login: RESERVED_LOGIN_MESSAGE } });
@@ -111,6 +118,12 @@ authRouter.post(
     const outbox = new Outbox();
     const bosses = await pool.query<{ id: number }>(`SELECT id FROM users WHERE is_active AND role IN ('admin', 'manager')`);
     for (const b of bosses.rows) {
+      // Руководителя не заваливаем уведомлениями, если регистраций вдруг стало много: не больше 5 в час
+      const recent = await pool.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND type = 'customer_registered' AND created_at > now() - interval '1 hour'`,
+        [b.id],
+      );
+      if ((recent.rows[0]?.n ?? 0) >= 5) continue;
       outbox.add({
         userId: b.id,
         type: 'customer_registered',
