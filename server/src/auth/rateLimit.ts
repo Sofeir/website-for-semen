@@ -5,8 +5,12 @@
 const WINDOW_MS = 15 * 60_000;
 const MAX_FAILS = 5;
 const MAX_IP_FAILS = 30;
-/** Подбор пароля одного логина с разных адресов: столько неудач за окно, и вход этого логина закрывается до конца окна. */
+/**
+ * Подбор пароля одного логина с разных адресов: после стольких неудач за окно каждая следующая попытка идёт с задержкой.
+ * Вход не закрываем совсем: иначе чужой человек с сотни адресов мог бы не пускать директора в его же сервис.
+ */
 const MAX_LOGIN_FAILS = 60;
+const SLOW_LOGIN_MS = 3000;
 
 const fails = new Map<string, number[]>();
 
@@ -22,10 +26,14 @@ function recent(key: string) {
 export function loginRetryAfter(ip: string, login: string): number {
   const pair = recent(`${ip}|${login.toLowerCase()}`);
   const byIp = recent(ip);
-  const byLogin = recent(`login|${login.toLowerCase()}`);
-  const blocked = pair.length >= MAX_FAILS ? pair : byIp.length >= MAX_IP_FAILS ? byIp : byLogin.length >= MAX_LOGIN_FAILS ? byLogin : null;
+  const blocked = pair.length >= MAX_FAILS ? pair : byIp.length >= MAX_IP_FAILS ? byIp : null;
   if (!blocked) return 0;
   return Math.ceil((blocked[0] + WINDOW_MS - Date.now()) / 1000);
+}
+
+/** Сколько миллисекунд подержать попытку входа, если этот логин сейчас подбирают с разных адресов. Верный пароль пускает и так. */
+export function loginDelayMs(login: string): number {
+  return recent(`login|${login.toLowerCase()}`).length >= MAX_LOGIN_FAILS ? SLOW_LOGIN_MS : 0;
 }
 
 export function registerLoginFail(ip: string, login: string) {
@@ -37,6 +45,11 @@ export function registerLoginFail(ip: string, login: string) {
 
 export function resetLoginFails(ip: string, login: string) {
   fails.delete(`${ip}|${login.toLowerCase()}`);
+}
+
+/** Настоящий вход состоялся: счётчик подбора этого логина обнуляется. */
+export function clearLoginSpray(login: string) {
+  fails.delete(`login|${login.toLowerCase()}`);
 }
 
 export function _resetAllForTests() {
