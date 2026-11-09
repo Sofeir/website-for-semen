@@ -8,9 +8,9 @@ beforeAll(resetDb);
 afterAll(() => pool.end());
 
 /** supertest по умолчанию не собирает бинарный ответ: берём байты как есть. */
-const binary = (res: NodeJS.ReadableStream, cb: (err: Error | null, body: Buffer) => void) => {
+const binary = (res: any, cb: (err: Error | null, body: Buffer) => void) => {
   const chunks: Buffer[] = [];
-  res.on('data', (c) => chunks.push(Buffer.from(c)));
+  res.on('data', (c: Uint8Array) => chunks.push(Buffer.from(c)));
   res.on('end', () => cb(null, Buffer.concat(chunks)));
 };
 
