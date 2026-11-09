@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { PackageCheck } from 'lucide-react';
 import { useDictionaries, useOrders } from '@/api/queries';
 import { useDocumentTitle, useIsMobile } from '@/lib/hooks';
@@ -20,8 +21,18 @@ export default function ReadyPage() {
   const dict = useDictionaries();
   const ready = dict.data?.stages.find((st) => st.isActive && st.code === 'ready');
   const orders = useOrders({ stage: ready?.id ?? '', sort: 'old' }, Boolean(ready));
-  const [kind, setKind] = useState<Kind>('all');
-  const [result, setResult] = useState<Result>('all');
+  // Выбранные вкладки живут в адресе: после захода в заявку и возврата список остаётся таким же
+  const [params, setParams] = useSearchParams();
+  const kind: Kind = (['equipment', 'cartridges'] as const).find((k) => k === params.get('kind')) ?? 'all';
+  const result: Result = (['repaired', 'declined'] as const).find((r) => r === params.get('result')) ?? 'all';
+  const setParam = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (value === 'all') next.delete(key);
+    else next.set(key, value);
+    setParams(next, { replace: true });
+  };
+  const setKind = (v: Kind) => setParam('kind', v);
+  const setResult = (v: Result) => setParam('result', v);
   const [picked, setPicked] = useState<number[]>([]);
   const [issuing, setIssuing] = useState(false);
 

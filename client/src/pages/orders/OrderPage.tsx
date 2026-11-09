@@ -20,7 +20,7 @@ import { api, ApiError } from '@/api/http';
 import { useAuth, useMe } from '@/app/auth';
 import { useDictionaries, useInvalidate, useOrder } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
-import { useDocumentTitle } from '@/lib/hooks';
+import { useBack, useDocumentTitle } from '@/lib/hooks';
 import { AdvanceSheet, ReassignSheet, ReopenSheet } from '@/components/AdvanceSheet';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
 import { DeviceJournalSheet } from '@/components/DeviceJournalSheet';
@@ -39,6 +39,7 @@ import s from './OrderPage.module.css';
 
 export default function OrderPage() {
   const id = Number(useParams().id);
+  const back = useBack('/orders');
   const q = useOrder(id);
   const dict = useDictionaries();
   const me = useMe();
@@ -71,9 +72,16 @@ export default function OrderPage() {
 
   return (
     <div className={s.page}>
-      <Link to="/orders" className={s.back}>
+      <Link
+        to="/orders"
+        className={s.back}
+        onClick={(e) => {
+          e.preventDefault();
+          back.goBack();
+        }}
+      >
         <ArrowLeft size={18} aria-hidden />
-        Все заявки
+        {back.hasHistory ? 'Назад' : 'Все заявки'}
       </Link>
 
       <header className={s.head}>
