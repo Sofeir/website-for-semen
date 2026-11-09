@@ -11,7 +11,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'motion/react';
-import { ChevronsRight, Clock, UserRound } from 'lucide-react';
+import { ChevronsRight, Clock, FileText, UserRound } from 'lucide-react';
 import type { OrderListItem, Stage } from '@sd/shared';
 import { fmtWhen } from '@/lib/dates';
 import { useMediaQuery } from '@/lib/hooks';
@@ -242,6 +242,12 @@ function CardBody({ order, lifted }: { order: OrderListItem; lifted?: boolean })
           <span className={s.cardMetaItem}>
             <UserRound aria-hidden />
             {order.responsibleName}
+          </span>
+        )}
+        {order.actsCount > 0 && (
+          <span className={s.cardMetaItem}>
+            <FileText aria-hidden />
+            акт
           </span>
         )}
         {(order.stageDueAt || order.issuedAt) && (
