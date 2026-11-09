@@ -17,6 +17,7 @@ import { NAV, bottomNav } from './nav';
 import { NotificationsPanel } from './NotificationsPanel';
 import { QuickSearch } from './QuickSearch';
 import { Onboarding } from './Onboarding';
+import { PushPrompt } from './PushPrompt';
 import s from './AppShell.module.css';
 
 function useSectionTitle() {
@@ -133,6 +134,7 @@ export function AppShell() {
         </header>
 
         <main id="main" className={s.content}>
+          <PushPrompt />
           <Suspense fallback={<Spinner />}>
             <Outlet />
           </Suspense>
