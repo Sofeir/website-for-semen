@@ -160,8 +160,10 @@ export default function OrderPage() {
                   o.acts.length > 0 && (
                     <span className={s.chips}>
                       {o.acts.map((a) => (
-                        <span key={a.id} className="row" style={{ gap: 8 }}>
-                          <Link to={`/acts/${a.id}`}>Акт №{a.number}</Link>
+                        <span key={a.id} className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                          <Link to={`/acts/${a.id}`} style={{ whiteSpace: 'nowrap' }}>
+                            Акт №{a.number}
+                          </Link>
                           <a href={`/api/documents/act/${a.id}.pdf`} target="_blank" rel="noreferrer" className={s.pdf}>
                             PDF
                           </a>

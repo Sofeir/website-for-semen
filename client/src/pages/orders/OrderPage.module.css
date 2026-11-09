@@ -300,6 +300,8 @@
 }
 
 .pdf {
+  flex: none;
+  white-space: nowrap;
   display: inline-grid;
   place-items: center;
   min-width: var(--tap);

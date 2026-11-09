@@ -55,9 +55,9 @@ export default function ReadyPage() {
           value={result}
           onChange={setResult}
           options={[
-            { value: 'all', label: `Все ${count('all')}` },
-            { value: 'repaired', label: `С ремонтом ${count('repaired')}` },
-            { value: 'declined', label: `Без ремонта ${count('declined')}` },
+            { value: 'all', label: mobile ? 'Все' : `Все ${count('all')}` },
+            { value: 'repaired', label: mobile ? 'С ремонтом' : `С ремонтом ${count('repaired')}` },
+            { value: 'declined', label: mobile ? 'Без ремонта' : `Без ремонта ${count('declined')}` },
           ]}
         />
       </div>

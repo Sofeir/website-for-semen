@@ -80,4 +80,21 @@ describe('акты по API', () => {
     expect((await lenya.del(`/api/acts/${act.body.id}`)).status).toBe(403);
     expect((await semen.del(`/api/acts/${act.body.id}`)).status).toBe(200);
   });
+
+  it('заявка показывает свои акты, а список считает их в actsCount', async () => {
+    const semen = await loginAs('semen');
+    const { users } = await dict();
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 000-00-21');
+    const before = await semen.get(`/api/orders/${orderId}`);
+    expect(before.body.acts).toHaveLength(0);
+    const listBefore = (await semen.get('/api/orders?status=all')).body as { id: number; actsCount: number }[];
+    expect(listBefore.find((o) => o.id === orderId)?.actsCount).toBe(0);
+
+    const act = await semen.post('/api/acts', { orderId, items: [{ name: 'Чистка', qty: 1, price: 500 }], warrantyMonths: 1 });
+    expect(act.status).toBe(201);
+    const after = await semen.get(`/api/orders/${orderId}`);
+    expect(after.body.acts.map((a: { id: number }) => a.id)).toEqual([act.body.id]);
+    const listAfter = (await semen.get('/api/orders?status=all')).body as { id: number; actsCount: number }[];
+    expect(listAfter.find((o) => o.id === orderId)?.actsCount).toBe(1);
+  });
 });
