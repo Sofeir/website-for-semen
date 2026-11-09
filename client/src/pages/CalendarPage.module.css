@@ -193,7 +193,6 @@
   .chipDone {
     background: var(--teal-100);
     color: var(--teal-700);
-    text-decoration: line-through;
   }
 
   .moreChip {
