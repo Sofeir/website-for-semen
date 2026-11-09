@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Clock, UserRound } from 'lucide-react';
+import { Clock, FileText, UserRound } from 'lucide-react';
 import type { OrderListItem } from '@sd/shared';
 import { fmtWhen } from '@/lib/dates';
 import { ArrowLink, cx } from '@/ui/Button';
@@ -23,6 +23,12 @@ export function OrderRow({ order, showStage = true }: { order: OrderListItem; sh
               <span className={s.metaItem}>
                 <UserRound aria-hidden />
                 {order.responsibleName}
+              </span>
+            )}
+            {order.actsCount > 0 && (
+              <span className={s.metaItem}>
+                <FileText aria-hidden />
+                акт
               </span>
             )}
             {order.stageDueAt && !order.issuedAt && (

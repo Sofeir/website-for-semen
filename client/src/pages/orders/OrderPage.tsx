@@ -126,9 +126,15 @@ export default function OrderPage() {
             Открыть заново
           </Button>
         )}
-        {can('acts.edit') && (
+        {/* Акт уже есть: кнопка открывает его (там же PDF). Акта нет: кнопка составляет новый. */}
+        {o.acts.map((a) => (
+          <ButtonLink key={a.id} to={`/acts/${a.id}`} variant="secondary" icon={<FileText size={18} aria-hidden />}>
+            Акт №{a.number}
+          </ButtonLink>
+        ))}
+        {!o.acts.length && can('acts.edit') && (
           <ButtonLink to={`/acts/new?order=${o.id}`} variant="secondary" icon={<FilePlus2 size={18} aria-hidden />}>
-            Акт работ
+            Составить акт
           </ButtonLink>
         )}
         {o.receiptUrl && (
@@ -149,6 +155,21 @@ export default function OrderPage() {
             </CardHead>
             <DescList
               items={[
+                [
+                  'Акт работ',
+                  o.acts.length > 0 && (
+                    <span className={s.chips}>
+                      {o.acts.map((a) => (
+                        <span key={a.id} className="row" style={{ gap: 8 }}>
+                          <Link to={`/acts/${a.id}`}>Акт №{a.number}</Link>
+                          <a href={`/api/documents/act/${a.id}.pdf`} target="_blank" rel="noreferrer" className={s.pdf}>
+                            PDF
+                          </a>
+                        </span>
+                      ))}
+                    </span>
+                  ),
+                ],
                 ['Номер', o.device.inventoryNo],
                 ['Где стоит', o.device.location],
                 ['Тип', o.device.deviceType],
@@ -292,7 +313,13 @@ export default function OrderPage() {
           </Card>
 
           <Card>
-            <CardHead title="Акты выполненных работ" count={o.acts.length} />
+            <CardHead title="Акты выполненных работ" count={o.acts.length}>
+              {o.acts.length > 0 && can('acts.edit') && (
+                <ButtonLink to={`/acts/new?order=${o.id}`} variant="ghost" size="sm" icon={<FilePlus2 size={18} aria-hidden />}>
+                  Ещё акт
+                </ButtonLink>
+              )}
+            </CardHead>
             {o.acts.length ? (
               <ul className={s.docs}>
                 {o.acts.map((a) => (
