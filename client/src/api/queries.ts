@@ -331,6 +331,38 @@ export function useAdvanceOrder(orderId: number) {
   });
 }
 
+export interface BulkIssueResult {
+  done: number[];
+  failed: { id: number; message: string }[];
+}
+
+/** Выдача нескольких готовых заявок за раз: каждая закрывается своим запросом, ошибка одной не мешает остальным. */
+export function useBulkIssue() {
+  const inv = useInvalidate();
+  return useMutation({
+    mutationFn: async (input: { orderIds: number[]; finalStageId: number; responsibleId: number }): Promise<BulkIssueResult> => {
+      const result: BulkIssueResult = { done: [], failed: [] };
+      for (const id of input.orderIds) {
+        try {
+          await api.post(`/orders/${id}/advance`, {
+            toStageId: input.finalStageId,
+            responsibleId: input.responsibleId,
+            dueAt: null,
+            comment: null,
+            declined: false,
+            deviceReturned: true,
+          } as any);
+          result.done.push(id);
+        } catch (e) {
+          result.failed.push({ id, message: (e as Error).message });
+        }
+      }
+      return result;
+    },
+    onSettled: () => inv('orders', 'order', 'tasks', 'dashboard', 'client'),
+  });
+}
+
 export function useReassignOrder(orderId: number) {
   const inv = useInvalidate();
   return useMutation({

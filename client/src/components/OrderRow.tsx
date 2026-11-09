@@ -6,10 +6,25 @@ import { ArrowLink, cx } from '@/ui/Button';
 import { NumberTag, StagePill } from '@/ui/Display';
 import s from './rows.module.css';
 
-export function OrderRow({ order, showStage = true }: { order: OrderListItem; showStage?: boolean }) {
+export interface RowSelect {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+export function OrderRow({ order, showStage = true, select }: { order: OrderListItem; showStage?: boolean; select?: RowSelect }) {
   const late = order.overdue;
   return (
     <div className={s.row}>
+      {select && (
+        <label className={s.pick}>
+          <input
+            type="checkbox"
+            checked={select.checked}
+            onChange={(e) => select.onChange(e.target.checked)}
+            aria-label={`Выбрать заявку ${order.number}`}
+          />
+        </label>
+      )}
       <Link to={`/orders/${order.id}`} className={s.rowLink}>
         <NumberTag>{order.number}</NumberTag>
         <span className={s.main}>

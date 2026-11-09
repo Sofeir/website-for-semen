@@ -18,3 +18,6 @@ export const dueDaysFor = (stage: Pick<Stage, 'slaHours'> | null | undefined) =>
   stage ? Math.max(0, Math.round(stage.slaHours / 24)) : 1;
 
 export const stageNumber = (stages: Stage[], id: number) => String(stages.findIndex((s) => s.id === id) + 1).padStart(2, '0');
+
+/** Тип «Картридж» в справочнике: их заправляют, а не ремонтируют. Акт работ при выдаче им не нужен. */
+export const CARTRIDGE_TYPE = 'Картридж';

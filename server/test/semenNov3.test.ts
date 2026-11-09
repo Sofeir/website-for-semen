@@ -76,10 +76,17 @@ describe('срок задачи, продление и контроль', () => 
     expect((await stas.post(`/api/tasks/${r.body.id}/extend-request`, { dueAt: new Date().toISOString(), comment: 'x' })).status).toBe(400);
     const outsider = await loginAs('kataev');
     expect((await outsider.post(`/api/tasks/${r.body.id}/extend-request`, { dueAt: later, comment: 'x' })).status).toBe(403);
-    // директор двигает срок сам, исполнитель не может
+    // пока задача не просрочена, исполнитель двигает срок сам, но с причиной; она остаётся в цепочке
     const body = { title: 'Срок продлить', assigneeIds: [users.isakov], startAt: new Date().toISOString(), dueAt: later };
-    expect((await stas.put(`/api/tasks/${r.body.id}`, body)).status).toBe(403);
-    expect((await semen.put(`/api/tasks/${r.body.id}`, body)).status).toBe(200);
+    expect((await stas.put(`/api/tasks/${r.body.id}`, body)).status).toBe(400);
+    expect((await stas.put(`/api/tasks/${r.body.id}`, { ...body, dueReason: 'Ждём запчасть' })).status).toBe(200);
+    const steps = (await pool.query(`SELECT comment FROM task_steps WHERE task_id = $1 AND comment LIKE 'Срок перенесён%'`, [r.body.id])).rows;
+    expect(steps).toEqual([{ comment: 'Срок перенесён: Ждём запчасть' }]);
+    // просроченной задаче срок двигает только директор
+    await pool.query(`UPDATE tasks SET due_at = now() - interval '2 hours', start_at = now() - interval '3 hours' WHERE id = $1`, [r.body.id]);
+    const again = { ...body, startAt: new Date(Date.now() - 3 * 3_600_000).toISOString(), dueAt: inDays(5), dueReason: 'Ещё ждём' };
+    expect((await stas.put(`/api/tasks/${r.body.id}`, again)).status).toBe(403);
+    expect((await semen.put(`/api/tasks/${r.body.id}`, again)).status).toBe(200);
   });
 
   it('под контролем: поставленные, наблюдаемые и переданные, но не свои', async () => {

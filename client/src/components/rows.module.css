@@ -153,3 +153,47 @@
 .done .title {
   color: var(--text-muted);
 }
+
+/* Галочка выбора в начале строки (массовая выдача). Область нажатия — полный размер пальца. */
+.pick {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  margin: calc(var(--s-2) * -1) 0 calc(var(--s-2) * -1) calc(var(--s-2) * -1);
+  cursor: pointer;
+}
+
+.pick input {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.pick input:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.pick input:checked::after {
+  content: '';
+  width: 6px;
+  height: 11px;
+  border: solid var(--white);
+  border-width: 0 2px 2px 0;
+  rotate: 45deg;
+  translate: 0 -1px;
+}
+
+.pick input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}

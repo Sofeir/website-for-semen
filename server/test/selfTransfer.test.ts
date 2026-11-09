@@ -27,13 +27,16 @@ describe('передача задачи самому себе', () => {
     expect(steps).toEqual([{ assignee_id: users.isakov, from_user_id: users.isakov, comment: 'Не успеваю, переношу' }]);
   });
 
-  it('другому по-прежнему нельзя отодвинуть срок, а передать тому, у кого она уже есть, нельзя', async () => {
+  it('другому можно передать со сдвигом срока, пока она не просрочена; просроченной срок двигает директор; тому, у кого она уже есть, передать нельзя', async () => {
     const { users } = await dict();
     const id = await task(users.isakov);
     const stas = await loginAs('isakov');
-    expect((await stas.post(`/api/tasks/${id}/transfer`, { assigneeId: users.kataev, dueAt: inDays(3), comment: 'Артёму' })).status).toBe(403);
     const semen = await loginAs('semen');
     expect((await semen.post(`/api/tasks/${id}/transfer`, { assigneeId: users.isakov, dueAt: inDays(3), comment: 'Станиславу' })).status).toBe(400);
+    expect((await stas.post(`/api/tasks/${id}/transfer`, { assigneeId: users.kataev, dueAt: inDays(3), comment: 'Артёму' })).status).toBe(200);
+    const late = await task(users.isakov);
+    await pool.query(`UPDATE tasks SET due_at = now() - interval '1 hour', start_at = now() - interval '2 hours' WHERE id = $1`, [late]);
+    expect((await stas.post(`/api/tasks/${late}/transfer`, { assigneeId: users.kataev, dueAt: inDays(3), comment: 'Артёму' })).status).toBe(403);
   });
 
   it('у просроченной задачи срок себе двигает только директор, остальные отправляют запрос', async () => {

@@ -80,7 +80,7 @@ export function AdvanceSheet({
         toStageId: target!.id,
         responsibleId: Number(responsible),
         dueAt: target!.isFinal ? null : due,
-        comment: comment || null,
+        comment: target!.isFinal ? null : comment || null,
         estimatedCost: cost ? Number(cost.replace(',', '.')) : null,
         declined: declined && canDecline,
         deviceReturned: target!.isFinal ? returned : undefined,
@@ -156,9 +156,11 @@ export function AdvanceSheet({
               label="Техника возвращена клиенту (без этой отметки заявку не закрыть)"
             />
           )}
-          <Field label="Комментарий" optional hint="Увидит новый ответственный и постановщик прошлой задачи">
-            <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3} maxLength={2000} />
-          </Field>
+          {!target!.isFinal && (
+            <Field label="Комментарий" optional hint="Увидит новый ответственный и постановщик прошлой задачи">
+              <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3} maxLength={2000} />
+            </Field>
+          )}
         </div>
       )}
     </Sheet>
