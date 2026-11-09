@@ -192,6 +192,11 @@ textarea.control {
   width: 100%;
 }
 
+/* Подписи разной длины: колонки по содержимому, а не поровну, иначе длинная подпись обрезается. */
+.segmented.block .segment {
+  flex: 1 1 auto;
+}
+
 .segment {
   position: relative;
   flex: 1 1 0;
