@@ -1,11 +1,18 @@
 import type { Response } from 'express';
 
 /** Открытые SSE-соединения по пользователям (вкладок может быть несколько). */
+const MAX_STREAMS_PER_USER = 10;
 const subscribers = new Map<number, Set<Response>>();
 
 export function subscribe(userId: number, res: Response) {
   let set = subscribers.get(userId);
   if (!set) subscribers.set(userId, (set = new Set()));
+  // Вкладок одновременно не больше десяти: старые закрываем, иначе один человек может занять все соединения сервера
+  while (set.size >= MAX_STREAMS_PER_USER) {
+    const oldest = set.values().next().value as Response;
+    set.delete(oldest);
+    oldest.end();
+  }
   set.add(res);
   return () => {
     set!.delete(res);

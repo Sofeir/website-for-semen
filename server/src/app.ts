@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { config } from './config';
 import { errorHandler, HttpError } from './lib/http';
+import { createLimiter } from './lib/requestLimit';
 import { csrfProtection, denyCustomer, limitAssistant, loadSession, requireAuth } from './auth/session';
 import { authRouter } from './routes/auth';
 import { dictionariesRouter } from './routes/dictionaries';
@@ -55,16 +56,34 @@ export function createApp() {
       crossOriginEmbedderPolicy: false,
     }),
   );
+  // Что страница не должна делать на устройстве, кроме съёмки фото для заявки
+  app.use((_req, res, next) => {
+    res.set('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()');
+    next();
+  });
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
   app.use(loadSession);
 
   const api = express.Router();
+  // Ответы API с личными данными не должны оседать в кэше браузера и прокси; файлы и документы ставят свой заголовок сами
+  api.use((_req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+  });
+  // Общий потолок частоты: обычной работе (десятки запросов в минуту) не мешает, перебор и «заваливание» останавливает
+  api.use(createLimiter({ windowMs: 60_000, max: 900 }));
   api.use(csrfProtection);
   api.get('/health', (_req, res) => res.json({ ok: true }));
+  // Регистрация и открытая лента календаря доступны без входа: на них свои, более строгие потолки по адресу
+  api.use('/auth/register', createLimiter({ windowMs: 3600_000, max: 20 }));
+  api.use('/calendar', createLimiter({ windowMs: 60_000, max: 60 }));
   api.use('/auth', authRouter);
   api.use(calendarFeedRouter); // лента задач для внешнего календаря: открывается по секретной ссылке, без входа
   api.use(requireAuth);
+  // Тяжёлые действия (загрузка файлов, отчёты, документы, выгрузки) — не чаще 60 раз в минуту на сотрудника
+  const heavy = createLimiter({ windowMs: 60_000, max: 60 });
+  api.use(['/uploads', '/documents', '/reports', '/analytics', '/import'], heavy);
   api.use(customerRouter); // кабинет заказчика — единственное, что ему открыто, кроме уведомлений
   api.use(denyCustomer);
   api.use(limitAssistant);

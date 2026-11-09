@@ -1,7 +1,17 @@
 import { z } from 'zod';
 import { STAFF_ROLES } from './roles';
+import { weakPasswordReason } from './password';
 
 const text = (max = 255) => z.string().trim().max(max);
+/** Новый пароль: от 8 символов и не из тех, что подбирают первыми. */
+const newPassword = z
+  .string()
+  .min(8, 'Пароль от 8 символов')
+  .max(200)
+  .superRefine((v, ctx) => {
+    const reason = weakPasswordReason(v);
+    if (reason) ctx.addIssue({ code: 'custom', message: reason });
+  });
 /** Необязательный текст: пустая строка превращается в null. */
 const optionalText = (max = 2000) =>
   z
@@ -430,7 +440,7 @@ export const userCreateSchema = z.object({
   phone: text(32).min(5, 'Укажите телефон'),
   email: optionalEmail,
   position: optionalText(120),
-  password: z.string().min(8, 'Пароль от 8 символов').max(200),
+  password: newPassword,
 });
 export type UserCreateInput = z.infer<typeof userCreateSchema>;
 
@@ -443,7 +453,7 @@ export const userUpdateSchema = z.object({
   email: optionalEmail,
   position: optionalText(120),
   isActive: z.boolean().optional(),
-  password: z.union([z.literal(''), z.string().min(8, 'Пароль от 8 символов').max(200)]).optional(),
+  password: z.union([z.literal(''), newPassword]).optional(),
 });
 export type UserUpdateInput = z.infer<typeof userUpdateSchema>;
 
@@ -462,7 +472,7 @@ export const registerSchema = z.object({
     .min(3, 'Минимум 3 символа')
     .max(64)
     .regex(/^[a-zA-Z0-9._-]+$/, 'Латиница, цифры, точка, дефис'),
-  password: z.string().min(8, 'Пароль от 8 символов').max(200),
+  password: newPassword,
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 
@@ -485,7 +495,7 @@ export type ProfileInput = z.infer<typeof profileSchema>;
 
 export const changePasswordSchema = z.object({
   current: z.string().min(1, 'Текущий пароль'),
-  next: z.string().min(8, 'Пароль от 8 символов').max(200),
+  next: newPassword,
 });
 
 /** Смена своего логина: нужен текущий пароль, чтобы чужой человек за открытым компьютером не мог переименовать учётку. */

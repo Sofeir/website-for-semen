@@ -9,6 +9,8 @@ export const config = {
   databaseUrl: '',
   allowedOrigins: [] as string[],
   cookieSecure: false,
+  bcryptRounds: 10,
+  rateLimit: false,
   sessionHours: 12,
   rememberDays: 30,
   uploadDir: '',

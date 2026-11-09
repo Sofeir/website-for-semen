@@ -16,7 +16,9 @@ export function label(month: string) {
 
 /** CSV для Excel и 1С: разделитель «;», BOM, чтобы кириллица не ломалась. */
 export function downloadCsv(name: string, rows: (string | number)[][]) {
-  const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+  // Ячейка, которая начинается с = + - @ или табуляции, в Excel превращается в формулу: подставляем апостроф, чтобы это был просто текст
+  const safe = (v: string | number) => (typeof v === 'string' && /^[=+\-@\t\r]/.test(v) ? `'${v}` : v);
+  const esc = (v: string | number) => `"${String(safe(v)).replace(/"/g, '""')}"`;
   const text = '\uFEFF' + rows.map((r) => r.map(esc).join(';')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
