@@ -17,6 +17,7 @@ import { reportsRouter } from './routes/reports';
 import { contactsRouter } from './routes/contacts';
 import { analyticsRouter } from './routes/analytics';
 import { notificationsRouter } from './routes/notifications';
+import { pushRouter } from './routes/push';
 import { actsRouter } from './routes/acts';
 import { documentsRouter } from './routes/documents';
 import { filesRouter } from './routes/files';
@@ -77,6 +78,7 @@ export function createApp() {
   api.use(contactsRouter);
   api.use(analyticsRouter);
   api.use(notificationsRouter);
+  api.use(pushRouter);
   api.use(personalRouter);
   api.use(googleRouter);
   api.use(actsRouter);

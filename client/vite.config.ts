@@ -64,6 +64,7 @@ export default defineConfig(({ mode }) => {
           ? {
               express: path.join(demoDir, 'express-shim.ts'),
               pg: path.join(demoDir, 'pg-shim.ts'),
+              'web-push': path.join(demoDir, 'web-push-shim.ts'),
               'node:path': path.join(demoDir, 'node-shims.ts'),
               'node:url': path.join(demoDir, 'node-shims.ts'),
             }

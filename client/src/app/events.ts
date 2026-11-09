@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { NotificationItem } from '@sd/shared';
 import { api } from '@/api/http';
 import { keys, SCOPE_KEYS } from '@/api/queries';
+import { playNotifySound } from '@/lib/sound';
 import { useToast } from '@/ui/Toast';
 
 /**
@@ -31,6 +32,7 @@ export function useServerEvents(enabled: boolean) {
     const showToast = (n: NotificationItem) => {
       if (shown.has(n.id)) return;
       shown.add(n.id);
+      playNotifySound();
       toast.show({
         tone: 'info',
         title: n.title,

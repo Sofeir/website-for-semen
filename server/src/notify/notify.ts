@@ -4,6 +4,7 @@ import { many, pool } from '../db/pool';
 import { googleSyncSoon } from '../services/googleCalendar';
 import { channels } from './channels';
 import { broadcast, sendTo } from './hub';
+import { sendPush } from './push';
 
 export interface Notice {
   userId: number;
@@ -35,6 +36,16 @@ export class Outbox {
     // Календари в Google обновляются вслед за задачами
     if (this.changed.has('tasks') || this.changed.has('orders')) googleSyncSoon();
     if (this.notices.length) await deliver(this.notices, opts.silent ?? false);
+  }
+}
+
+async function pushNotice(userId: number, row: NotificationItem) {
+  try {
+    const unread = (await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND NOT is_read', [userId]))
+      .rows[0]!.n;
+    await sendPush(userId, { title: row.title, body: row.body, url: row.link, unread, tag: `n-${row.id}` });
+  } catch (e) {
+    console.warn(`[push] user ${userId}: ${(e as Error).message}`);
   }
 }
 
@@ -70,6 +81,8 @@ async function deliver(notices: Notice[], silent: boolean) {
       // Если человека нет на сайте, окно ему не показано: при следующем входе его отдаст /notifications/missed
       const live = sendTo(n.userId, 'notification', { ...row, toast: u.notify_inapp });
       if (live > 0) await pool.query('UPDATE notifications SET toasted = true WHERE id = $1', [row.id]);
+      // Системное уведомление на телефон и компьютер (если устройство подписано). Окно показывает сервис-воркер, когда сайт не открыт на экране.
+      void pushNotice(u.id, row);
     }
 
     const url = n.link ? `${config.publicUrl}${n.link}` : null;
