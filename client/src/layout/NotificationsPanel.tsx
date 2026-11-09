@@ -117,8 +117,8 @@ export function NotificationsPanel({ variant, onClose }: { variant: 'popover' | 
           </Button>
         )}
         {Boolean(q.data?.items.length) && (
-          <Button variant="ghost" size="sm" icon={<Trash2 size={18} aria-hidden />} onClick={clearAll}>
-            {confirmClear ? 'Точно очистить?' : 'Очистить все'}
+          <Button variant="ghost" size="sm" icon={<Trash2 size={18} aria-hidden />} onClick={clearAll} title="Очистить все уведомления">
+            {confirmClear ? 'Точно?' : 'Очистить'}
           </Button>
         )}
       </div>

@@ -17,6 +17,7 @@
 }
 
 .head {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -26,8 +27,9 @@
 }
 
 .headActions {
+  flex: none;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: var(--s-1);
   margin-left: auto;

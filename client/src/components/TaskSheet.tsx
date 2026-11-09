@@ -5,7 +5,7 @@ import type { TaskStep } from '@sd/shared';
 import { useAuth, useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
 import { useCloseTasks, useInvalidate, useMarkSeen, useSettings, useTask, useTransferTask } from '@/api/queries';
-import { fmtWhen } from '@/lib/dates';
+import { defaultDueDate, fmtWhen } from '@/lib/dates';
 import { Button, ButtonLink } from '@/ui/Button';
 import { DescList, ErrorBox, Pill, Spinner } from '@/ui/Display';
 import { Checkbox, Field, Textarea } from '@/ui/Form';
@@ -148,6 +148,10 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
 
   // Передача самому себе: переносит срок, пока он не прошёл; у просроченной задачи срок согласует директор
   const toSelf = assignee !== '' && Number(assignee) === me.id;
+  // У просроченной задачи прежний срок уже в прошлом: при передаче себе предлагаем завтрашний, чтобы не получить ошибку «срок должен быть позже»
+  useEffect(() => {
+    if (toSelf && task?.overdue) setDue(defaultDueDate(settings.data?.work, 1).toISOString());
+  }, [toSelf, task?.overdue, settings.data?.work]);
   const doTransfer = async () => {
     setError('');
     if (!assignee) return setError('Выберите, кому передать');
@@ -232,7 +236,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
         <>
           {task.isStageTask && task.orderId && can('workspace.view') && (
             <ButtonLink to={`/orders/${task.orderId}`} icon={<ClipboardList size={18} aria-hidden />}>
-              Открыть заявку №{task.orderNumber}
+              Открыть заявку
             </ButtonLink>
           )}
           <Button variant="secondary" icon={<ArrowRightLeft size={18} aria-hidden />} onClick={() => setMode('transfer')}>
