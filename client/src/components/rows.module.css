@@ -152,6 +152,4 @@
 
 .done .title {
   color: var(--text-muted);
-  text-decoration: line-through;
-  text-decoration-thickness: 1px;
 }
