@@ -19,7 +19,7 @@ export const ORDER_SELECT = `
            (SELECT string_agg(f.name, ', ' ORDER BY f.sort, f.name) FROM faults f WHERE f.id = ANY (o.fault_ids)),
            o.fault_text), ''), '—') AS fault,
          o.stage_id AS "stageId", s.code AS "stageCode", s.name AS "stageName", s.sort AS "stageSort", s.color AS "stageColor",
-         o.responsible_id AS "responsibleId", u.full_name AS "responsibleName",
+         o.responsible_id AS "responsibleId", u.full_name AS "responsibleName", o.accepted_by AS "acceptedById",
          o.stage_started_at AS "stageStartedAt", o.stage_due_at AS "stageDueAt",
          o.created_at AS "createdAt", o.issued_at AS "issuedAt", o.outcome,
          (SELECT count(*)::int FROM acts ac WHERE ac.order_id = o.id) AS "actsCount",
@@ -41,6 +41,9 @@ export const TASK_SELECT = `
             FROM task_assignees ta JOIN users au ON au.id = ta.user_id WHERE ta.task_id = t.id) AS "assigneeName",
          t.creator_id AS "creatorId", uc.full_name AS "creatorName",
          t.order_id AS "orderId", o.number AS "orderNumber",
+         (SELECT concat_ws(' ', dt.name, coalesce(b.name, d.brand_text), coalesce(m.name, d.model_text))
+            FROM devices d JOIN device_types dt ON dt.id = d.device_type_id
+            LEFT JOIN brands b ON b.id = d.brand_id LEFT JOIN models m ON m.id = d.model_id WHERE d.id = o.device_id) AS "deviceTitle",
          coalesce(t.client_id, o.client_id) AS "clientId", c.name AS "clientName",
          t.start_at AS "startAt", t.due_at AS "dueAt", t.deadline_at AS "deadlineAt",
          t.closed_at AS "closedAt", ucl.full_name AS "closedByName", t.close_comment AS "closeComment",

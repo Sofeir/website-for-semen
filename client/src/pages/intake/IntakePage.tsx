@@ -52,6 +52,7 @@ const emptyDevice = (): IntakeInput['devices'][number] => ({
   kitNote: null,
   devicePassword: null,
   department: null,
+  counter: null,
   cartridge: false,
   qty: 1,
   refillOps: ['refill'],

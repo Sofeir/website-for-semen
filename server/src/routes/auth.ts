@@ -220,8 +220,18 @@ authRouter.get(
   '/me/calendar',
   requireAuth,
   h(async (req, res) => {
-    const u = await one<{ token: string | null }>('SELECT calendar_token AS token FROM users WHERE id = $1', [req.user!.id]);
-    res.json({ token: u?.token ?? null });
+    const u = await one<{ token: string | null; fetchedAt: Date | null; fetchedTasks: number | null }>(
+      `SELECT calendar_token AS token, calendar_fetched_at AS "fetchedAt", calendar_fetched_tasks AS "fetchedTasks" FROM users WHERE id = $1`,
+      [req.user!.id],
+    );
+    // сколько открытых задач сейчас попадёт в ленту: сравнить с тем, что видно в самом календаре
+    const now = u?.token
+      ? await one<{ n: number }>(
+          `SELECT count(*)::int AS n FROM tasks t WHERE t.status = 'open' AND EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1)`,
+          [req.user!.id],
+        )
+      : null;
+    res.json({ token: u?.token ?? null, fetchedAt: u?.fetchedAt ?? null, fetchedTasks: u?.fetchedTasks ?? null, tasksNow: now?.n ?? 0 });
   }),
 );
 
@@ -232,7 +242,7 @@ authRouter.post(
   h(async (req, res) => {
     // Web Crypto, а не node:crypto: этот код работает и в демо прямо в браузере.
     const token = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(36).padStart(2, '0')).join('');
-    await pool.query('UPDATE users SET calendar_token = $2 WHERE id = $1', [req.user!.id, token]);
+    await pool.query('UPDATE users SET calendar_token = $2, calendar_fetched_at = NULL, calendar_fetched_tasks = NULL WHERE id = $1', [req.user!.id, token]);
     res.json({ token });
   }),
 );
@@ -241,7 +251,7 @@ authRouter.delete(
   '/me/calendar',
   requireAuth,
   h(async (req, res) => {
-    await pool.query('UPDATE users SET calendar_token = NULL WHERE id = $1', [req.user!.id]);
+    await pool.query('UPDATE users SET calendar_token = NULL, calendar_fetched_at = NULL, calendar_fetched_tasks = NULL WHERE id = $1', [req.user!.id]);
     res.json({ token: null });
   }),
 );

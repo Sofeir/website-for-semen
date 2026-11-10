@@ -166,6 +166,16 @@ export async function createTask(
   for (const [i, title] of checklist.entries()) {
     await db.query('INSERT INTO task_checklist_items (task_id, title, sort) VALUES ($1, $2, $3)', [row!.id, title, (i + 1) * 10]);
   }
+  // По заявке в уведомлении сразу видно, чья это техника: открывать задачу ради этого не нужно
+  const about = input.orderId
+    ? await one<{ client: string; device: string }>(
+        `SELECT c.name AS client, concat_ws(' ', dt.name, coalesce(b.name, d.brand_text), coalesce(m.name, d.model_text)) AS device
+           FROM orders o JOIN clients c ON c.id = o.client_id JOIN devices d ON d.id = o.device_id JOIN device_types dt ON dt.id = d.device_type_id
+           LEFT JOIN brands b ON b.id = d.brand_id LEFT JOIN models m ON m.id = d.model_id WHERE o.id = $1`,
+        [input.orderId],
+        db,
+      )
+    : null;
   for (const p of people) {
     if (p.id === actor.id) continue;
     const others = people.filter((o) => o.id !== p.id).map((o) => o.full_name);
@@ -173,7 +183,11 @@ export async function createTask(
       userId: p.id,
       type: 'task_assigned',
       title: `Новая задача: ${input.title}`,
-      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, others.length > 0 && `Вместе с: ${others.join(', ')}.`]
+      body: [
+        about && `${about.client}, ${about.device}.`,
+        `От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`,
+        others.length > 0 && `Вместе с: ${others.join(', ')}.`,
+      ]
         .filter(Boolean)
         .join('\n'),
       link: `/tasks?task=${row!.id}`,
@@ -261,12 +275,17 @@ export async function requestTaskClose(db: Db, actor: Actor, id: number, comment
   const confirmers = await many<{ id: number }>('SELECT id FROM users WHERE is_active AND confirms_overdue', [], db);
   if (!confirmers.length) throw new HttpError(409, 'Не назначен тот, кто подтверждает закрытие просроченных задач');
   // Запрос уходит только ему: ни постановщику, ни другим руководителям он не приходит.
-  notifyParticipants(outbox, confirmers.map((m) => m.id), [actor.id], {
-    type: 'task_close_request',
-    title: `Просят подтвердить закрытие: ${t.title}`,
-    body: [`Просрочена. Исполнитель: ${actor.fullName}.`, comment && `Что сделано: ${comment}`].filter(Boolean).join('\n'),
-    link: `/tasks?task=${id}`,
-  });
+  notifyParticipants(
+    outbox,
+    confirmers.map((m) => m.id),
+    [actor.id],
+    {
+      type: 'task_close_request',
+      title: `Просят подтвердить закрытие: ${t.title}`,
+      body: [`Просрочена. Исполнитель: ${actor.fullName}.`, comment && `Что сделано: ${comment}`].filter(Boolean).join('\n'),
+      link: `/tasks?task=${id}`,
+    },
+  );
   outbox.touch('tasks');
 }
 
@@ -292,17 +311,22 @@ export async function requestTaskExtension(db: Db, actor: Actor, id: number, wan
   if (wantedDue.getTime() <= t.due_at.getTime()) throw new HttpError(400, 'Новый срок должен быть позже нынешнего');
   const confirmers = await many<{ id: number }>('SELECT id FROM users WHERE is_active AND confirms_overdue', [], db);
   if (!confirmers.length) throw new HttpError(409, 'Не назначен тот, кто согласует продление сроков');
-  notifyParticipants(outbox, confirmers.map((m) => m.id), [actor.id], {
-    type: 'task_extend_request',
-    title: `Просят продлить срок: ${t.title}`,
-    body: [
-      `Сейчас — ${formatDateTimeRu(t.due_at)}, просят до ${formatDateTimeRu(wantedDue)}. Исполнитель: ${actor.fullName}.`,
-      comment && `Причина: ${comment}`,
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    link: `/tasks?task=${id}`,
-  });
+  notifyParticipants(
+    outbox,
+    confirmers.map((m) => m.id),
+    [actor.id],
+    {
+      type: 'task_extend_request',
+      title: `Просят продлить срок: ${t.title}`,
+      body: [
+        `Сейчас — ${formatDateTimeRu(t.due_at)}, просят до ${formatDateTimeRu(wantedDue)}. Исполнитель: ${actor.fullName}.`,
+        comment && `Причина: ${comment}`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      link: `/tasks?task=${id}`,
+    },
+  );
   outbox.touch('tasks');
 }
 

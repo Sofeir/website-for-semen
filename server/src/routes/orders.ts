@@ -137,6 +137,7 @@ ordersRouter.get(
       contact: contact ?? null,
       agreedTerm: raw.agreed_term,
       agreedSum: raw.agreed_sum == null ? null : Number(raw.agreed_sum),
+      agreedNote: raw.agreed_note,
       works,
       deviceReturnedAt: raw.device_returned_at,
       outcome: raw.outcome,
@@ -219,10 +220,11 @@ ordersRouter.put(
       throw new HttpError(403, 'Править согласованное может ответственный или руководитель');
     }
     const input = parse(agreedSchema, req.body);
-    await pool.query('UPDATE orders SET agreed_term = $2, agreed_sum = $3, updated_at = now() WHERE id = $1', [
+    await pool.query('UPDATE orders SET agreed_term = $2, agreed_sum = $3, agreed_note = $4, updated_at = now() WHERE id = $1', [
       id,
       input.agreedTerm,
       input.agreedSum ?? null,
+      input.agreedNote ?? null,
     ]);
     res.json({ ok: true });
   }),

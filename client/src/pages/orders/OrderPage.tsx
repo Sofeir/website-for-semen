@@ -31,7 +31,7 @@ import { TaskSheet } from '@/components/TaskSheet';
 import { TaskFormSheet } from '@/components/TaskFormSheet';
 import { Button, ButtonLink, IconButton, cx } from '@/ui/Button';
 import { Card, CardHead, DescList, EmptyState, ErrorBox, NumberTag, Pill, Plate, Spinner, StagePill } from '@/ui/Display';
-import { Field, Input, formStyles } from '@/ui/Form';
+import { Field, Input, Textarea, formStyles } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { CARTRIDGE_TYPE } from '@/lib/stages';
 import { useToast } from '@/ui/Toast';
@@ -70,6 +70,10 @@ export default function OrderPage() {
   // Срок этапа живёт в задаче этапа: правят его там (сотрудник — пока не просрочено, директор — всегда)
   const stageTask = o.tasks.find((t) => t.isStageTask && t.status === 'open');
   const canEditAgreed = can('orders.assign') || o.responsibleId === me.id;
+  // Результат диагностики: то, что написал мастер, передавая заявку дальше с этапа «Диагностика». Хранится в записи следующего этапа.
+  const diagIndex = o.history.reduce((acc, h, i) => (h.kind === 'stage' && h.stageCode === 'diagnostics' ? i : acc), -1);
+  const diagResult =
+    diagIndex >= 0 ? o.history.slice(diagIndex + 1).find((h) => h.kind === 'stage' && h.stageCode !== 'diagnostics' && h.comment?.trim()) : undefined;
 
   return (
     <div className={s.page}>
@@ -129,6 +133,11 @@ export default function OrderPage() {
             {o.nextStage.isFinal ? 'Выдать технику' : `Дальше: ${o.nextStage.name}`}
           </Button>
         )}
+        {o.stageCode === 'approval' && canEditAgreed && (
+          <Button variant="secondary" icon={<Pencil size={18} aria-hidden />} onClick={() => setAgreedOpen(true)}>
+            Записать разговор с клиентом
+          </Button>
+        )}
         {canReassign && (
           <Button variant="secondary" icon={<ArrowRightLeft size={18} aria-hidden />} onClick={() => setReassignOpen(true)}>
             Передать
@@ -157,6 +166,17 @@ export default function OrderPage() {
           </DocLink>
         )}
       </div>
+
+      {diagResult && (
+        <Card className={s.diagCard}>
+          <CardHead title="Результат диагностики" />
+          <p className={s.diagText}>{diagResult.comment}</p>
+          <p className={s.diagMeta}>
+            {diagResult.fromUserName ? `${diagResult.fromUserName}, ` : ''}
+            {fmtWhen(diagResult.startedAt)}
+          </p>
+        </Card>
+      )}
 
       <div className={s.grid}>
         <div className={s.col}>
@@ -267,10 +287,16 @@ export default function OrderPage() {
                 </Button>
               )}
             </CardHead>
-            {o.agreedTerm || o.agreedSum !== null ? (
-              <DescList items={[['Срок', o.agreedTerm], ['Сумма', o.agreedSum !== null && formatMoney(o.agreedSum)]]} />
+            {o.agreedTerm || o.agreedSum !== null || o.agreedNote ? (
+              <DescList
+                items={[
+                  ['Срок', o.agreedTerm],
+                  ['Сумма', o.agreedSum !== null && formatMoney(o.agreedSum)],
+                  ['Разговор с клиентом', o.agreedNote && <span style={{ whiteSpace: 'pre-wrap' }}>{o.agreedNote}</span>],
+                ]}
+              />
             ) : (
-              <p className="muted">Срок и сумма пока не указаны. Запишите, о чём договорились с клиентом.</p>
+              <p className="muted">Пока пусто. Запишите, что сказали клиенту (сумма, варианты), о чём договорились и чего ждёте.</p>
             )}
           </Card>
 
@@ -451,6 +477,7 @@ export default function OrderPage() {
         orderId={o.id}
         term={o.agreedTerm}
         sum={o.agreedSum}
+        note={o.agreedNote}
         onClose={() => setAgreedOpen(false)}
       />
       <TaskSheet taskId={taskId} onClose={() => setTaskId(null)} />
@@ -471,18 +498,21 @@ function AgreedSheet({
   orderId,
   term,
   sum,
+  note,
   onClose,
 }: {
   open: boolean;
   orderId: number;
   term: string | null;
   sum: number | null;
+  note: string | null;
   onClose: () => void;
 }) {
   const inv = useInvalidate();
   const toast = useToast();
   const [t, setT] = useState('');
   const [m, setM] = useState('');
+  const [n, setN] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -490,8 +520,9 @@ function AgreedSheet({
     if (!open) return;
     setT(term ?? '');
     setM(sum === null ? '' : String(sum));
+    setN(note ?? '');
     setError('');
-  }, [open, term, sum]);
+  }, [open, term, sum, note]);
 
   const save = async () => {
     setError('');
@@ -499,7 +530,7 @@ function AgreedSheet({
     if (amount !== null && (!Number.isFinite(amount) || amount < 0)) return setError('Сумма — неотрицательное число');
     setBusy(true);
     try {
-      await api.put(`/orders/${orderId}/agreed`, { agreedTerm: t.trim() || null, agreedSum: amount });
+      await api.put(`/orders/${orderId}/agreed`, { agreedTerm: t.trim() || null, agreedSum: amount, agreedNote: n.trim() || null });
       inv('order', 'orders');
       toast.success('Сохранено');
       onClose();
@@ -515,7 +546,7 @@ function AgreedSheet({
       open={open}
       onClose={onClose}
       title="Согласовано с клиентом"
-      subtitle="Срок и сумма, о которых договорились"
+      subtitle="Что сказали клиенту, о чём договорились, чего ждёте"
       width={480}
       footer={
         <>
@@ -538,6 +569,9 @@ function AgreedSheet({
             <Input inputMode="decimal" value={m} onChange={(e) => setM(e.target.value)} placeholder="4500" />
           </Field>
         </div>
+        <Field label="Разговор с клиентом" optional hint="Например: озвучил 4500 ₽, предложил два варианта, клиент подумает до завтра">
+          {(cp) => <Textarea {...cp} value={n} onChange={(e) => setN(e.target.value)} rows={4} maxLength={2000} />}
+        </Field>
       </div>
     </Sheet>
   );

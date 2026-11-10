@@ -17,6 +17,10 @@ interface TaskRowProps {
 
 export function TaskRow({ task, selected, onToggle, onOpen, showAssignee, checkLabel }: TaskRowProps) {
   const done = task.status !== 'open';
+  // Задача по заявке: под названием клиент и техника, чтобы не открывать её ради понимания, о чём речь. В названии они уже есть у задач этапов.
+  const sub = task.orderNumber
+    ? [task.clientName, task.deviceTitle && !task.title.includes(task.deviceTitle) ? task.deviceTitle : null].filter(Boolean).join(' · ')
+    : '';
   return (
     <div className={cx(s.row, done && s.done)}>
       {onToggle && (
@@ -37,6 +41,7 @@ export function TaskRow({ task, selected, onToggle, onOpen, showAssignee, checkL
       <button type="button" className={s.rowLink} onClick={onOpen} style={{ textAlign: 'left' }}>
         <span className={s.main}>
           <span className={s.title}>{task.title}</span>
+          {sub && <span className={s.sub}>{sub}</span>}
           <span className={s.meta}>
             <span className={cx(s.metaItem, task.overdue && s.late)}>
               <Clock aria-hidden />
