@@ -9,6 +9,7 @@ import {
   inspectionSchema,
   intakeSchema,
   type Device,
+  type DeviceVisit,
   type DeviceWork,
   type Inspection,
   type VisitDevice,
@@ -20,7 +21,7 @@ import { broadcast } from '../notify/hub';
 import { Outbox } from '../notify/notify';
 import { assertClientWorksVisible, assertDeviceVisible, assertOrderVisible } from '../services/access';
 import { createIntake } from '../services/orders';
-import { DEVICE_SELECT, DEVICE_TITLE, WORK_SELECT } from '../services/sql';
+import { DEVICE_SELECT, DEVICE_TITLE, orderAccess, WORK_SELECT } from '../services/sql';
 import { assertActiveUser } from '../services/tasks';
 
 export const equipmentRouter = Router();
@@ -131,6 +132,41 @@ equipmentRouter.get(
     const id = intParam(req.params.id);
     await assertDeviceVisible(req.user!, id);
     res.json(await many<DeviceWork>(`${WORK_SELECT} WHERE w.device_id = $1 ORDER BY w.done_at DESC, w.id DESC`, [id]));
+  }),
+);
+
+/** Все обращения с этой техникой: когда приносили, с каким пробегом, что нашли и чем закончилось. Самое свежее сверху. */
+equipmentRouter.get(
+  '/devices/:id/orders',
+  requirePermission('workspace.view'),
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    await assertDeviceVisible(req.user!, id);
+    // Чужие заявки по этому аппарату (к ним у сотрудника нет доступа) показываем урезанно: дата, пробег, неисправность и итог.
+    // Диагноз, суммы, номер и имена остаются только у тех, кто видит саму заявку.
+    const all = can(req.user!.role, 'orders.viewAll');
+    const vis = `($3::boolean OR ${orderAccess('o', '$2')})`;
+    res.json(
+      await many<DeviceVisit>(
+        `SELECT o.id AS "orderId", CASE WHEN ${vis} THEN o.number END AS number, ${vis} AS visible, o.created_at AS "createdAt",
+                coalesce(nullif(concat_ws(', ',
+                  (SELECT string_agg(f.name, ', ' ORDER BY f.sort, f.name) FROM faults f WHERE f.id = ANY (o.fault_ids)),
+                  o.fault_text), ''), '—') AS fault,
+                s.name AS "stageName", s.code AS "stageCode", o.outcome, o.issued_at AS "issuedAt",
+                (SELECT w.counter FROM device_works w WHERE w.order_id = o.id AND w.counter IS NOT NULL ORDER BY w.done_at, w.id LIMIT 1) AS counter,
+                CASE WHEN ${vis} THEN (SELECT h.comment FROM order_history h JOIN stages sh ON sh.id = h.stage_id
+                  WHERE h.order_id = o.id AND h.kind = 'stage' AND sh.code <> 'diagnostics' AND coalesce(h.comment, '') <> ''
+                    AND h.started_at > (SELECT max(h2.started_at) FROM order_history h2 JOIN stages s2 ON s2.id = h2.stage_id
+                                         WHERE h2.order_id = o.id AND h2.kind = 'stage' AND s2.code = 'diagnostics')
+                  ORDER BY h.started_at LIMIT 1) END AS diagnosis,
+                CASE WHEN ${vis} THEN o.agreed_sum::float8 END AS "agreedSum",
+                CASE WHEN ${vis} THEN (SELECT count(*)::int FROM device_works w WHERE w.order_id = o.id) ELSE 0 END AS "worksCount",
+                CASE WHEN ${vis} THEN ua.full_name END AS "acceptedByName"
+           FROM orders o JOIN stages s ON s.id = o.stage_id LEFT JOIN users ua ON ua.id = o.accepted_by
+          WHERE o.device_id = $1 ORDER BY o.created_at DESC, o.id DESC`,
+        [id, req.user!.id, all],
+      ),
+    );
   }),
 );
 
