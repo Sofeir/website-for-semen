@@ -36,6 +36,7 @@ import { Sheet } from '@/ui/Sheet';
 import { CARTRIDGE_TYPE } from '@/lib/stages';
 import { useToast } from '@/ui/Toast';
 import s from './OrderPage.module.css';
+import { DocLink } from '@/components/FileViewer';
 
 export default function OrderPage() {
   const id = Number(useParams().id);
@@ -150,10 +151,10 @@ export default function OrderPage() {
           </ButtonLink>
         )}
         {o.receiptUrl && (
-          <a className={s.linkBtn} href={o.receiptUrl} target="_blank" rel="noreferrer">
+          <DocLink className={s.linkBtn} href={o.receiptUrl} name={`Квитанция ${o.number}.pdf`}>
             <Printer size={18} aria-hidden />
             Квитанция
-          </a>
+          </DocLink>
         )}
       </div>
 
@@ -176,9 +177,9 @@ export default function OrderPage() {
                           <Link to={`/acts/${a.id}`} style={{ whiteSpace: 'nowrap' }}>
                             Акт №{a.number}
                           </Link>
-                          <a href={`/api/documents/act/${a.id}.pdf`} target="_blank" rel="noreferrer" className={s.pdf}>
+                          <DocLink href={`/api/documents/act/${a.id}.pdf`} name={`Акт ${a.number}.pdf`} className={s.pdf}>
                             PDF
-                          </a>
+                          </DocLink>
                         </span>
                       ))}
                     </span>
@@ -345,9 +346,9 @@ export default function OrderPage() {
                         {formatMoney(a.total)}, изменён {fmtWhen(a.updatedAt)}
                       </span>
                     </Link>
-                    <a href={`/api/documents/act/${a.id}.pdf`} target="_blank" rel="noreferrer" className={s.pdf}>
+                    <DocLink href={`/api/documents/act/${a.id}.pdf`} name={`Акт ${a.number}.pdf`} className={s.pdf}>
                       PDF
-                    </a>
+                    </DocLink>
                   </li>
                 ))}
               </ul>

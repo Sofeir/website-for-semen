@@ -7,6 +7,7 @@ import { useDocumentTitle } from '@/lib/hooks';
 import { ArrowLink } from '@/ui/Button';
 import { Card, EmptyState, ErrorBox, NumberTag, PageHeader, Spinner } from '@/ui/Display';
 import s from './Acts.module.css';
+import { DocLink } from '@/components/FileViewer';
 
 export default function ActsPage() {
   useDocumentTitle('Акты');
@@ -41,15 +42,9 @@ export default function ActsPage() {
                 </span>
                 <b className={s.rowSum}>{formatMoney(a.total)}</b>
               </Link>
-              <a
-                href={`/api/documents/act/${a.id}.pdf`}
-                target="_blank"
-                rel="noreferrer"
-                className={s.pdf}
-                aria-label={`PDF акта ${a.number}`}
-              >
+              <DocLink href={`/api/documents/act/${a.id}.pdf`} name={`Акт ${a.number}.pdf`} className={s.pdf}>
                 PDF
-              </a>
+              </DocLink>
               <span className={s.hideSm}>
                 <ArrowLink to={`/acts/${a.id}`} label={`Открыть акт ${a.number}`} light />
               </span>

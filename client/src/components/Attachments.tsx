@@ -7,6 +7,7 @@ import { fmtWhen } from '@/lib/dates';
 import { Button, IconButton } from '@/ui/Button';
 import { useConfirm } from '@/ui/Confirm';
 import { useToast } from '@/ui/Toast';
+import { FileViewer } from './FileViewer';
 import s from './Attachments.module.css';
 
 export const ACCEPT = '.jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.mp4,.mov,.webm';
@@ -40,51 +41,55 @@ export function AttachmentList({
   const { can } = useAuth();
   const confirm = useConfirm();
   const toast = useToast();
+  const [viewing, setViewing] = useState<number | null>(null);
   if (!items.length) return null;
   return (
-    <ul className={s.list}>
-      {items.map((a) => {
-        const isImage = a.mime.startsWith('image/') && !a.mime.includes('heic');
-        return (
-          <li key={a.id} className={s.item}>
-            <a href={a.url} target="_blank" rel="noreferrer" className={s.link}>
-              {isImage ? (
-                <img src={a.url} alt="" className={s.thumb} loading="lazy" />
-              ) : (
-                <span className={s.icon}>
-                  {a.mime.startsWith('image/') ? <ImageIcon aria-hidden /> : <FileText aria-hidden />}
-                </span>
-              )}
-              <span className={s.text}>
-                <span className={s.name}>{a.fileName}</span>
-                {!compact && (
-                  <span className={s.meta}>
-                    {sizeLabel(a.size)}, {fmtWhen(a.createdAt)}
-                    {a.uploadedBy ? `, ${a.uploadedBy}` : ''}
+    <>
+      <ul className={s.list}>
+        {items.map((a, i) => {
+          const isImage = a.mime.startsWith('image/') && !a.mime.includes('heic');
+          return (
+            <li key={a.id} className={s.item}>
+              <button type="button" className={s.link} onClick={() => setViewing(i)} aria-label={`Открыть файл ${a.fileName}`}>
+                {isImage ? (
+                  <img src={a.url} alt="" className={s.thumb} loading="lazy" />
+                ) : (
+                  <span className={s.icon}>
+                    {a.mime.startsWith('image/') ? <ImageIcon aria-hidden /> : <FileText aria-hidden />}
                   </span>
                 )}
-              </span>
-            </a>
-            {onDeleted && (a.uploadedBy === me.fullName || can('orders.assign') || can('tasks.manageAll')) && (
-              <IconButton
-                label={`Удалить файл ${a.fileName}`}
-                onClick={async () => {
-                  if (!(await confirm({ title: 'Удалить файл?', body: a.fileName, confirm: 'Удалить', danger: true }))) return;
-                  try {
-                    await api.del(`/files/${a.id}`);
-                    onDeleted(a.id);
-                  } catch (e) {
-                    toast.error('Не удалось удалить', (e as ApiError).message);
-                  }
-                }}
-              >
-                <Trash2 />
-              </IconButton>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+                <span className={s.text}>
+                  <span className={s.name}>{a.fileName}</span>
+                  {!compact && (
+                    <span className={s.meta}>
+                      {sizeLabel(a.size)}, {fmtWhen(a.createdAt)}
+                      {a.uploadedBy ? `, ${a.uploadedBy}` : ''}
+                    </span>
+                  )}
+                </span>
+              </button>
+              {onDeleted && (a.uploadedBy === me.fullName || can('orders.assign') || can('tasks.manageAll')) && (
+                <IconButton
+                  label={`Удалить файл ${a.fileName}`}
+                  onClick={async () => {
+                    if (!(await confirm({ title: 'Удалить файл?', body: a.fileName, confirm: 'Удалить', danger: true }))) return;
+                    try {
+                      await api.del(`/files/${a.id}`);
+                      onDeleted(a.id);
+                    } catch (e) {
+                      toast.error('Не удалось удалить', (e as ApiError).message);
+                    }
+                  }}
+                >
+                  <Trash2 />
+                </IconButton>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <FileViewer items={items} index={viewing} onClose={() => setViewing(null)} onIndex={setViewing} />
+    </>
   );
 }
 

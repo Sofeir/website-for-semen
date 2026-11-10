@@ -13,6 +13,7 @@ import { Checkbox, Field, Input, Select, Textarea } from '@/ui/Form';
 import { useConfirm } from '@/ui/Confirm';
 import { useToast } from '@/ui/Toast';
 import s from './Acts.module.css';
+import { DocLink } from '@/components/FileViewer';
 
 interface Row extends ActItem {
   key: number;
@@ -263,10 +264,10 @@ export default function ActPage() {
                 {actId ? 'Сохранить и пересоздать PDF' : 'Создать акт'}
               </Button>
               {actId > 0 && (
-                <a className={s.pdfBtn} href={`/api/documents/act/${actId}.pdf`} target="_blank" rel="noreferrer">
+                <DocLink className={s.pdfBtn} href={`/api/documents/act/${actId}.pdf`} name="Акт.pdf">
                   <FileDown size={18} aria-hidden />
                   Открыть PDF
-                </a>
+                </DocLink>
               )}
               {actId > 0 && can('acts.delete') && (
                 <Button variant="danger" block icon={<Trash2 size={18} aria-hidden />} onClick={remove}>

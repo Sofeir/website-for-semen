@@ -1,0 +1,169 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  background: #0e1116;
+  color: #fff;
+}
+
+.bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: max(var(--s-2), env(safe-area-inset-top)) max(var(--s-3), env(safe-area-inset-right)) var(--s-2) max(var(--s-3), env(safe-area-inset-left));
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.back {
+  flex: none;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.name {
+  font-weight: 600;
+  font-size: var(--fs-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: var(--fs-xs);
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.download {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--tap);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--blue-600);
+  color: #fff;
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  text-decoration: none;
+}
+
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  overflow: auto;
+}
+
+.image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: #fff;
+  /* щипок увеличивает фото, вертикальное движение прокручивает */
+  touch-action: pinch-zoom pan-x pan-y;
+}
+
+.video {
+  max-width: 100%;
+  max-height: 100%;
+  background: #000;
+}
+
+.frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.nav {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.prev {
+  left: max(var(--s-3), env(safe-area-inset-left));
+}
+
+.next {
+  right: max(var(--s-3), env(safe-area-inset-right));
+}
+
+.foot {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  padding: var(--s-2) var(--s-3) max(var(--s-2), env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-6);
+  text-align: center;
+  max-width: 420px;
+}
+
+.fallbackIcon {
+  width: 56px;
+  height: 56px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.fallbackName {
+  margin: 0;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.fallbackText {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: var(--fs-sm);
+}
+
+.fallbackDownload {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--tap);
+  padding: 0 var(--s-5);
+  border-radius: var(--r-pill);
+  background: var(--blue-600);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+@media (max-width: 480px) {
+  /* на телефоне подпись «Скачать» убираем, остаётся круглая иконка: так название файла помещается */
+  .download span {
+    display: none;
+  }
+
+  .download {
+    width: var(--tap);
+    padding: 0;
+    justify-content: center;
+  }
+}
