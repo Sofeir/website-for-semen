@@ -110,6 +110,25 @@ export interface ContactHit extends Contact {
   clientName: string;
 }
 
+/** Одно обращение с этой техникой: заявка, с каким пробегом пришла, что нашли и чем закончилось. */
+export interface DeviceVisit {
+  orderId: number;
+  number: string;
+  createdAt: string;
+  fault: string;
+  stageName: string;
+  stageCode: string;
+  outcome: 'repaired' | 'declined' | null;
+  issuedAt: string | null;
+  /** Пробег при приёме, листов (первая запись пробега по заявке). */
+  counter: number | null;
+  /** Результат диагностики: комментарий при переводе с этапа «Диагностика». */
+  diagnosis: string | null;
+  agreedSum: number | null;
+  worksCount: number;
+  acceptedByName: string | null;
+}
+
 export interface DeviceWork {
   id: number;
   clientId: number;

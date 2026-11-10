@@ -24,6 +24,7 @@ import type {
   DashboardData,
   ClientReport,
   Device,
+  DeviceVisit,
   DeviceWork,
   MonthlyReport,
   Dictionaries,
@@ -70,9 +71,9 @@ export const keys = {
 
 /** Какие запросы сбрасывать, когда сервер сообщил «изменилось X». */
 export const SCOPE_KEYS: Record<string, string[]> = {
-  orders: ['orders', 'order', 'dashboard', 'customerOrders', 'customerOrder', 'deviceWorks', 'clientWorks', 'report'],
+  orders: ['orders', 'order', 'dashboard', 'customerOrders', 'customerOrder', 'deviceWorks', 'deviceVisits', 'clientWorks', 'report'],
   tasks: ['tasks', 'task', 'dashboard', 'order', 'customerTasks', 'visits', 'taskKinds'],
-  clients: ['clients', 'client', 'deviceWorks', 'clientWorks', 'report', 'clientDevices', 'clientInspections', 'visitDevices', 'servicePlan', 'servicePlans', 'visits'],
+  clients: ['clients', 'client', 'deviceWorks', 'deviceVisits', 'clientWorks', 'report', 'clientDevices', 'clientInspections', 'visitDevices', 'servicePlan', 'servicePlans', 'visits'],
   dashboard: ['dashboard'],
   dictionaries: ['dictionaries'],
   acts: ['acts', 'act', 'order'],
@@ -102,6 +103,13 @@ export const useDeviceWorks = (deviceId: number | null) =>
   useQuery({
     queryKey: ['deviceWorks', deviceId],
     queryFn: () => api.get<DeviceWork[]>(`/devices/${deviceId}/works`),
+    enabled: Boolean(deviceId),
+  });
+
+export const useDeviceVisits = (deviceId: number | null) =>
+  useQuery({
+    queryKey: ['deviceVisits', deviceId],
+    queryFn: () => api.get<DeviceVisit[]>(`/devices/${deviceId}/orders`),
     enabled: Boolean(deviceId),
   });
 

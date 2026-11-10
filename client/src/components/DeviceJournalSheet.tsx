@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link2Off, Monitor, Plus, Save, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Gauge, Link2Off, Monitor, Plus, Save, Trash2 } from 'lucide-react';
 import { REFILL_OP_LABELS, WORK_KIND_LABELS, formatMoney, type Device, type DeviceWork, type RefillOp } from '@sd/shared';
 import { api, ApiError } from '@/api/http';
 import { useAuth } from '@/app/auth';
-import { useDeviceComponents, useDeviceWorks, useDictionaries, useInvalidate } from '@/api/queries';
+import { useDeviceComponents, useDeviceVisits, useDeviceWorks, useDictionaries, useInvalidate } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
 import { Button, IconButton } from '@/ui/Button';
 import { ErrorBox, Pill } from '@/ui/Display';
@@ -59,6 +60,7 @@ export function DeviceJournalSheet({
   onClose: () => void;
 }) {
   const works = useDeviceWorks(device?.id ?? null);
+  const visits = useDeviceVisits(device?.id ?? null);
   const components = useDeviceComponents(device && hasWorkplace(device) ? device.id : null);
   const dict = useDictionaries();
   const inv = useInvalidate();
@@ -67,6 +69,7 @@ export function DeviceJournalSheet({
   const [inventoryNo, setInventoryNo] = useState('');
   const [location, setLocation] = useState('');
   const [serial, setSerial] = useState('');
+  const [counter, setCounter] = useState('');
   const [workOpen, setWorkOpen] = useState(false);
   const [compType, setCompType] = useState('');
   const [compModel, setCompModel] = useState('');
@@ -100,13 +103,14 @@ export function DeviceJournalSheet({
     setInventoryNo(device.inventoryNo ?? '');
     setLocation(device.location ?? '');
     setSerial(device.serial ?? '');
+    setCounter('');
     setCompType('');
     setCompModel('');
     setCompSerial('');
     setError('');
   }, [device]);
 
-  const refresh = () => inv('clients', 'client', 'orders', 'order', 'deviceWorks', 'deviceComponents', 'clientWorks');
+  const refresh = () => inv('clients', 'client', 'orders', 'order', 'deviceWorks', 'deviceVisits', 'deviceComponents', 'clientWorks');
 
   const saveInfo = async () => {
     setError('');
@@ -116,6 +120,30 @@ export function DeviceJournalSheet({
       toast.success('Данные техники сохранены');
     } catch (e) {
       setError((e as ApiError).message);
+    }
+  };
+
+  /** Последние показания счётчика из журнала. */
+  const lastCounter = useMemo(() => {
+    const list = (works.data ?? []).filter((w) => w.counter !== null);
+    return list.length ? list.reduce((a, b) => (+new Date(b.doneAt) > +new Date(a.doneAt) || (+new Date(b.doneAt) === +new Date(a.doneAt) && b.id > a.id) ? b : a)) : null;
+  }, [works.data]);
+
+  /** Записывает показания счётчика в журнал: по ним потом видно, на каком пробеге аппарат приходил в ремонт. */
+  const saveCounter = async () => {
+    setError('');
+    const n = Number(counter.replace(/\s/g, ''));
+    if (!counter.trim() || !Number.isInteger(n) || n < 0) return setError('Пробег — целое число страниц, например 48210');
+    setBusy(true);
+    try {
+      await api.post('/works', { deviceId: device!.id, orderId: orderId ?? null, kind: 'service', title: 'Показания счётчика', qty: 1, counter: n });
+      refresh();
+      setCounter('');
+      toast.success('Пробег записан в журнал');
+    } catch (e) {
+      setError((e as ApiError).message);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -215,6 +243,61 @@ export function DeviceJournalSheet({
                 Сохранить паспорт
               </Button>
             </div>
+            <Field
+              label="Пробег, стр."
+              optional
+              hint={
+                lastCounter
+                  ? `Последняя запись: ${fmtPages(lastCounter.counter!)}, ${fmtWhen(lastCounter.doneAt)}. Каждая новая запись остаётся в журнале.`
+                  : 'Показания счётчика аппарата. Каждая запись остаётся в журнале, так видно, с каким пробегом он приходил в ремонт.'
+              }
+            >
+              {(cp) => (
+                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  <Input {...cp} type="number" inputMode="numeric" min={0} value={counter} onChange={(e) => setCounter(e.target.value)} style={{ maxWidth: 200 }} />
+                  <Button variant="secondary" icon={<Gauge size={18} aria-hidden />} onClick={saveCounter} loading={busy}>
+                    Записать пробег
+                  </Button>
+                </div>
+              )}
+            </Field>
+          </section>
+
+          <section className="stack" aria-label="История обращений">
+            <h3 className={s.h}>История обращений{visits.data ? ` (${visits.data.length})` : ''}</h3>
+            {visits.data?.length ? (
+              <ul className={s.list}>
+                {visits.data.map((v) => (
+                  <li key={v.orderId} className={s.item}>
+                    <div className={s.itemMain}>
+                      <b>
+                        {v.orderId === orderId ? (
+                          <>Заявка №{v.number} (эта)</>
+                        ) : (
+                          <Link to={`/orders/${v.orderId}`} onClick={onClose}>
+                            Заявка №{v.number}
+                          </Link>
+                        )}
+                        <span className={s.sum}> {fmtWhen(v.createdAt)}</span>
+                      </b>
+                      <span className={s.meta}>
+                        {v.counter !== null ? `Пробег при приёме ${fmtPages(v.counter)}` : 'Пробег не записан'}
+                        {v.acceptedByName && `, принял ${v.acceptedByName}`}
+                      </span>
+                      <span className={s.note}>Неисправность: {v.fault}</span>
+                      {v.diagnosis && <span className={s.note}>Результат диагностики: {v.diagnosis}</span>}
+                      <span className={s.note}>
+                        {v.issuedAt ? (v.outcome === 'declined' ? 'Выдан без ремонта' : 'Отремонтирован и выдан') : `Сейчас: ${v.stageName}`}
+                        {v.agreedSum !== null && `, согласовано ${formatMoney(v.agreedSum)}`}
+                        {v.worksCount > 0 && `, работ в журнале: ${v.worksCount}`}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">Обращений пока нет.</p>
+            )}
           </section>
 
           {hasWorkplace(device) && (
