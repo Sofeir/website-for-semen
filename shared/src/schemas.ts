@@ -108,6 +108,8 @@ export const intakeDeviceSchema = z.object({
   kitNote: optionalText(500),
   devicePassword: optionalText(200),
   department: optionalText(120),
+  /** Пробег принтера или МФУ при приёме, листов: попадает в журнал техники. */
+  counter: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().int().min(0).max(100_000_000).nullable()).optional(),
   /** Приём картриджей упрощённой формой: модель, количество и что делали. Заправка записывается в работы. */
   cartridge: z.boolean().optional(),
   qty: z.coerce.number().int().min(1, 'Минимум 1').max(999, 'Не больше 999').default(1),
@@ -288,6 +290,8 @@ export type InspectionInput = z.infer<typeof inspectionSchema>;
 /** Что согласовали с клиентом: срок текстом и сумма. */
 export const agreedSchema = z.object({
   agreedTerm: optionalText(200),
+  /** Что обсуждали с клиентом: озвученная сумма, варианты, чего ждём. */
+  agreedNote: optionalText(2000),
   agreedSum: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().min(0).max(10_000_000).nullable()).optional(),
 });
 export type AgreedInput = z.infer<typeof agreedSchema>;

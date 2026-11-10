@@ -119,6 +119,35 @@ describe('календарь задач', () => {
     expect((await request(app).get(`/api/calendar/${next}.ics`)).status).toBe(404);
   });
 
+  it('все открытые задачи сотрудника в ленте: свои, переданные ему, с несколькими ответственными, на одно время', async () => {
+    const { users } = await dict();
+    const golenkov = await loginAs('golenkov');
+    const isakov = await loginAs('isakov');
+    const due = new Date(Date.now() + 26 * 3_600_000).toISOString();
+    const mk = async (s: typeof golenkov, title: string, who: number[]) =>
+      (await s.post('/api/tasks', { title, assigneeIds: who, startAt: new Date().toISOString(), dueAt: due })).body.id as number;
+    const mine = await mk(isakov, 'Ремонт ПК своя', [users.isakov]);
+    const shared = await mk(golenkov, 'Ремонт МФУ общая', [users.golenkov, users.isakov]);
+    const moved = await mk(golenkov, 'Диагностика переданная', [users.golenkov]);
+    const tr = await golenkov.post(`/api/tasks/${moved}/transfer`, { assigneeId: users.isakov, dueAt: due, comment: 'Тебе' });
+    expect(tr.status).toBe(200);
+    const closed = await mk(isakov, 'Закрытая диагностика', [users.isakov]);
+    await isakov.post('/api/tasks/close', { ids: [closed], comment: 'Готово' });
+
+    const { token } = (await isakov.post('/api/auth/me/calendar')).body;
+    const before = (await isakov.get('/api/auth/me/calendar')).body;
+    expect(before.fetchedAt).toBeNull();
+    const feed = await request(app).get(`/api/calendar/${token}.ics`);
+    for (const id of [mine, shared, moved]) expect(feed.text).toContain(`UID:task-${id}@servicedesk`);
+    expect(feed.text).not.toContain(`task-${closed}@`);
+
+    // профиль показывает, когда ленту забрали и сколько задач в ней было
+    const after = (await isakov.get('/api/auth/me/calendar')).body;
+    expect(after.fetchedAt).not.toBeNull();
+    expect(after.fetchedTasks).toBe(after.tasksNow);
+    expect(after.tasksNow).toBeGreaterThanOrEqual(3);
+  });
+
   it('формат: одиночный перевод строки и управляющие символы не создают новых строк календаря', () => {
     const ics = buildCalendar(
       [

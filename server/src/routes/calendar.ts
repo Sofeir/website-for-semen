@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { many, one } from '../db/pool';
+import { many, one, pool } from '../db/pool';
 import { h, HttpError } from '../lib/http';
 import { buildCalendar, type CalendarEventItem, type CalendarTask } from '../services/ical';
 import { DEFAULT_REMINDERS } from '@sd/shared';
@@ -37,6 +37,8 @@ calendarFeedRouter.get(
         WHERE user_id = $1 AND start_at > now() - interval '30 days' ORDER BY start_at LIMIT 500`,
       [user.id],
     );
+    // запоминаем, когда и что забрал внешний календарь: в профиле видно, обновлялся ли он
+    await pool.query('UPDATE users SET calendar_fetched_at = now(), calendar_fetched_tasks = $2 WHERE id = $1', [user.id, tasks.length]);
     const own = await one<{ custom: boolean }>('SELECT reminders_custom AS custom FROM users WHERE id = $1', [user.id]);
     const reminders = own?.custom
       ? (await many<{ m: number }>('SELECT minutes_before AS m FROM user_reminders WHERE user_id = $1 ORDER BY minutes_before DESC', [user.id])).map((r) => r.m)

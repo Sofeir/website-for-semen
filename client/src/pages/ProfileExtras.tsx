@@ -6,6 +6,7 @@ import { AtSign, CalendarDays, Check, Copy, MonitorSmartphone } from 'lucide-rea
 import { changeLoginSchema, type ChangeLoginInput, type Me } from '@sd/shared';
 import { api, ApiError } from '@/api/http';
 import { keys } from '@/api/queries';
+import { fmtWhen } from '@/lib/dates';
 import { installApp, isIos, useInstallState } from '@/lib/installApp';
 import { Button } from '@/ui/Button';
 import { Card, CardHead, ErrorBox } from '@/ui/Display';
@@ -131,11 +132,15 @@ export function CalendarCard() {
   const [token, setToken] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [feed, setFeed] = useState<{ fetchedAt: string | null; fetchedTasks: number | null; tasksNow: number }>({ fetchedAt: null, fetchedTasks: null, tasksNow: 0 });
 
   useEffect(() => {
     api
-      .get<{ token: string | null }>('/auth/me/calendar')
-      .then((r) => setToken(r.token))
+      .get<{ token: string | null; fetchedAt: string | null; fetchedTasks: number | null; tasksNow: number }>('/auth/me/calendar')
+      .then((r) => {
+        setToken(r.token);
+        setFeed({ fetchedAt: r.fetchedAt, fetchedTasks: r.fetchedTasks, tasksNow: r.tasksNow });
+      })
       .catch(() => setToken(null));
   }, []);
 
@@ -224,10 +229,17 @@ export function CalendarCard() {
                 </Button>
               </div>
               <p className={s.channelHint}>Ссылка секретная: она открывает ваши задачи без пароля. Никому её не присылайте.</p>
+              <p className={s.channelHint}>
+                Открытых задач в ленте сейчас: {feed.tasksNow}.{' '}
+                {feed.fetchedAt
+                  ? `Календарь последний раз забирал ленту: ${fmtWhen(feed.fetchedAt)}, тогда в ней было задач: ${feed.fetchedTasks ?? 0}. Если в вашем календаре меньше, он ещё не обновился.`
+                  : 'Календарь ленту ещё ни разу не забирал.'}{' '}
+                Закрытые задачи в ленту не попадают.
+              </p>
               <ol className={s.steps}>
                 <li>
                   <b>Google Календарь</b> (на компьютере): слева у «Другие календари» нажмите «+», выберите «Добавить по URL» и вставьте ссылку.
-                  Google обновляет такие календари раз в несколько часов, поэтому новые задачи появляются не сразу.
+                  Google обновляет такие календари раз в несколько часов, поэтому новые задачи появляются не сразу. Чтобы получить свежие сразу, отпишитесь от календаря («Параметры» рядом с ним) и добавьте ссылку заново.
                 </li>
                 <li>
                   <b>iPhone и Mac (iCloud)</b>: нажмите «Подписаться в Календаре Apple» ниже или в настройках календаря добавьте «календарь подписки»

@@ -18,8 +18,10 @@ export interface AdvanceTarget {
   number: string;
   deviceTitle: string;
   stageName: string;
+  stageCode?: string;
   stageColor: string;
   responsibleId: number | null;
+  acceptedById?: number | null;
   hasAct?: boolean;
 }
 
@@ -54,8 +56,11 @@ export function AdvanceSheet({
     const prefer = preferRolesFor(next);
     const list = users.data ?? [];
     // Себя, если подходит по роли; иначе первого подходящего сотрудника.
+    // «Готово» достаётся принявшему технику: он звонит клиенту и выдаёт. Иначе все готовые заявки оседали бы у руководителя.
+    const acceptor = next.code === 'ready' && order.acceptedById ? list.find((u) => u.id === order.acceptedById && u.isActive !== false)?.id : undefined;
     const pick =
-      (prefer.includes(me.role) && me.id) || list.find((u) => u.role === prefer[0] && u.isActive !== false)?.id || me.id;
+      acceptor ??
+      ((prefer.includes(me.role) && me.id) || list.find((u) => u.role === prefer[0] && u.isActive !== false)?.id || me.id);
     setResponsible(String(pick));
     setDue(defaultDueDate(settings.data?.work, dueDaysFor(next)).toISOString());
     setComment('');
@@ -157,8 +162,22 @@ export function AdvanceSheet({
             />
           )}
           {!target!.isFinal && (
-            <Field label="Комментарий" optional hint="Увидит новый ответственный и постановщик прошлой задачи">
-              <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3} maxLength={2000} />
+            <Field
+              label={order?.stageCode === 'diagnostics' ? 'Результат диагностики' : 'Комментарий'}
+              optional
+              hint={
+                order?.stageCode === 'diagnostics'
+                  ? 'Что нашли и что нужно сделать: заключение будет заметно сверху заявки'
+                  : 'Увидит новый ответственный и постановщик прошлой задачи'
+              }
+            >
+              <Textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                rows={3}
+                maxLength={2000}
+                placeholder={order?.stageCode === 'diagnostics' ? 'Например: замена предохранителя питания' : undefined}
+              />
             </Field>
           )}
         </div>

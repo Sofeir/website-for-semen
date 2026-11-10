@@ -153,6 +153,8 @@ export interface OrderListItem {
   stageColor: string;
   responsibleId: number | null;
   responsibleName: string | null;
+  /** Кто принял технику: ему по умолчанию достаётся этап «Готово» (звонок клиенту, выдача). */
+  acceptedById: number | null;
   stageStartedAt: string;
   stageDueAt: string | null;
   createdAt: string;
@@ -243,6 +245,8 @@ export interface OrderDetail extends OrderListItem {
   /** Согласовано с клиентом: срок текстом и сумма. */
   agreedTerm: string | null;
   agreedSum: number | null;
+  /** Запись о разговоре с клиентом на согласовании. */
+  agreedNote: string | null;
   /** Работы по заявке: кто и что делал. */
   works: DeviceWork[];
   comment: string | null;
@@ -292,6 +296,8 @@ export interface TaskListItem {
   creatorName: string;
   orderId: number | null;
   orderNumber: string | null;
+  /** Техника из заявки, к которой относится задача: «Принтеры/МФУ HP LaserJet P1102». */
+  deviceTitle: string | null;
   clientId: number | null;
   clientName: string | null;
   startAt: string;

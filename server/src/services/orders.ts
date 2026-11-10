@@ -223,6 +223,14 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
         [clientId, deviceId, orderId, (dv.modelText?.trim() || title).slice(0, 200), item.qty, input.comment, actor.id, responsible.id, item.refillAmount ?? null, item.refillOps],
       );
     }
+    if (!item.cartridge && item.counter != null && (await deviceTypeName(db, deviceId)) === 'Принтеры/МФУ') {
+      // Пробег при приёме: запись в журнал техники, видна в заявке среди работ и в карточке устройства
+      await db.query(
+        `INSERT INTO device_works (client_id, device_id, order_id, kind, title, qty, counter, created_by, performer_id)
+         VALUES ($1, $2, $3, 'service', 'Пробег при приёме', 1, $4, $5, $5)`,
+        [clientId, deviceId, orderId, item.counter, actor.id],
+      );
+    }
     await createTask(
       db,
       actor,

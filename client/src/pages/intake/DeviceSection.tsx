@@ -377,6 +377,26 @@ export function DeviceSection({
             />
           )}
         </Field>
+        {typeName === 'Принтеры/МФУ' && (
+          <Field label="Пробег, стр." optional hint="Сколько страниц отпечатал аппарат при приёме: смотрите на счётчике. Запишется в журнал техники.">
+            {(cp) => (
+              <Controller
+                control={control}
+                name={`${path}.counter`}
+                render={({ field }) => (
+                  <Input
+                    {...cp}
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.value === '' ? null : e.target.value)}
+                  />
+                )}
+              />
+            )}
+          </Field>
+        )}
         {legal && (
           <Field label="Отдел" optional>
             {(cp) => (
