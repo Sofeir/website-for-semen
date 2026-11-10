@@ -273,10 +273,12 @@ export function DeviceJournalSheet({
                       <b>
                         {v.orderId === orderId ? (
                           <>Заявка №{v.number} (эта)</>
-                        ) : (
+                        ) : v.visible ? (
                           <Link to={`/orders/${v.orderId}`} onClick={onClose}>
                             Заявка №{v.number}
                           </Link>
+                        ) : (
+                          <>Прошлое обращение</>
                         )}
                         <span className={s.sum}> {fmtWhen(v.createdAt)}</span>
                       </b>

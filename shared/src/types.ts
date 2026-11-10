@@ -113,7 +113,9 @@ export interface ContactHit extends Contact {
 /** Одно обращение с этой техникой: заявка, с каким пробегом пришла, что нашли и чем закончилось. */
 export interface DeviceVisit {
   orderId: number;
-  number: string;
+  /** Номер и подробности скрыты (null), если у сотрудника нет доступа к самой заявке. */
+  number: string | null;
+  visible: boolean;
   createdAt: string;
   fault: string;
   stageName: string;

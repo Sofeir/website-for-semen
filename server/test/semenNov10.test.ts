@@ -142,3 +142,48 @@ describe('история обращений по технике', () => {
     expect((await stranger.get(`/api/devices/${deviceId}/orders`)).status).toBe(403);
   });
 });
+
+describe('история обращений: чужие заявки урезаны', () => {
+  it('мастер видит подробности только своей заявки, по остальным дату, пробег и итог', async () => {
+    const { users } = await dict();
+    const printer = (await pool.query(`SELECT id FROM device_types WHERE name = 'Принтеры/МФУ'`)).rows[0].id as number;
+    const semen = await loginAs('semen');
+    const a = await semen.post('/api/intake', {
+      clientKind: 'person',
+      newClient: { kind: 'person', name: 'Клиент для урезания', phone: '+7 900 555-00-11' },
+      devices: [{ device: { deviceTypeId: printer, brandText: 'Brother', modelText: 'HL-1', serial: 'BR-1' }, faultText: 'Серые полосы', counter: 1000 }],
+      responsibleId: users.isakov,
+      dueAt: inDays(1),
+    });
+    const orderA = a.body.orderIds[0];
+    const row = (await pool.query('SELECT device_id, client_id FROM orders WHERE id = $1', [orderA])).rows[0];
+    const stages = (await pool.query(`SELECT id, code FROM stages`)).rows as { id: number; code: string }[];
+    await semen.post(`/api/orders/${orderA}/advance`, {
+      toStageId: stages.find((s) => s.code === 'approval')!.id,
+      responsibleId: users.semen,
+      dueAt: inDays(2),
+      comment: 'Секретный диагноз',
+    });
+    await semen.put(`/api/orders/${orderA}/agreed`, { agreedSum: 7777 });
+    const b = await semen.post('/api/intake', {
+      clientKind: 'person',
+      clientId: row.client_id,
+      devices: [{ device: { id: row.device_id, deviceTypeId: printer, brandText: 'Brother', modelText: 'HL-1', serial: 'BR-1' }, faultText: 'Не берёт бумагу', counter: 1500 }],
+      responsibleId: users.kataev,
+      dueAt: inDays(1),
+    });
+    const orderB = b.body.orderIds[0];
+
+    const kataev = await loginAs('kataev');
+    const visits = (await kataev.get(`/api/devices/${row.device_id}/orders`)).body as any[];
+    const mine = visits.find((v) => v.orderId === orderB);
+    const other = visits.find((v) => v.orderId === orderA);
+    expect(mine).toMatchObject({ visible: true, fault: 'Не берёт бумагу', counter: 1500 });
+    expect(other).toMatchObject({ visible: false, number: null, diagnosis: null, agreedSum: null, acceptedByName: null, counter: 1000, fault: 'Серые полосы' });
+    expect(JSON.stringify(other)).not.toContain('Секретный');
+
+    // руководитель видит всё
+    const full = (await semen.get(`/api/devices/${row.device_id}/orders`)).body as any[];
+    expect(full.find((v) => v.orderId === orderA)).toMatchObject({ visible: true, diagnosis: 'Секретный диагноз', agreedSum: 7777 });
+  });
+});
