@@ -32,6 +32,7 @@ import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import { DeviceSection } from './DeviceSection';
 import s from './Intake.module.css';
+import { DocLink } from '@/components/FileViewer';
 
 const emptyDevice = (): IntakeInput['devices'][number] => ({
   device: {
@@ -527,14 +528,14 @@ export default function IntakePage() {
               {result.orderNumbers.length > 1 ? 'Заявки' : 'Заявка'} <b>№{result.orderNumbers.join(', №')}</b> на диагностике.
               {responsibleName && responsibleName !== me.fullName ? ` ${responsibleName} получит уведомление о задаче.` : ''}
             </p>
-            <a href={result.receiptUrl} target="_blank" rel="noreferrer" className={s.receipt}>
+            <DocLink href={result.receiptUrl} name="Квитанция о приёме.pdf" className={s.receipt}>
               <Printer aria-hidden />
               <span>
                 <b>Квитанция о приёме</b>
                 <span>Открыть PDF и распечатать</span>
               </span>
               <FileText aria-hidden className={s.receiptArrow} />
-            </a>
+            </DocLink>
             <p className="muted" style={{ fontSize: 'var(--fs-sm)' }}>
               Все заявки — в разделе <Link to="/orders">Заявки</Link>.
             </p>

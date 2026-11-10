@@ -142,7 +142,7 @@ filesRouter.get(
       'X-Content-Type-Options': 'nosniff',
       'Content-Disposition': `${inline && req.query.download !== '1' ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(a.file_name)}`,
       'Cache-Control': 'private, max-age=3600',
-      'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'",
+      'Content-Security-Policy': "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'",
     });
     fs.createReadStream(full).pipe(res);
   }),

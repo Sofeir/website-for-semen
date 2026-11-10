@@ -7,6 +7,7 @@ import { Button } from '@/ui/Button';
 import { Card, CardHead, EmptyState, Pill } from '@/ui/Display';
 import { InspectionSheet } from './InspectionSheet';
 import s from './InspectionsCard.module.css';
+import { DocLink } from '@/components/FileViewer';
 
 const monthOf = (d: string | Date) => {
   const x = new Date(d);
@@ -56,16 +57,16 @@ export function InspectionsCard({ clientId, devices }: { clientId: number; devic
     <Card>
       <CardHead title="Проверка техники" count={rows.length}>
         <div className="row wrap">
-          <a className={s.pdf} href={`/api/documents/inspection-blank/pc.pdf`} target="_blank" rel="noreferrer">
+          <DocLink className={s.pdf} href="/api/documents/inspection-blank/pc.pdf" name="Бланк проверки ПК.pdf">
             <FileDown size={16} aria-hidden /> Бланк ПК
-          </a>
-          <a className={s.pdf} href={`/api/documents/inspection-blank/printer.pdf`} target="_blank" rel="noreferrer">
+          </DocLink>
+          <DocLink className={s.pdf} href="/api/documents/inspection-blank/printer.pdf" name="Бланк проверки МФУ.pdf">
             <FileDown size={16} aria-hidden /> Бланк МФУ
-          </a>
+          </DocLink>
           {checkedCount > 0 && (
-            <a className={s.pdf} href={`/api/documents/inspections/client/${clientId}.pdf?month=${month}`} target="_blank" rel="noreferrer">
+            <DocLink className={s.pdf} href={`/api/documents/inspections/client/${clientId}.pdf?month=${month}`} name="Результаты проверок.pdf">
               <FileDown size={16} aria-hidden /> Результаты за месяц
-            </a>
+            </DocLink>
           )}
         </div>
       </CardHead>

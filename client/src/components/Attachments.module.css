@@ -76,3 +76,19 @@
   font-size: var(--fs-xs);
   color: var(--text-muted);
 }
+
+/* Строка файла теперь кнопка: сбрасываем стандартный вид кнопки */
+button.link {
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Строка файла теперь кнопка: сбрасываем стандартный вид кнопки */
+button.link {
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}

@@ -40,6 +40,7 @@ import { Button, ButtonLink, IconButton } from '@/ui/Button';
 import { Card, CardHead, EmptyState, ErrorBox, Pill, Spinner, Tabs } from '@/ui/Display';
 import { useToast } from '@/ui/Toast';
 import s from './ClientPage.module.css';
+import { DocLink } from '@/components/FileViewer';
 
 type Tab = 'orders' | 'devices' | 'people' | 'docs' | 'tasks' | 'fleet' | 'service';
 
@@ -343,9 +344,9 @@ export default function ClientPage() {
                         </span>
                       </span>
                     )}
-                    <a href={d.url} target="_blank" rel="noreferrer" className={s.pdf}>
+                    <DocLink href={d.url} name={d.kind === 'act' ? `Акт ${d.number}.pdf` : `Квитанция ${d.orderNumber}.pdf`} className={s.pdf}>
                       PDF
-                    </a>
+                    </DocLink>
                   </li>
                 ))}
               </ul>
