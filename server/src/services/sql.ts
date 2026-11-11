@@ -50,7 +50,7 @@ export const TASK_SELECT = `
          (t.stage_id IS NOT NULL) AS "isStageTask", (uc.role = 'customer') AS "fromCustomer",
          (SELECT count(*)::int FROM task_checklist_items ci WHERE ci.task_id = t.id) AS "checklistTotal",
          (SELECT count(*)::int FROM task_checklist_items ci WHERE ci.task_id = t.id AND ci.done) AS "checklistDone",
-         t.is_visit AS "isVisit",
+         t.is_visit AS "isVisit", t.visit_mode AS "visitMode",
          t.kind_id AS "kindId", tk.name AS "kindName", tk.color AS "kindColor",
          ARRAY(SELECT tw.user_id FROM task_watchers tw WHERE tw.task_id = t.id ORDER BY tw.user_id) AS "watcherIds",
          (SELECT string_agg(wu.full_name, ', ' ORDER BY wu.full_name)

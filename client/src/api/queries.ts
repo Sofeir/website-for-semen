@@ -25,6 +25,7 @@ import type {
   ClientReport,
   Device,
   DeviceVisit,
+  ServiceLog,
   DeviceWork,
   MonthlyReport,
   Dictionaries,
@@ -161,6 +162,13 @@ export const useMonthlyReport = (month: string) =>
   useQuery({
     queryKey: ['report', month],
     queryFn: () => api.get<MonthlyReport>(`/reports/monthly?month=${month}`),
+    placeholderData: keepPreviousData,
+  });
+
+export const useServiceLog = (periodQuery: string) =>
+  useQuery({
+    queryKey: ['report', 'service-log', periodQuery],
+    queryFn: () => api.get<ServiceLog>(`/reports/service-log?${periodQuery}`),
     placeholderData: keepPreviousData,
   });
 

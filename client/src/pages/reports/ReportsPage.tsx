@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { BarChart3, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { BarChart3, ChevronLeft, ChevronRight, Download, Truck } from 'lucide-react';
 import type { MonthlyReport, ReportRow, ReportTotals } from '@sd/shared';
 import { useMonthlyReport } from '@/api/queries';
 import { useDocumentTitle } from '@/lib/hooks';
@@ -116,6 +117,11 @@ export default function ReportsPage() {
         subtitle="По месяцам: заявки, ремонты, заправки картриджей, выезды. Нажмите на клиента, чтобы увидеть, что именно сделали."
         actions={
           <>
+            <Link to="/reports/service">
+              <Button variant="secondary" icon={<Truck size={18} aria-hidden />} type="button" tabIndex={-1}>
+                Выезды и удалённо
+              </Button>
+            </Link>
             {!import.meta.env.VITE_DEMO && (
               <Button
                 icon={<Download size={18} aria-hidden />}

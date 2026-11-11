@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarCheck, CalendarPlus, Truck } from 'lucide-react';
+import { CalendarCheck, CalendarPlus, Laptop, Truck } from 'lucide-react';
 import { useAuth } from '@/app/auth';
 import { useVisits } from '@/api/queries';
 import { useDocumentTitle } from '@/lib/hooks';
@@ -17,7 +17,7 @@ import { Sheet } from '@/ui/Sheet';
 import s from './VisitsPage.module.css';
 
 type Status = 'open' | 'done';
-type Picking = 'visit' | 'plan' | null;
+type Picking = 'visit' | 'remote' | 'plan' | null;
 
 /**
  * Все выезды к клиентам в одном месте: назначенные задачи-выезды и графики регулярных выездов.
@@ -34,11 +34,14 @@ export default function VisitsPage() {
 
   const [picking, setPicking] = useState<Picking>(null);
   const [visitFor, setVisitFor] = useState<PickedClient | null>(null);
+  const [remote, setRemote] = useState(false);
   const [planFor, setPlanFor] = useState<PickedClient | null>(null);
 
   const pick = (c: PickedClient) => {
-    if (picking === 'visit') setVisitFor(c);
-    else setPlanFor(c);
+    if (picking === 'visit' || picking === 'remote') {
+      setRemote(picking === 'remote');
+      setVisitFor(c);
+    } else setPlanFor(c);
     setPicking(null);
   };
 
@@ -47,7 +50,7 @@ export default function VisitsPage() {
     <>
       <PageHeader
         title="Выезды"
-        subtitle={all ? 'Выезды всех сотрудников к клиентам' : 'Ваши выезды к клиентам'}
+        subtitle={all ? 'Выезды и удалённое обслуживание всех сотрудников' : 'Ваши выезды и удалённое обслуживание'}
         actions={
           <div className={s.actions}>
             {can('clients.edit') && (
@@ -60,6 +63,9 @@ export default function VisitsPage() {
                 Добавить график
               </Button>
             )}
+            <Button size="sm" variant="secondary" icon={<Laptop size={18} aria-hidden />} onClick={() => setPicking('remote')}>
+              Удалённое обслуживание
+            </Button>
             <Button size="sm" icon={<CalendarCheck size={18} aria-hidden />} onClick={() => setPicking('visit')}>
               Назначить выезд
             </Button>
@@ -124,14 +130,15 @@ export default function VisitsPage() {
         open={picking !== null}
         onClose={() => setPicking(null)}
         onPick={pick}
-        title={picking === 'plan' ? 'График выездов: клиент' : 'Выезд: к какому клиенту'}
+        title={picking === 'plan' ? 'График выездов: клиент' : picking === 'remote' ? 'Удалённое обслуживание: какой клиент' : 'Выезд: к какому клиенту'}
       />
       <TaskFormSheet
         open={Boolean(visitFor)}
         onClose={() => setVisitFor(null)}
         clientId={visitFor?.id}
-        presetTitle={visitFor ? `Выезд: ${visitFor.name}` : undefined}
+        presetTitle={visitFor ? `${remote ? 'Удалённое обслуживание' : 'Выезд'}: ${visitFor.name}` : undefined}
         visit
+        visitMode={remote ? 'remote' : 'onsite'}
       />
       <Sheet open={Boolean(planFor)} onClose={() => setPlanFor(null)} title="График выездов" subtitle={planFor?.name} width={620}>
         {planFor && <ServicePlanCard clientId={planFor.id} bare onSaved={() => setPlanFor(null)} />}
