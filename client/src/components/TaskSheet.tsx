@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRightLeft, CalendarClock, Check, ClipboardList, Pencil, RotateCcw, Send, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, CalendarClock, Check, ClipboardList, Pencil, RotateCcw, Send, Trash2, Undo2 } from 'lucide-react';
 import type { TaskStep } from '@sd/shared';
 import { useAuth, useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
@@ -218,6 +218,16 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
     }
   };
 
+  // Последняя передача сделана мной и задача ещё у адресата: можно выбрать другого (причина обязательна, значит это передача, а не постановка)
+  const lastStep = task?.steps.filter((st) => !st.doneAt).at(-1);
+  const canFix = Boolean(
+    task &&
+      task.status === 'open' &&
+      task.handedOverById === me.id &&
+      lastStep?.comment &&
+      !/^(Срок перенесён|Возвращена в работу)/.test(lastStep.comment),
+  );
+
   let footer = null;
   if (task && canRedirect) {
     footer =
@@ -256,6 +266,11 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
             <ButtonLink to={`/orders/${task.orderId}`} icon={<ClipboardList size={18} aria-hidden />}>
               Открыть заявку
             </ButtonLink>
+          )}
+          {canFix && (
+            <Button variant="secondary" icon={<Undo2 size={18} aria-hidden />} onClick={() => setMode('transfer')}>
+              Передал не тому
+            </Button>
           )}
           <Button variant="secondary" icon={<ArrowRightLeft size={18} aria-hidden />} onClick={() => setMode('transfer')}>
             Передать
@@ -380,6 +395,9 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
             )}
             {mode === 'transfer' && (
               <>
+                {(canFix || canRedirect) && (
+                  <p className="muted">Сейчас задача у: {task.assigneeName}. Выберите, кому передать вместо него.</p>
+                )}
                 <Field label="Кому передать">
                   <UserSelect value={assignee} onChange={(e) => setAssignee(e.target.value)} data-autofocus />
                 </Field>
