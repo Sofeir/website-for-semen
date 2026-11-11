@@ -384,6 +384,8 @@ export interface TaskChecklistItem {
 }
 
 export interface TaskDetail extends TaskListItem {
+  /** Равно id сотрудника, если он сам передал эту задачу и она ещё у адресата: передать её заново он может. Иначе null. */
+  handedOverById?: number | null;
   steps: TaskStep[];
   checklist: TaskChecklistItem[];
   attachments: Attachment[];

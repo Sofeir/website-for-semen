@@ -122,6 +122,8 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   // Просроченную задачу закрывает только руководитель: остальные просят его подтвердить.
   const needsManager = Boolean(task && task.status === 'open' && task.overdue && !me.confirmsOverdue);
   const canEdit = Boolean(task && canTouch && task.status === 'open');
+  // Передал не тому: передавший задачу может передать её заново, пока она у адресата (других прав у него нет)
+  const canRedirect = Boolean(task && !canTouch && task.status === 'open' && task.handedOverById === me.id);
 
   const doClose = async () => {
     setError('');
@@ -217,7 +219,23 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   };
 
   let footer = null;
-  if (task && canTouch) {
+  if (task && canRedirect) {
+    footer =
+      mode === 'transfer' ? (
+        <>
+          <Button variant="secondary" onClick={() => setMode('view')}>
+            Назад
+          </Button>
+          <Button loading={transfer.isPending} onClick={doTransfer} icon={<ArrowRightLeft size={18} aria-hidden />}>
+            Передать
+          </Button>
+        </>
+      ) : (
+        <Button variant="secondary" icon={<ArrowRightLeft size={18} aria-hidden />} onClick={() => setMode('transfer')}>
+          Передал не тому: передать заново
+        </Button>
+      );
+  } else if (task && canTouch) {
     if (task.status !== 'open') {
       footer = (
         <>
