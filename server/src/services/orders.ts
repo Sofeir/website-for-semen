@@ -421,7 +421,15 @@ export async function advanceOrder(db: Db, actor: Actor, orderId: number, input:
 /** Передача заявки другому сотруднику без смены этапа (например, диагност → мастер). */
 export async function reassignOrder(db: Db, actor: Actor, orderId: number, input: ReassignOrderInput, outbox: Outbox) {
   const order = await lockOrder(db, orderId);
-  if (!(can(actor.role, 'orders.assign') || order.responsible_id === actor.id)) {
+  // Передавший заявку тоже может исправить адресата, пока она у того, кому он её отдал
+  const handedOverByActor = Boolean(
+    await one(
+      `SELECT 1 FROM order_history WHERE order_id = $1 AND finished_at IS NULL AND from_user_id = $2 AND responsible_id <> $2`,
+      [orderId, actor.id],
+      db,
+    ),
+  );
+  if (!(can(actor.role, 'orders.assign') || order.responsible_id === actor.id || handedOverByActor)) {
     throw forbidden('Передать заявку может ответственный или руководитель');
   }
   // Себе заявку передать можно (перенос срока с записью в цепочке); другому — только если она ещё не у него

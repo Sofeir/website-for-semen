@@ -23,6 +23,7 @@ import {
   EXTEND_MESSAGE,
   TASK_ROW_FIELDS,
   transferTask,
+  wasHandedOverBy,
 } from '../services/tasks';
 import { reassignOrder } from '../services/orders';
 import { deleteTasksForever } from '../services/testDataCleanup';
@@ -161,7 +162,8 @@ tasksRouter.get(
       [id],
     );
     const attachments = rows.map((a) => ({ ...a, url: `/api/files/${a.id}` }));
-    const detail: TaskDetail = { ...t, steps, checklist, attachments };
+    const handedOverBy = (await wasHandedOverBy(pool, id, req.user!.id)) ? req.user!.id : null;
+    const detail: TaskDetail = { ...t, steps, checklist, attachments, handedOverById: handedOverBy };
     res.json(detail);
   }),
 );
