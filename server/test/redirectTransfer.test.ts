@@ -29,9 +29,6 @@ describe('передал не тому: исправить передачу', ()
     // Других прав у передавшего нет
     expect((await stas.post('/api/tasks/close', { ids: [id], comment: null })).body.closed).toEqual([]);
 
-    // Забрать задачу обратно себе нельзя
-    expect((await stas.post(`/api/tasks/${id}/transfer`, { assigneeId: users.isakov, dueAt: inDays(2), comment: 'Верну себе' })).status).toBe(403);
-
     // Передать заново можно
     const again = await stas.post(`/api/tasks/${id}/transfer`, { assigneeId: users.golenkov, dueAt: inDays(2), comment: 'Это не к Артёму, к Голенкову' });
     expect(again.status).toBe(200);
@@ -58,6 +55,27 @@ describe('передал не тому: исправить передачу', ()
     expect(again.status).toBe(200);
     expect((await pool.query('SELECT responsible_id FROM orders WHERE id = $1', [orderId])).rows[0].responsible_id).toBe(users.golenkov);
     expect((await pool.query('SELECT assignee_id FROM tasks WHERE id = $1', [taskId])).rows[0].assignee_id).toBe(users.golenkov);
+  });
+
+  it('передавший может вернуть задачу себе, пока она не просрочена; просроченную срок согласует директор', async () => {
+    const { users } = await dict();
+    const semen = await loginAs('semen');
+    const mk = async (title: string) =>
+      (await semen.post('/api/tasks', { title, assigneeId: users.isakov, startAt: new Date().toISOString(), dueAt: inDays(2) })).body.id as number;
+    const stas = await loginAs('isakov');
+    const a = await mk('Верну себе');
+    await stas.post(`/api/tasks/${a}/transfer`, { assigneeId: users.kataev, dueAt: inDays(2), comment: 'Не тому' });
+    const back = await stas.post(`/api/tasks/${a}/transfer`, { assigneeId: users.isakov, dueAt: inDays(2), comment: 'Беру обратно' });
+    expect(back.status).toBe(200);
+    expect(back.body.requested).toBe(false);
+    expect((await pool.query('SELECT assignee_id FROM tasks WHERE id = $1', [a])).rows[0].assignee_id).toBe(users.isakov);
+
+    const b = await mk('Просрочена');
+    await stas.post(`/api/tasks/${b}/transfer`, { assigneeId: users.kataev, dueAt: inDays(2), comment: 'Не тому' });
+    await pool.query(`UPDATE tasks SET due_at = now() - interval '1 hour' WHERE id = $1`, [b]);
+    const late = await stas.post(`/api/tasks/${b}/transfer`, { assigneeId: users.isakov, dueAt: inDays(3), comment: 'Беру обратно' });
+    expect(late.status).toBe(200);
+    expect(late.body.requested).toBe(true);
   });
 
   it('после того как адресат сам передал дальше, прежний передавший права теряет', async () => {
