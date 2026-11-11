@@ -377,7 +377,12 @@ export async function reopenTask(db: Db, actor: Actor, id: number, outbox: Outbo
 export async function transferTask(db: Db, actor: Actor, id: number, input: TransferTaskInput, outbox: Outbox) {
   const t = await one<TaskRow>(`SELECT ${TASK_ROW_FIELDS} FROM tasks t WHERE t.id = $1 FOR UPDATE OF t`, [id], db);
   if (!t) throw new HttpError(404, 'Задача не найдена');
-  if (!canTouchTask(actor, t) && !(await wasHandedOverBy(db, id, actor.id))) throw forbidden();
+  const handedOverOnly = !canTouchTask(actor, t);
+  if (handedOverOnly && !(await wasHandedOverBy(db, id, actor.id))) throw forbidden();
+  // Передавший, у которого нет других прав, только исправляет адресата: забрать задачу обратно себе он не может
+  if (handedOverOnly && input.assigneeId === actor.id) {
+    throw forbidden('Вернуть задачу себе нельзя: передайте её тому, кому она нужна, или попросите коллегу передать её вам');
+  }
   if (t.status !== 'open') throw new HttpError(409, 'Задача уже закрыта');
   // Себе задачу передать можно: так исполнитель переносит свой срок и оставляет запись в цепочке. Другому — только если задача ещё не у него.
   if (input.assigneeId !== actor.id && t.assignee_ids.length === 1 && t.assignee_ids[0] === input.assigneeId) {
