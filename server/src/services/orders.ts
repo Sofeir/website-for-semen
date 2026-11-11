@@ -434,6 +434,9 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
   }
   // Себе заявку передать можно (перенос срока с записью в цепочке); другому — только если она ещё не у него
   const toSelf = input.responsibleId === actor.id;
+  if (toSelf && !(can(actor.role, 'orders.assign') || order.responsible_id === actor.id)) {
+    throw forbidden('Вернуть заявку себе нельзя: передайте её тому, кому она нужна, или попросите коллегу передать её вам');
+  }
   if (order.responsible_id === input.responsibleId && !toSelf) throw new HttpError(400, 'Заявка уже у этого сотрудника');
   const stage = await one<{ is_final: boolean; name: string }>(
     'SELECT is_final, name FROM stages WHERE id = $1',

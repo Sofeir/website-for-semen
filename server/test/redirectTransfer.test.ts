@@ -29,6 +29,9 @@ describe('передал не тому: исправить передачу', ()
     // Других прав у передавшего нет
     expect((await stas.post('/api/tasks/close', { ids: [id], comment: null })).body.closed).toEqual([]);
 
+    // Забрать задачу обратно себе нельзя
+    expect((await stas.post(`/api/tasks/${id}/transfer`, { assigneeId: users.isakov, dueAt: inDays(2), comment: 'Верну себе' })).status).toBe(403);
+
     // Передать заново можно
     const again = await stas.post(`/api/tasks/${id}/transfer`, { assigneeId: users.golenkov, dueAt: inDays(2), comment: 'Это не к Артёму, к Голенкову' });
     expect(again.status).toBe(200);
