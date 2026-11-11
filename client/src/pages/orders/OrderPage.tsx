@@ -63,7 +63,7 @@ export default function OrderPage() {
 
   const stages = dict.data.stages.filter((st) => st.isActive);
   const isIssued = Boolean(o.issuedAt);
-  const canReassign = !isIssued && (can('orders.assign') || o.responsibleId === me.id);
+  const canReassign = !isIssued && (can('orders.assign') || o.responsibleId === me.id || o.handedOverByMe);
   // Картриджам акт не нужен: предупреждения «акта нет» при выдаче им не показываем
   const target = { ...o, hasAct: o.acts.length > 0 || o.device.deviceType === CARTRIDGE_TYPE };
   const history = [...o.history].reverse();
@@ -140,7 +140,7 @@ export default function OrderPage() {
         )}
         {canReassign && (
           <Button variant="secondary" icon={<ArrowRightLeft size={18} aria-hidden />} onClick={() => setReassignOpen(true)}>
-            Передать
+            {o.handedOverByMe && o.responsibleId !== me.id && !can('orders.assign') ? 'Передал не тому: передать заново' : 'Передать'}
           </Button>
         )}
         {o.canReopen && (

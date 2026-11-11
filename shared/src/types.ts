@@ -307,6 +307,8 @@ export interface OrderDetail extends OrderListItem {
   receiptUrl: string;
   nextStage: Stage | null;
   canAdvance: boolean;
+  /** Сотрудник сам передал эту заявку и она ещё у адресата: передать её заново он может. */
+  handedOverByMe: boolean;
 }
 
 export interface TaskStep {
