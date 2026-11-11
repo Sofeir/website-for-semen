@@ -51,6 +51,11 @@ describe('передал не тому: исправить передачу', ()
     const stas = await loginAs('isakov');
     expect((await stas.post(`/api/tasks/${taskId}/transfer`, { assigneeId: users.kataev, dueAt: inDays(2), comment: 'Не тому' })).status).toBe(200);
     expect((await stas.get(`/api/tasks/${taskId}`)).body.handedOverById).toBe(users.isakov);
+    // на странице заявки передавшему тоже видно, что передачу можно исправить
+    const page = await stas.get(`/api/orders/${orderId}`);
+    expect(page.status).toBe(200);
+    expect(page.body.handedOverByMe).toBe(true);
+    expect((await (await loginAs('kataev')).get(`/api/orders/${orderId}`)).body.handedOverByMe).toBe(false);
     const again = await stas.post(`/api/tasks/${taskId}/transfer`, { assigneeId: users.golenkov, dueAt: inDays(2), comment: 'Правильно: Голенкову' });
     expect(again.status).toBe(200);
     expect((await pool.query('SELECT responsible_id FROM orders WHERE id = $1', [orderId])).rows[0].responsible_id).toBe(users.golenkov);
@@ -90,5 +95,31 @@ describe('передал не тому: исправить передачу', ()
     expect((await artem.post(`/api/tasks/${id}/transfer`, { assigneeId: users.golenkov, dueAt: inDays(2), comment: 'Дальше' })).status).toBe(200);
     expect((await stas.post(`/api/tasks/${id}/transfer`, { assigneeId: users.kataev, dueAt: inDays(2), comment: 'Назад' })).status).toBe(403);
     expect((await stas.get(`/api/tasks/${id}`)).body.handedOverById).toBeNull();
+  });
+});
+
+describe('готовая техника: передача ответственному', () => {
+  it('задача «Готово, ожидает выдачи» передаётся другому ответственному, в том числе когда её срок уже прошёл', async () => {
+    const { users, stage } = await dict();
+    const semen = await loginAs('semen');
+    const orderId = await intakeLaptop(semen, users.isakov, '+7 900 555-00-88');
+    for (const code of ['approval', 'repair', 'ready']) {
+      const r = await semen.post(`/api/orders/${orderId}/advance`, { toStageId: stage[code], responsibleId: users.isakov, dueAt: inDays(1), comment: 'дальше' });
+      expect(r.status).toBe(200);
+    }
+    const taskId = (await pool.query(`SELECT id FROM tasks WHERE order_id = $1 AND status = 'open' ORDER BY id DESC LIMIT 1`, [orderId])).rows[0].id as number;
+    await pool.query(`UPDATE tasks SET due_at = now() - interval '3 days' WHERE id = $1`, [taskId]);
+    await pool.query(`UPDATE orders SET stage_due_at = now() - interval '3 days' WHERE id = $1`, [orderId]);
+
+    const stas = await loginAs('isakov');
+    const cur = (await stas.get(`/api/tasks/${taskId}`)).body;
+    // клиент шлёт прежний срок, как в окне «Передать»
+    const r = await stas.post(`/api/tasks/${taskId}/transfer`, { assigneeId: users.kataev, dueAt: cur.dueAt, comment: 'Выдавать будет Артём' });
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect((await pool.query('SELECT responsible_id FROM orders WHERE id = $1', [orderId])).rows[0].responsible_id).toBe(users.kataev);
+
+    // и обратно тому, кто передал, тоже можно исправить
+    const back = await stas.post(`/api/tasks/${taskId}/transfer`, { assigneeId: users.golenkov, dueAt: cur.dueAt, comment: 'Нет, Голенкову' });
+    expect(back.status, JSON.stringify(back.body)).toBe(200);
   });
 });

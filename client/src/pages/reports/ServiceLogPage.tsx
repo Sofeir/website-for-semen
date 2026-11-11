@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Download, Truck } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, Truck } from 'lucide-react';
 import { useServiceLog } from '@/api/queries';
-import { useDocumentTitle } from '@/lib/hooks';
+import { useBack, useDocumentTitle } from '@/lib/hooks';
 import { fmtDate } from '@/lib/dates';
 import { Button, IconButton } from '@/ui/Button';
 import { Card, EmptyState, ErrorBox, PageHeader, Pill, Spinner } from '@/ui/Display';
@@ -25,6 +25,7 @@ export default function ServiceLogPage() {
   const [month, setMonth] = useState(thisMonth);
   const [year, setYear] = useState(new Date().getFullYear());
   const key = period === 'month' ? `month=${month}` : `year=${year}`;
+  const back = useBack('/reports');
   const q = useServiceLog(key);
   const log = q.data;
 
@@ -44,6 +45,17 @@ export default function ServiceLogPage() {
 
   return (
     <>
+      <Link
+        to="/reports"
+        className={s.back}
+        onClick={(e) => {
+          e.preventDefault();
+          back.goBack();
+        }}
+      >
+        <ArrowLeft size={18} aria-hidden />
+        {back.hasHistory ? 'Назад' : 'Все отчёты'}
+      </Link>
       <PageHeader
         title="Выезды и удалённое обслуживание"
         subtitle="Когда и к кому ездили, кого обслуживали удалённо. Датой считается день, когда задачу закрыли."

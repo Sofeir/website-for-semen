@@ -122,6 +122,16 @@ ordersRouter.get(
       many<DeviceWork>(`${WORK_SELECT} WHERE w.order_id = $1 ORDER BY w.done_at, w.id`, [id]),
     ]);
     const next = nextStageFor(stages, raw.stage_id, device.deviceType);
+    // Передал заявку не тому: пока она у адресата, передавший может передать её заново
+    const handedOverByMe =
+      !raw.issued_at &&
+      raw.responsible_id !== req.user!.id &&
+      Boolean(
+        await one(
+          `SELECT 1 FROM order_history WHERE order_id = $1 AND finished_at IS NULL AND from_user_id = $2 AND responsible_id <> $2`,
+          [id, req.user!.id],
+        ),
+      );
     const detail: OrderDetail = {
       ...order,
       device,
@@ -156,6 +166,7 @@ ordersRouter.get(
       receiptUrl: raw.batch_id ? `/api/documents/receipt/${raw.batch_id}.pdf` : '',
       nextStage: next,
       canAdvance: Boolean(next) && canAdvanceOrder(req.user!, raw),
+      handedOverByMe,
     };
     res.json(detail);
   }),
