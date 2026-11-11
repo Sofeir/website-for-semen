@@ -18,6 +18,7 @@ const VisitsPage = lazy(() => import('@/pages/visits/VisitsPage'));
 const ReadyPage = lazy(() => import('@/pages/orders/ReadyPage'));
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'));
 const AnalyticsPage = lazy(() => import('@/pages/reports/AnalyticsPage'));
+const ServiceLogPage = lazy(() => import('@/pages/reports/ServiceLogPage'));
 const CustomerShell = lazy(() => import('@/pages/customer/CustomerShell').then((m) => ({ default: m.CustomerShell })));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const OrdersPage = lazy(() => import('@/pages/orders/OrdersPage'));
@@ -158,6 +159,14 @@ export function App() {
                         element={
                           <RequirePermission permission="reports.view">
                             <ReportsPage />
+                          </RequirePermission>
+                        }
+                      />
+                      <Route
+                        path="reports/service"
+                        element={
+                          <RequirePermission permission="reports.view">
+                            <ServiceLogPage />
                           </RequirePermission>
                         }
                       />

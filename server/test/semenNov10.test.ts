@@ -187,3 +187,56 @@ describe('история обращений: чужие заявки уреза�
     expect(full.find((v) => v.orderId === orderA)).toMatchObject({ visible: true, diagnosis: 'Секретный диагноз', agreedSum: 7777 });
   });
 });
+
+describe('журнал обслуживания: выезды и удалённо', () => {
+  it('закрытые выезд и удалённое обслуживание попадают в журнал за месяц и год, в отчёт месяца только выезды', async () => {
+    const { users } = await dict();
+    const semen = await loginAs('semen');
+    const kataev = await loginAs('kataev');
+    const client = (await pool.query(`SELECT id, name FROM clients ORDER BY id LIMIT 1`)).rows[0];
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const mk = async (title: string, mode?: 'onsite' | 'remote') => {
+      const r = await semen.post('/api/tasks', {
+        title,
+        clientId: client.id,
+        visit: true,
+        ...(mode ? { visitMode: mode } : {}),
+        assigneeId: users.kataev,
+        startAt: new Date().toISOString(),
+        dueAt: inDays(1),
+      });
+      expect(r.status).toBe(201);
+      return r.body.id as number;
+    };
+    const before = (await semen.get(`/api/reports/service-log?month=${month}`)).body;
+    const onsite = await mk(`Выезд: ${client.name}`);
+    const defaulted = await mk('Выезд без указания вида');
+    const remote = await mk(`Удалённое обслуживание: ${client.name}`, 'remote');
+    const open = await mk('Ещё не закрыт', 'remote');
+    expect((await kataev.post('/api/tasks/close', { ids: [onsite, defaulted, remote], comment: 'Готово' })).status).toBe(200);
+
+    const log = (await semen.get(`/api/reports/service-log?month=${month}`)).body;
+    expect(log.totals.onsite - before.totals.onsite).toBe(2);
+    expect(log.totals.remote - before.totals.remote).toBe(1);
+    const ids = log.items.map((i: any) => i.taskId);
+    expect(ids).toEqual(expect.arrayContaining([onsite, defaulted, remote]));
+    expect(ids).not.toContain(open);
+    expect(log.items.find((i: any) => i.taskId === remote)).toMatchObject({ mode: 'remote', clientName: client.name, performers: expect.stringContaining('Катаев') });
+
+    const year = (await semen.get(`/api/reports/service-log?year=${now.getFullYear()}`)).body;
+    expect(year.totals.remote).toBeGreaterThanOrEqual(1);
+    expect(year.byMonth.find((m: any) => m.month === month).remote).toBeGreaterThanOrEqual(1);
+
+    // отчёт месяца по клиентам: выезды считаются только настоящие, удалённые отдельно
+    const monthly = (await semen.get(`/api/reports/monthly?month=${month}`)).body;
+    const row = monthly.rows.find((r: any) => r.clientId === client.id);
+    const mine = log.items.filter((i: any) => i.clientId === client.id && i.mode === 'onsite').length;
+    expect(row.visits).toBe(mine);
+
+    // чужому доступа нет
+    const master = await loginAs('kataev');
+    expect((await master.get(`/api/reports/service-log?month=${month}`)).status).toBe(403);
+    expect((await semen.get('/api/reports/service-log?month=bad')).status).toBe(400);
+  });
+});

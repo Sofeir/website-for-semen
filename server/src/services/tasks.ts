@@ -114,9 +114,9 @@ export async function createTask(
   const watcherIds = [...new Set(input.watcherIds ?? [])].filter((w) => !ids.includes(w));
   for (const w of watcherIds) await assertActiveUser(db, w);
   const row = await one<{ id: number }>(
-    `INSERT INTO tasks (title, description, creator_id, assignee_id, order_id, client_id, stage_id, start_at, due_at, is_visit, kind_id)
+    `INSERT INTO tasks (title, description, creator_id, assignee_id, order_id, client_id, stage_id, start_at, due_at, is_visit, kind_id, visit_mode)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10,
-             COALESCE($11, (SELECT id FROM task_kinds WHERE code = $12))) RETURNING id`,
+             COALESCE($11, (SELECT id FROM task_kinds WHERE code = $12)), $13) RETURNING id`,
     [
       input.title,
       input.description ?? null,
@@ -130,6 +130,7 @@ export async function createTask(
       input.visit ?? false,
       input.kindId ?? null,
       input.visit ? 'visit' : input.orderId ? 'device' : 'general',
+      input.visit ? (input.visitMode ?? 'onsite') : 'onsite',
     ],
     db,
   );

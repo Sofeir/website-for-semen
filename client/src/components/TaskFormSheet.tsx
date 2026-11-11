@@ -8,7 +8,7 @@ import { useClientDevices, useInvalidate, useSettings, useTaskKinds } from '@/ap
 import { defaultDueDate, fmtWhen, startForDue } from '@/lib/dates';
 import { Button } from '@/ui/Button';
 import { ErrorBox } from '@/ui/Display';
-import { Field, Input, Select, Textarea, formStyles } from '@/ui/Form';
+import { Field, Input, Segmented, Select, Textarea, formStyles } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import { DueInput, UserMultiSelect } from './Pickers';
@@ -24,10 +24,15 @@ interface Props {
   presetTitle?: string;
   /** Выезд к клиенту — задача попадёт в раздел «Выезды». */
   visit?: boolean;
+  /** С чего начать: выезд к клиенту или удалённое обслуживание. */
+  visitMode?: 'onsite' | 'remote';
 }
 
+const VISIT_PREFIX = { onsite: 'Выезд: ', remote: 'Удалённое обслуживание: ' } as const;
+
 /** Создание и правка задачи. Рабочее время ограничено настройкой (по умолчанию до 19:00). */
-export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTitle, visit }: Props) {
+export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTitle, visit, visitMode }: Props) {
+  const [mode, setMode] = useState<'onsite' | 'remote'>(visitMode ?? 'onsite');
   const [checklist, setChecklist] = useState<string[]>([]);
   const [files, setFiles] = useState<Attachment[]>([]);
   const clientDevices = useClientDevices(open && visit && !task ? (clientId ?? null) : null);
@@ -55,6 +60,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
     if (!open) return;
     setChecklist([]);
     setFiles([]);
+    setMode(visitMode ?? 'onsite');
     form.reset(
       task
         ? {
@@ -81,7 +87,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
             kindId: null,
           },
     );
-  }, [open, task, orderId, clientId, presetTitle, me.id, settings.data?.work, form]);
+  }, [open, task, orderId, clientId, presetTitle, visitMode, me.id, settings.data?.work, form]);
 
   const errors = form.formState.errors;
   const rootError = (errors.root?.message as string) || '';
@@ -97,6 +103,7 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
         await api.post('/tasks', {
           ...values,
           visit,
+          visitMode: visit ? mode : undefined,
           checklist: checklist.map((x) => x.trim()).filter(Boolean),
           attachmentIds: files.map((a) => a.id),
         } as any);
@@ -141,6 +148,26 @@ export function TaskFormSheet({ open, onClose, task, orderId, clientId, presetTi
     >
       <form onSubmit={submit} className="stack" noValidate>
         {rootError && <ErrorBox>{rootError}</ErrorBox>}
+        {visit && !task && (
+          <Field label="Как проводим" group>
+            <Segmented<'onsite' | 'remote'>
+              label="Как проводим"
+              layoutId="visit-mode"
+              value={mode}
+              onChange={(next) => {
+                // заголовок с прежней приставкой переписываем на новую, остальное в нём не трогаем
+                const title = form.getValues('title') ?? '';
+                const old = VISIT_PREFIX[mode];
+                if (title.startsWith(old)) form.setValue('title', VISIT_PREFIX[next] + title.slice(old.length));
+                setMode(next);
+              }}
+              options={[
+                { value: 'onsite', label: 'Выезд к клиенту' },
+                { value: 'remote', label: 'Удалённо' },
+              ]}
+            />
+          </Field>
+        )}
         <Field label="Что сделать" error={errors.title?.message}>
           <Input {...form.register('title')} data-autofocus autoComplete="off" enterKeyHint="next" />
         </Field>

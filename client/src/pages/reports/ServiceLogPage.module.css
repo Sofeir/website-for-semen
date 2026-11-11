@@ -1,0 +1,102 @@
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-5);
+  margin-bottom: var(--s-4);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 110px;
+}
+
+.stat b {
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl, 2rem);
+  line-height: 1.1;
+}
+
+.stat span {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.months {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--s-2);
+  margin-bottom: var(--s-4);
+}
+
+.monthCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: var(--r-md, 12px);
+  background: var(--surface-2, rgba(0, 0, 0, 0.04));
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.monthCell b {
+  text-transform: capitalize;
+}
+
+.zero {
+  opacity: 0.5;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: var(--s-3);
+  align-items: start;
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+}
+
+.item:first-child {
+  border-top: 0;
+}
+
+.date {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sub {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 560px) {
+  .item {
+    grid-template-columns: 1fr auto;
+  }
+
+  .date {
+    grid-column: 1 / -1;
+  }
+}

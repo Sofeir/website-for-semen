@@ -111,6 +111,27 @@ export interface ContactHit extends Contact {
 }
 
 /** Одно обращение с этой техникой: заявка, с каким пробегом пришла, что нашли и чем закончилось. */
+/** Одна строка журнала обслуживания: закрытый выезд или удалённое обслуживание. */
+export interface ServiceLogItem {
+  taskId: number;
+  /** Дата проведения: когда задачу закрыли. */
+  doneAt: string;
+  mode: 'onsite' | 'remote';
+  clientId: number | null;
+  clientName: string | null;
+  title: string;
+  performers: string;
+}
+
+export interface ServiceLog {
+  /** Месяц 2026-11 или год 2026. */
+  period: string;
+  items: ServiceLogItem[];
+  totals: { onsite: number; remote: number };
+  /** По месяцам: для годового отчёта. */
+  byMonth: { month: string; onsite: number; remote: number }[];
+}
+
 export interface DeviceVisit {
   orderId: number;
   /** Номер и подробности скрыты (null), если у сотрудника нет доступа к самой заявке. */
@@ -335,6 +356,8 @@ export interface TaskListItem {
   checklistDone: number;
   /** Выезд к клиенту. */
   isVisit: boolean;
+  /** Как проведено обслуживание: onsite — выезд, remote — удалённо (только у задач-выездов). */
+  visitMode: 'onsite' | 'remote';
   kindId: number | null;
   kindName: string | null;
   kindColor: string | null;

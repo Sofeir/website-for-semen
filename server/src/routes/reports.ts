@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { ClientReport, ClientReportOrder, ClientReportVisit, ClientReportWork, MonthlyReport, ReportRow, ReportTotals } from '@sd/shared';
+import type { ServiceLog, ServiceLogItem, ClientReport, ClientReportOrder, ClientReportVisit, ClientReportWork, MonthlyReport, ReportRow, ReportTotals } from '@sd/shared';
 import { many, one } from '../db/pool';
 import { DEVICE_TITLE } from '../services/sql';
 import { h, HttpError, intParam } from '../lib/http';
@@ -41,7 +41,7 @@ reportsRouter.get(
            coalesce((SELECT sum(w.qty) FROM device_works w WHERE w.client_id = c.id AND w.kind = 'part' AND w.done_at >= $1 AND w.done_at < $2), 0)::int AS parts,
            (SELECT count(*) FROM device_works w WHERE w.client_id = c.id AND w.kind IN ('repair', 'service') AND w.done_at >= $1 AND w.done_at < $2)::int AS "otherWorks",
            (SELECT count(*) FROM tasks t LEFT JOIN orders o ON o.id = t.order_id
-             WHERE t.is_visit AND t.status = 'done' AND coalesce(t.client_id, o.client_id) = c.id AND t.closed_at >= $1 AND t.closed_at < $2)::int AS visits,
+             WHERE t.is_visit AND t.visit_mode = 'onsite' AND t.status = 'done' AND coalesce(t.client_id, o.client_id) = c.id AND t.closed_at >= $1 AND t.closed_at < $2)::int AS visits,
            (SELECT count(*) FROM devices d WHERE d.client_id = c.id)::int AS devices
            FROM clients c
        ) r
@@ -84,7 +84,7 @@ reportsRouter.get(
            WHERE o.client_id = $1 AND h.kind = 'stage' AND h.outcome = 'declined' AND h.started_at >= $2 AND h.started_at < $3)::int AS declined,
          coalesce((SELECT sum(w.qty) FROM device_works w WHERE w.client_id = $1 AND w.kind = 'refill' AND w.done_at >= $2 AND w.done_at < $3), 0)::int AS refills,
          (SELECT count(*) FROM tasks t LEFT JOIN orders o ON o.id = t.order_id
-             WHERE t.is_visit AND t.status = 'done' AND coalesce(t.client_id, o.client_id) = $1 AND t.closed_at >= $2 AND t.closed_at < $3)::int AS visits`,
+             WHERE t.is_visit AND t.visit_mode = 'onsite' AND t.status = 'done' AND coalesce(t.client_id, o.client_id) = $1 AND t.closed_at >= $2 AND t.closed_at < $3)::int AS visits`,
       [id, from, to],
     ))!;
 
@@ -98,7 +98,7 @@ reportsRouter.get(
          LEFT JOIN orders o ON o.id = t.order_id
          LEFT JOIN users ua ON ua.id = t.assignee_id
          LEFT JOIN users uc ON uc.id = t.closed_by
-        WHERE t.is_visit AND t.status = 'done' AND coalesce(t.client_id, o.client_id) = $1 AND t.closed_at >= $2 AND t.closed_at < $3
+        WHERE t.is_visit AND t.visit_mode = 'onsite' AND t.status = 'done' AND coalesce(t.client_id, o.client_id) = $1 AND t.closed_at >= $2 AND t.closed_at < $3
         ORDER BY t.closed_at, t.id`,
       [id, from, to],
     );
@@ -159,5 +159,46 @@ reportsRouter.get(
       otherWorks: other,
     };
     res.json(report);
+  }),
+);
+
+/**
+ * Журнал обслуживания: закрытые выезды к клиентам и удалённое обслуживание за месяц (?month=2026-11) или за год (?year=2026).
+ * Датой считается день, когда задачу закрыли.
+ */
+reportsRouter.get(
+  '/reports/service-log',
+  requirePermission('reports.view'),
+  h(async (req, res) => {
+    const year = /^\d{4}$/.test(String(req.query.year ?? '')) ? Number(req.query.year) : null;
+    const { from, to } = year ? { from: new Date(year, 0, 1), to: new Date(year + 1, 0, 1) } : monthRange(req.query.month);
+    const items = await many<ServiceLogItem>(
+      `SELECT t.id AS "taskId", t.closed_at AS "doneAt", t.visit_mode AS mode,
+              coalesce(t.client_id, o.client_id) AS "clientId", c.name AS "clientName", t.title,
+              coalesce((SELECT string_agg(u.full_name, ', ' ORDER BY u.full_name) FROM task_assignees ta JOIN users u ON u.id = ta.user_id WHERE ta.task_id = t.id), '') AS performers
+         FROM tasks t
+         LEFT JOIN orders o ON o.id = t.order_id
+         LEFT JOIN clients c ON c.id = coalesce(t.client_id, o.client_id)
+        WHERE t.is_visit AND t.status = 'done' AND t.closed_at >= $1 AND t.closed_at < $2
+        ORDER BY t.closed_at, t.id LIMIT 5000`,
+      [from, to],
+    );
+    const totals = { onsite: 0, remote: 0 };
+    const months = new Map<string, { onsite: number; remote: number }>();
+    for (const i of items) {
+      totals[i.mode]++;
+      const d = new Date(i.doneAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const m = months.get(key) ?? { onsite: 0, remote: 0 };
+      m[i.mode]++;
+      months.set(key, m);
+    }
+    const log: ServiceLog = {
+      period: year ? String(year) : String(req.query.month),
+      items,
+      totals,
+      byMonth: [...months.entries()].map(([month, v]) => ({ month, ...v })),
+    };
+    res.json(log);
   }),
 );
