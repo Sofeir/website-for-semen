@@ -2,6 +2,7 @@ import { can, type Role, type TaskInput, type TransferTaskInput } from '@sd/shar
 import { many, one, type Db } from '../db/pool';
 import { forbidden, HttpError } from '../lib/http';
 import type { Notice, Outbox } from '../notify/notify';
+import { taskContext } from './context';
 import { getWorkSettings } from './settings';
 import { TASK_AWAITING_ISSUE } from './sql';
 import { clampToWorkEnd, formatDateTimeRu } from './workTime';
@@ -32,6 +33,9 @@ export const TASK_ROW_FIELDS = `t.id, t.title, t.status, t.creator_id, t.assigne
  * Напоминание, время которого уже прошло к этому моменту, не шлётся: иначе оно прилетело бы сразу после постановки задачи.
  */
 export const remindReset = () => `remind_from = now()`;
+
+/** Просьба к директору снимается, когда задачу закрыли, передали или сдвинули срок. */
+export const CLEAR_CONFIRM = `confirm_kind = NULL, confirm_comment = NULL, confirm_by = NULL, confirm_at = NULL, confirm_due = NULL`;
 
 /** Кто участвует в задаче: постановщик, нынешние ответственные и все, кто был в цепочке передачи (в том числе передавшие). */
 export async function taskParticipantIds(db: Db, taskId: number): Promise<number[]> {
@@ -93,7 +97,7 @@ export async function settleOverdueNotices(db: Db, taskIds: number[]) {
 export async function moveTask(db: Db, taskId: number, userId: number, due: Date) {
   await db.query(
     `UPDATE tasks SET assignee_id = $2, due_at = $3, overdue_notified_at = NULL, was_overdue = (was_overdue OR due_at < now()),
-            ${remindReset()}, updated_at = now() WHERE id = $1`,
+            ${remindReset()}, ${CLEAR_CONFIRM}, updated_at = now() WHERE id = $1`,
     [taskId, userId, due],
   );
   await db.query('DELETE FROM task_assignees WHERE task_id = $1 AND user_id <> $2', [taskId, userId]);
@@ -259,7 +263,7 @@ export async function closeTasks(
       continue;
     }
     await db.query(
-      `UPDATE tasks SET status = 'done', closed_at = now(), closed_by = $2, close_comment = $3, updated_at = now() WHERE id = $1`,
+      `UPDATE tasks SET status = 'done', closed_at = now(), closed_by = $2, close_comment = $3, ${CLEAR_CONFIRM}, updated_at = now() WHERE id = $1`,
       [t.id, actor.id, comment],
     );
     await db.query(`UPDATE task_steps SET done_at = now() WHERE task_id = $1 AND done_at IS NULL`, [t.id]);
@@ -267,7 +271,7 @@ export async function closeTasks(
     notifyParticipants(outbox, await taskParticipantIds(db, t.id), [actor.id], {
       type: 'task_closed',
       title: `Задача закрыта: ${t.title}`,
-      body: [`Закрыта сотрудником: ${actor.fullName}.`, comment && `Комментарий: ${comment}`].filter(Boolean).join('\n'),
+      body: [`Закрыта сотрудником: ${actor.fullName}.`, comment && `Комментарий: ${comment}`, ...(await taskContext(db, t.id))].filter(Boolean).join('\n'),
       link: `/tasks?task=${t.id}`,
     });
   }
@@ -350,6 +354,11 @@ export async function requestTaskClose(db: Db, actor: Actor, id: number, comment
   if (!t.overdue) throw new HttpError(400, 'Задача не просрочена: закройте её сами');
   const confirmers = await many<{ id: number }>('SELECT id FROM users WHERE is_active AND confirms_overdue', [], db);
   if (!confirmers.length) throw new HttpError(409, 'Не назначен тот, кто подтверждает закрытие просроченных задач');
+  await db.query(`UPDATE tasks SET confirm_kind = 'close', confirm_comment = $2, confirm_by = $3, confirm_at = now(), confirm_due = NULL WHERE id = $1`, [
+    id,
+    comment || null,
+    actor.id,
+  ]);
   // Запрос уходит только ему: ни постановщику, ни другим руководителям он не приходит.
   notifyParticipants(
     outbox,
@@ -358,7 +367,7 @@ export async function requestTaskClose(db: Db, actor: Actor, id: number, comment
     {
       type: 'task_close_request',
       title: `Просят подтвердить закрытие: ${t.title}`,
-      body: [`Просрочена. Исполнитель: ${actor.fullName}.`, comment && `Что сделано: ${comment}`].filter(Boolean).join('\n'),
+      body: [`Просрочена. Исполнитель: ${actor.fullName}.`, comment && `Что сделано: ${comment}`, ...(await taskContext(db, id))].filter(Boolean).join('\n'),
       link: `/tasks?task=${id}`,
     },
   );
@@ -387,6 +396,12 @@ export async function requestTaskExtension(db: Db, actor: Actor, id: number, wan
   if (wantedDue.getTime() <= t.due_at.getTime()) throw new HttpError(400, 'Новый срок должен быть позже нынешнего');
   const confirmers = await many<{ id: number }>('SELECT id FROM users WHERE is_active AND confirms_overdue', [], db);
   if (!confirmers.length) throw new HttpError(409, 'Не назначен тот, кто согласует продление сроков');
+  await db.query(`UPDATE tasks SET confirm_kind = 'extend', confirm_comment = $2, confirm_by = $3, confirm_at = now(), confirm_due = $4 WHERE id = $1`, [
+    id,
+    comment || null,
+    actor.id,
+    wantedDue,
+  ]);
   notifyParticipants(
     outbox,
     confirmers.map((m) => m.id),
@@ -397,6 +412,7 @@ export async function requestTaskExtension(db: Db, actor: Actor, id: number, wan
       body: [
         `Сейчас — ${formatDateTimeRu(t.due_at)}, просят до ${formatDateTimeRu(wantedDue)}. Исполнитель: ${actor.fullName}.`,
         comment && `Причина: ${comment}`,
+        ...(await taskContext(db, id)),
       ]
         .filter(Boolean)
         .join('\n'),
@@ -455,12 +471,13 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
     input.comment,
   ]);
   await moveTask(db, id, input.assigneeId, due);
+  const ctx = await taskContext(db, id);
   if (input.assigneeId !== actor.id) {
     outbox.add({
       userId: input.assigneeId,
       type: 'task_assigned',
       title: `Вам передали задачу: ${t.title}`,
-      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, input.comment].filter(Boolean).join('\n'),
+      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, `Причина и что сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
       link: `/tasks?task=${id}`,
     });
   }
@@ -468,7 +485,7 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
   notifyParticipants(outbox, await taskParticipantIds(db, id), [actor.id, input.assigneeId], {
     type: 'task_handover',
     title: `Задачу передали: ${t.title}`,
-    body: [`От: ${actor.fullName}. Кому: ${next.full_name}.`, `Причина и что сделано: ${input.comment}`].join('\n'),
+    body: [`От: ${actor.fullName}. Кому: ${next.full_name}.`, `Причина и что сделано: ${input.comment}`, ...ctx].join('\n'),
     link: `/tasks?task=${id}`,
   });
   outbox.touch('tasks');
@@ -500,17 +517,18 @@ async function correctTaskTransfer(db: Db, actor: Actor, t: TaskRow, input: Tran
   await moveTask(db, id, next.id, due);
   await retractTransferNotices(db, [`/tasks?task=${id}`], ['task_assigned', 'task_handover'], wrong!.assigned_at);
   if (next.id !== actor.id) {
+    const ctx = await taskContext(db, id);
     outbox.add({
       userId: next.id,
       type: 'task_assigned',
       title: `Вам передали задачу: ${t.title}`,
-      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, input.comment].filter(Boolean).join('\n'),
+      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, `Причина и что сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
       link: `/tasks?task=${id}`,
     });
     notifyParticipants(outbox, await taskParticipantIds(db, id), [actor.id, next.id], {
       type: 'task_handover',
       title: `Задачу передали: ${t.title}`,
-      body: [`От: ${actor.fullName}. Кому: ${next.full_name}.`, `Причина и что сделано: ${input.comment}`].join('\n'),
+      body: [`От: ${actor.fullName}. Кому: ${next.full_name}.`, `Причина и что сделано: ${input.comment}`, ...ctx].join('\n'),
       link: `/tasks?task=${id}`,
     });
   }

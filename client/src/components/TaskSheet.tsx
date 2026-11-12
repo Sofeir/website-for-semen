@@ -231,6 +231,28 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
     }
   };
 
+  // Директор соглашается с просьбой продлить срок: новый срок берётся из просьбы
+  const approveExtend = async () => {
+    try {
+      await api.put(`/tasks/${task!.id}`, {
+        title: task!.title,
+        description: task!.description,
+        assigneeIds: task!.assigneeIds,
+        watcherIds: task!.watcherIds,
+        orderId: task!.orderId,
+        clientId: task!.clientId,
+        startAt: task!.startAt,
+        dueAt: task!.confirmDue,
+        kindId: task!.kindId,
+        dueReason: null,
+      });
+      inv('tasks', 'task', 'dashboard', 'order');
+      toast.success('Срок продлён');
+    } catch (e) {
+      setError((e as ApiError).message);
+    }
+  };
+
   const startExtend = () => {
     setDue(new Date(Math.max(Date.now(), new Date(task!.dueAt).getTime()) + 24 * 3600_000).toISOString());
     setComment('');
@@ -456,6 +478,31 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
               </div>
             )}
             {error && <ErrorBox>{error}</ErrorBox>}
+            {task.status === 'open' && task.confirmKind && (
+              <div className={s.stageHint}>
+                <b>
+                  {task.confirmByName ?? 'Исполнитель'} просит {task.confirmKind === 'close' ? 'подтвердить закрытие задачи' : `продлить срок до ${fmtWhen(task.confirmDue)}`}
+                </b>
+                {task.confirmComment && <p style={{ margin: '4px 0 0', whiteSpace: 'pre-wrap' }}>{task.confirmComment}</p>}
+                {task.confirmAt && <p className="muted" style={{ margin: '4px 0 0' }}>Запрос от {fmtWhen(task.confirmAt)}</p>}
+                {me.confirmsOverdue && task.confirmKind === 'extend' && task.confirmDue && mode === 'view' && (
+                  <div style={{ marginTop: 8 }}>
+                    <Button
+                      size="sm"
+                      variant="success"
+                      icon={<Check size={16} aria-hidden />}
+                      onClick={() => {
+                        setDue(task.confirmDue!);
+                        setComment('');
+                        void approveExtend();
+                      }}
+                    >
+                      Продлить до {fmtWhen(task.confirmDue)}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
             {mode === 'close' && (
               <Field label="Комментарий для постановщика" optional hint="Постановщик получит уведомление с этим текстом">
                 <Textarea value={comment} onChange={(e) => setComment(e.target.value)} data-autofocus maxLength={2000} />

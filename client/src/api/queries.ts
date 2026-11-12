@@ -227,7 +227,7 @@ export const useClientDevices = (id: number | null | undefined) =>
   });
 
 export interface TaskFilters {
-  scope?: 'mine' | 'created' | 'control' | 'watching' | 'all';
+  scope?: 'mine' | 'created' | 'control' | 'watching' | 'all' | 'confirm';
   status?: 'open' | 'done' | 'any';
   q?: string;
   assignee?: number | '';
@@ -237,11 +237,12 @@ export interface TaskFilters {
   order?: number;
 }
 
-export const useTasks = (f: TaskFilters = {}) =>
+export const useTasks = (f: TaskFilters = {}, enabled = true) =>
   useQuery({
     queryKey: keys.tasks(f),
     queryFn: () => api.get<TaskListItem[]>(`/tasks${qs(f as Record<string, string>)}`),
     placeholderData: keepPreviousData,
+    enabled,
   });
 
 export const useTask = (id: number | null) =>

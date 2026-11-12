@@ -64,7 +64,10 @@ export function AdvanceSheet({
       acceptor ??
       ((prefer.includes(me.role) && me.id) || list.find((u) => u.role === prefer[0] && u.isActive !== false)?.id || me.id);
     setResponsible(String(pick));
-    setDue(defaultDueDate(settings.data?.work, dueDaysFor(next)).toISOString());
+    // На выдачу готовой техники даётся месяц: дату можно поменять
+    const dueDate = defaultDueDate(settings.data?.work, dueDaysFor(next));
+    if (next.code === 'ready') dueDate.setMonth(dueDate.getMonth() + 1);
+    setDue(dueDate.toISOString());
     setComment('');
     setCost('');
     setError('');

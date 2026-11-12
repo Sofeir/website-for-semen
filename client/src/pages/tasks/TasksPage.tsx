@@ -20,7 +20,7 @@ import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import s from './Tasks.module.css';
 
-type Scope = 'mine' | 'control' | 'created' | 'watching' | 'all';
+type Scope = 'mine' | 'control' | 'created' | 'watching' | 'all' | 'confirm';
 
 function groupTasks(tasks: TaskListItem[]) {
   const today = startOfDay();
@@ -170,7 +170,10 @@ export default function TasksPage() {
     setParams(next, { replace: true });
   };
 
-  const scopeItems: { value: Scope; label: string }[] = [
+  // Ждут вашего подтверждения: просят закрыть просроченное или продлить срок. Только у директора.
+  const pending = useTasks({ scope: 'confirm', status: 'open' }, me.confirmsOverdue);
+  const scopeItems: { value: Scope; label: string; count?: number }[] = [
+    ...(me.confirmsOverdue ? [{ value: 'confirm' as Scope, label: 'Ждут подтверждения', count: pending.data?.length ?? 0 }] : []),
     { value: 'mine', label: 'Мне' },
     { value: 'control', label: 'Под контролем' },
     { value: 'created', label: 'Поставленные мной' },

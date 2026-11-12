@@ -13,6 +13,7 @@ import { forbidden, HttpError } from '../lib/http';
 import type { Outbox } from '../notify/notify';
 import { createClient, replaceFleet } from './clients';
 import { getWorkSettings } from './settings';
+import { orderContext } from './context';
 import { DEVICE_TITLE, TASK_AWAITING_ISSUE } from './sql';
 import {
   assertActiveUser,
@@ -27,7 +28,7 @@ import {
   retractTransferNotices,
   type Actor,
 } from './tasks';
-import { defaultDue, formatDateTimeRu } from './workTime';
+import { defaultDue, formatDateTimeRu, monthAhead } from './workTime';
 
 export async function activeStages(db: Db): Promise<Stage[]> {
   return many<Stage>(
@@ -363,7 +364,8 @@ export async function advanceOrder(
 
   const responsible = await assertActiveUser(db, input.responsibleId);
   const ws = await getWorkSettings(db);
-  const due = next.isFinal ? null : await normalizeDue(db, input.dueAt ?? defaultDue(ws).toISOString());
+  // На выдачу готовой техники дан месяц, если срок не назвали (его можно поменять в задаче)
+  const due = next.isFinal ? null : await normalizeDue(db, input.dueAt ?? (next.code === 'ready' ? monthAhead() : defaultDue(ws)).toISOString());
 
   // Закрываем текущий этап и его задачу. Если задачу ставил другой сотрудник, он получит уведомление.
   await db.query('UPDATE order_history SET finished_at = now() WHERE order_id = $1 AND finished_at IS NULL', [orderId]);
@@ -457,7 +459,7 @@ export async function advanceOrder(
     {
       type: 'order_stage',
       title: `Заявка №${order.number}: ${next.name}`,
-      body: `${title}. Перевёл: ${actor.fullName}. Ответственный: ${responsible.full_name}.`,
+      body: [`Перевёл: ${actor.fullName}. Ответственный: ${responsible.full_name}.`, ...(await orderContext(db, orderId))].join('\n'),
       link: `/orders/${orderId}`,
     },
   );
@@ -546,18 +548,18 @@ async function correctOrderReassign(db: Db, actor: Actor, order: OrderRow, input
   );
 
   if (responsible.id !== actor.id) {
-    const title = await deviceTitle(db, order.device_id);
+    const ctx = await orderContext(db, orderId);
     outbox.add({
       userId: responsible.id,
       type: 'order_assigned',
       title: `Вам передали заявку №${order.number}`,
-      body: [`${stage?.name}: ${title}. От: ${actor.fullName}.`, `Срок — ${formatDateTimeRu(due)}.`, input.comment].filter(Boolean).join('\n'),
+      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, `Причина и что сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
       link: `/orders/${orderId}`,
     });
     notifyParticipants(outbox, await orderParticipantIds(db, orderId), [actor.id, responsible.id], {
       type: 'order_handover',
       title: `Заявку №${order.number} передали`,
-      body: [`${title}. От: ${actor.fullName}. Кому: ${responsible.full_name}.`, `Причина и что сделано: ${input.comment}`].join('\n'),
+      body: [`От: ${actor.fullName}. Кому: ${responsible.full_name}.`, `Причина и что сделано: ${input.comment}`, ...ctx].join('\n'),
       link: `/orders/${orderId}`,
     });
   }
@@ -690,14 +692,12 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
     await moveTask(db, task.id, responsible.id, due);
   }
   const handoverTitle = await deviceTitle(db, order.device_id);
+  const ctx = await orderContext(db, orderId);
   // Приёмщик, прошлые ответственные и передававшие заявку тоже получают уведомление, чтобы видеть, как она движется.
   notifyParticipants(outbox, await orderParticipantIds(db, orderId), [actor.id, responsible.id], {
     type: 'order_handover',
     title: `Заявку №${order.number} передали`,
-    body: [
-      `${handoverTitle}. От: ${actor.fullName}. Кому: ${responsible.full_name}.`,
-      `Причина и что сделано: ${input.comment}`,
-    ].join('\n'),
+    body: [`От: ${actor.fullName}. Кому: ${responsible.full_name}.`, `Причина и что сделано: ${input.comment}`, ...ctx].join('\n'),
     link: `/orders/${orderId}`,
   });
   if (responsible.id !== actor.id) {
@@ -706,7 +706,7 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
       userId: responsible.id,
       type: 'order_assigned',
       title: `Вам передали заявку №${order.number}`,
-      body: [`${stage?.name}: ${title}. От: ${actor.fullName}.`, due && `Срок — ${formatDateTimeRu(due)}.`, input.comment]
+      body: [`От: ${actor.fullName}.`, due && `Срок — ${formatDateTimeRu(due)}.`, `Причина и что сделано: ${input.comment}`, ...ctx]
         .filter(Boolean)
         .join('\n'),
       link: `/orders/${orderId}`,

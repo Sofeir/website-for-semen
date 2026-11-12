@@ -376,6 +376,13 @@ export interface TaskListItem {
   overdue: boolean;
   /** Задача этапа «Готово»: техника сделана и ждёт выдачи (не считается просроченной). */
   awaitingIssue: boolean;
+  /** Просьба к директору: подтвердить закрытие или продлить срок. Видна ему в списке «Ждут вашего подтверждения». */
+  confirmKind: 'close' | 'extend' | null;
+  confirmComment: string | null;
+  confirmByName: string | null;
+  confirmAt: string | null;
+  /** Срок, до которого просят продлить (только при confirmKind = extend). */
+  confirmDue: string | null;
 }
 
 export interface TaskKind {

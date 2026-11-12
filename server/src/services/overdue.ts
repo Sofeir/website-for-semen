@@ -1,6 +1,7 @@
 import { DEFAULT_REMINDERS, pluralRu } from '@sd/shared';
 import { many, tx, type Db } from '../db/pool';
 import { Outbox } from '../notify/notify';
+import { taskContext } from './context';
 import { TASK_AWAITING_ISSUE } from './sql';
 import { formatDateTimeRu } from './workTime';
 
@@ -15,8 +16,8 @@ interface OverdueRow {
 }
 
 /**
- * Уведомляет о просроченных задачах один раз на каждую просрочку: всех ответственных, постановщика и тех, кто передал задачу
- * нынешним ответственным. Директорам и админам за всех не шлём: просроченное они смотрят в списке задач.
+ * Уведомляет о просроченных задачах один раз на каждую просрочку: всех ответственных, постановщика, тех, кто передал задачу
+ * нынешним ответственным, и директора (тот, кто подтверждает просрочку). Остальным руководителям за всех не шлём.
  * После передачи задачи метка сбрасывается, и просрочка нового исполнителя тоже заметна.
  */
 export async function notifyOverdueTasks() {
@@ -34,14 +35,17 @@ export async function notifyOverdueTasks() {
       db,
     );
     if (!rows.length) return;
+    // Тот, кто подтверждает просрочку (директор), узнаёт о каждой просроченной задаче: ему же её потом подтверждать
+    const directors = (await many<{ id: number }>('SELECT id FROM users WHERE is_active AND confirms_overdue', [], db)).map((u) => u.id);
     for (const t of rows) {
-      const ids = new Set([...t.assignee_ids, t.creator_id, ...t.delegator_ids]);
+      const ids = new Set([...t.assignee_ids, t.creator_id, ...t.delegator_ids, ...directors]);
+      const ctx = await taskContext(db, t.id);
       for (const userId of ids) {
         outbox.add({
           userId,
           type: 'task_overdue',
           title: `Просрочена задача: ${t.title}`,
-          body: `Исполнитель: ${t.assignee_names}. Крайний срок был — ${formatDateTimeRu(t.due_at)}.`,
+          body: [`Исполнитель: ${t.assignee_names}. Крайний срок был — ${formatDateTimeRu(t.due_at)}.`, ...ctx].join('\n'),
           link: `/tasks?task=${t.id}`,
         });
       }

@@ -11,6 +11,7 @@ import {
   assigneeList,
   canConfirmOverdue,
   canTouchTask,
+  CLEAR_CONFIRM,
   closeTasks,
   createTask,
   normalizeDue,
@@ -60,6 +61,10 @@ tasksRouter.get(
            AND NOT ${isAssignee('t', p)}`,
         user.id,
       );
+    } else if (scope === 'confirm') {
+      // Ждут вашего подтверждения: просят закрыть просроченную задачу или продлить срок. Список только у директора.
+      if (!(await canConfirmOverdue(pool, user.id))) return res.json([]);
+      where.push('t.confirm_kind IS NOT NULL');
     } else if (scope === 'watching') add((p) => isWatcher('t', p), user.id);
     else if (scope === 'all' && manageAll) {
       if (req.query.assignee) add((p) => isAssignee('t', p), Number(req.query.assignee));
@@ -232,7 +237,7 @@ tasksRouter.put(
       await db.query(
         `UPDATE tasks SET title = $2, description = $3, start_at = $4, due_at = $5,
                 kind_id = COALESCE($6, kind_id), was_overdue = CASE WHEN $7 THEN false ELSE was_overdue OR due_at < now() END,
-                ${dueChanged ? `${remindReset()},` : ''} updated_at = now() WHERE id = $1`,
+                ${dueChanged ? `${remindReset()}, ${CLEAR_CONFIRM},` : ''} updated_at = now() WHERE id = $1`,
         [id, input.title, input.description, input.startAt, dueChanged ? due : t.due_at, owner ? (input.kindId ?? null) : null, confirms && dueChanged],
       );
       if (dueChanged && due.getTime() > Date.now()) await settleOverdueNotices(db, [id]);

@@ -40,6 +40,13 @@ export function addWorkDays(from: Date, days: number, ws: WorkSettings): Date {
   return endOfWorkDay(d, ws);
 }
 
+/** Ровно через месяц от сегодняшнего дня (срок на выдачу готовой техники). */
+export function monthAhead(from = new Date()): Date {
+  const d = new Date(from);
+  d.setMonth(d.getMonth() + 1);
+  return d;
+}
+
 export function defaultDue(ws: WorkSettings, from = new Date(), days = ws.defaultDueDays): Date {
   return addWorkDays(from, days, ws);
 }

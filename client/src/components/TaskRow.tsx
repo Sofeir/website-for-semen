@@ -42,6 +42,12 @@ export function TaskRow({ task, selected, onToggle, onOpen, showAssignee, checkL
         <span className={s.main}>
           <span className={s.title}>{task.title}</span>
           {sub && <span className={s.sub}>{sub}</span>}
+          {task.confirmKind && (
+            <span className={s.sub}>
+              {task.confirmByName ?? 'Исполнитель'} просит {task.confirmKind === 'close' ? 'подтвердить закрытие' : `продлить срок до ${fmtWhen(task.confirmDue)}`}
+              {task.confirmComment ? `: ${task.confirmComment}` : ''}
+            </span>
+          )}
           <span className={s.meta}>
             <span className={cx(s.metaItem, task.overdue && s.late)}>
               <Clock aria-hidden />
