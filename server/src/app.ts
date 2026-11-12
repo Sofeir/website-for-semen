@@ -28,6 +28,7 @@ import { customerRouter } from './routes/customer';
 import { customersRouter } from './routes/customers';
 import { calendarFeedRouter } from './routes/calendar';
 import { personalRouter } from './routes/personal';
+import { planRouter } from './routes/plan';
 import { googleCallbackRouter, googleRouter } from './routes/google';
 
 export function createApp() {
@@ -103,6 +104,7 @@ export function createApp() {
   api.use(notificationsRouter);
   api.use(pushRouter);
   api.use(personalRouter);
+  api.use(planRouter);
   api.use(googleRouter);
   api.use(actsRouter);
   api.use(documentsRouter);

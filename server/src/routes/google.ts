@@ -18,6 +18,8 @@ import {
 } from '../services/googleCalendar';
 
 /** Случайная строка для одноразовой метки подключения. Web Crypto: работает и в демо в браузере. */
+const STATE_COOKIE = 'sd_google_state';
+
 const randomToken = (bytes = 24) => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, '0')).join('');
 
 /** Код подтверждения у сотрудника один и тот же, пока он его не сменит: создаётся при первом обращении. */
@@ -46,6 +48,11 @@ googleCallbackRouter.get(
     const state = String(req.query.state ?? '');
     const code = String(req.query.code ?? '');
     if (req.query.error || !code || !/^[a-f0-9]{20,100}$/.test(state)) return back('cancelled');
+    // Метка должна совпасть с той, что при нажатии «Подключить» записана в cookie этого же браузера: ссылку с чужой меткой, присланную
+    // сотруднику со стороны, сервис не примет.
+    const cookieState = (req as unknown as { cookies?: Record<string, string> }).cookies?.[STATE_COOKIE];
+    res.clearCookie(STATE_COOKIE, { path: '/api/google' });
+    if (cookieState !== state) return back('expired');
     const user = await one<{ id: number }>(
       `SELECT id FROM users WHERE google_oauth_state = $1 AND google_oauth_state_at > now() - interval '15 minutes' AND is_active`,
       [state],
@@ -102,6 +109,8 @@ googleRouter.post(
     if (!googleOauthConfigured()) throw new HttpError(409, 'Вход через Google пока не включён: администратору нужно добавить ключи приложения Google');
     const state = randomToken();
     await pool.query('UPDATE users SET google_oauth_state = $2, google_oauth_state_at = now() WHERE id = $1', [req.user!.id, state]);
+    // Та же метка в cookie этого браузера: при возврате из Google они должны совпасть
+    res.cookie(STATE_COOKIE, state, { httpOnly: true, sameSite: 'lax', secure: config.cookieSecure, maxAge: 15 * 60 * 1000, path: '/api/google' });
     res.json({ url: googleAuthUrl(state) });
   }),
 );

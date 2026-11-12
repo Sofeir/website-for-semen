@@ -170,12 +170,18 @@ describe('вход через Google', () => {
     expect(url.searchParams.get('scope')).toContain('calendar.events');
     expect(url.searchParams.get('access_type')).toBe('offline');
     const state = url.searchParams.get('state')!;
+    const cookie = (connect.headers['set-cookie'] as unknown as string[]).find((c) => c.startsWith('sd_google_state='))!.split(';')[0]!;
+    expect(cookie).toBe(`sd_google_state=${state}`);
 
     // чужая или выдуманная метка не подходит
     const bad = await request(app).get('/api/google/callback?code=abc&state=' + 'a'.repeat(48));
     expect(bad.headers.location).toContain('google=expired');
+    // верная метка, но из чужого браузера (без cookie этого подключения): не принимается и не сгорает
+    const foreign = await request(app).get(`/api/google/callback?code=abc&state=${state}`);
+    expect(foreign.headers.location).toContain('google=expired');
+    expect((await pool.query('SELECT google_refresh_token AS t FROM users WHERE id = $1', [users.kataev])).rows[0].t).toBeNull();
 
-    const ok = await request(app).get(`/api/google/callback?code=abc&state=${state}`);
+    const ok = await request(app).get(`/api/google/callback?code=abc&state=${state}`).set('Cookie', cookie);
     expect(ok.status).toBe(302);
     expect(ok.headers.location).toContain('/profile?google=connected');
     const row = (await pool.query('SELECT google_refresh_token AS t, google_email AS e, google_oauth_state AS s FROM users WHERE id = $1', [users.kataev])).rows[0];
@@ -187,7 +193,7 @@ describe('вход через Google', () => {
     expect(calls.some((c) => c.method === 'POST' && c.url.includes('/calendars/primary/events') && c.auth === 'Bearer user-access')).toBe(true);
 
     // метка одноразовая
-    expect((await request(app).get(`/api/google/callback?code=abc&state=${state}`)).headers.location).toContain('google=expired');
+    expect((await request(app).get(`/api/google/callback?code=abc&state=${state}`).set('Cookie', cookie)).headers.location).toContain('google=expired');
 
     const st = (await kataev.get('/api/me/google-calendar')).body;
     expect(st).toMatchObject({ oauthConfigured: true, oauthConnected: true, connectedEmail: 'kataev@gmail.com' });

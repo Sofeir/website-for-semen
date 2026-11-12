@@ -28,6 +28,7 @@ const NAMES: [RegExp, string][] = [
   [/^\/tasks/, 'задачам'],
   [/^\/calendar/, 'календарю'],
   [/^\/visits/, 'выездам'],
+  [/^\/plan/, 'плану месяца'],
   [/^\/reports\/service/, 'журналу выездов'],
   [/^\/reports/, 'отчётам'],
   [/^\/analytics/, 'аналитике'],

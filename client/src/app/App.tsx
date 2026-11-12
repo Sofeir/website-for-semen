@@ -15,6 +15,7 @@ import { AuthProvider, useAuth } from './auth';
 const LoginPage = lazy(() => import('@/pages/LoginPage'));
 const RegisterPage = lazy(() => import('@/pages/RegisterPage'));
 const VisitsPage = lazy(() => import('@/pages/visits/VisitsPage'));
+const PlanPage = lazy(() => import('@/pages/plan/PlanPage'));
 const ReadyPage = lazy(() => import('@/pages/orders/ReadyPage'));
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'));
 const AnalyticsPage = lazy(() => import('@/pages/reports/AnalyticsPage'));
@@ -151,6 +152,14 @@ export function App() {
                         element={
                           <Workspace>
                             <VisitsPage />
+                          </Workspace>
+                        }
+                      />
+                      <Route
+                        path="plan"
+                        element={
+                          <Workspace>
+                            <PlanPage />
                           </Workspace>
                         }
                       />
