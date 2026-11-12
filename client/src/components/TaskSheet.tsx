@@ -4,7 +4,7 @@ import { ArrowRightLeft, CalendarClock, Check, ClipboardList, Pencil, RotateCcw,
 import type { TaskStep } from '@sd/shared';
 import { useAuth, useMe } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
-import { useCloseTasks, useInvalidate, useMarkSeen, useSettings, useTask, useTransferTask } from '@/api/queries';
+import { useCloseTasks, useInvalidate, useMarkSeen, useOrder, useSettings, useTask, useTransferTask } from '@/api/queries';
 import { defaultDueDate, fmtWhen } from '@/lib/dates';
 import { Button, ButtonLink } from '@/ui/Button';
 import { DescList, ErrorBox, Pill, Spinner } from '@/ui/Display';
@@ -13,12 +13,13 @@ import { Sheet } from '@/ui/Sheet';
 import { AttachHint, AttachmentList, UploadButton } from './Attachments';
 import { useConfirm } from '@/ui/Confirm';
 import { useToast } from '@/ui/Toast';
+import { AdvanceSheet } from './AdvanceSheet';
 import { DueInput, UserSelect } from './Pickers';
 import { TaskFormSheet } from './TaskFormSheet';
 import { VisitDevices } from './VisitDevices';
 import s from './TaskSheet.module.css';
 
-type Mode = 'view' | 'close' | 'transfer' | 'request' | 'extend';
+type Mode = 'view' | 'close' | 'transfer' | 'request' | 'extend' | 'due';
 
 interface ChainNode {
   key: string;
@@ -82,6 +83,9 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   const settings = useSettings();
   const close = useCloseTasks();
   const transfer = useTransferTask(taskId ?? 0);
+  // Задача этапа заявки: её закрытие двигает заявку, поэтому окно закрытия — это окно перехода этапа
+  const stageOrder = useOrder(task?.isStageTask && task.status === 'open' && task.orderId ? task.orderId : 0);
+  const [advanceOpen, setAdvanceOpen] = useState(false);
   useMarkSeen(taskId ? `/tasks?task=${taskId}` : null);
   const [mode, setMode] = useState<Mode>('view');
   /** «Передал не тому»: ошибочная передача заменяется, а не дописывается. */
@@ -110,6 +114,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
 
   useEffect(() => {
     setMode('view');
+    setAdvanceOpen(false);
     setFixing(false);
     setComment('');
     setAssignee('');
@@ -185,6 +190,40 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
     try {
       await api.post(`/tasks/${task!.id}/extend-request`, { dueAt: due, comment: comment.trim() });
       toast.success('Запрос отправлен', 'Директор получил уведомление и решит');
+      setMode('view');
+      setComment('');
+    } catch (e) {
+      setError((e as ApiError).message);
+    }
+  };
+
+  // Срок меняется прямо здесь, одним нажатием у строки срока: сразу открывается календарь
+  const startDue = () => {
+    setDue(task!.dueAt);
+    setComment('');
+    setError('');
+    setMode('due');
+  };
+  const doSaveDue = async () => {
+    setError('');
+    const later = new Date(due).getTime() > new Date(task!.dueAt).getTime();
+    if (Math.abs(new Date(due).getTime() - new Date(task!.dueAt).getTime()) <= 60_000) return setMode('view');
+    if (later && !me.confirmsOverdue && comment.trim().length < 3) return setError('Напишите причину переноса срока');
+    try {
+      await api.put(`/tasks/${task!.id}`, {
+        title: task!.title,
+        description: task!.description,
+        assigneeIds: task!.assigneeIds,
+        watcherIds: task!.watcherIds,
+        orderId: task!.orderId,
+        clientId: task!.clientId,
+        startAt: task!.startAt,
+        dueAt: due,
+        kindId: task!.kindId,
+        dueReason: later && !me.confirmsOverdue ? comment.trim() : null,
+      });
+      inv('tasks', 'task', 'dashboard', 'order');
+      toast.success('Срок изменён');
       setMode('view');
       setComment('');
     } catch (e) {
@@ -278,22 +317,13 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
     } else if (mode === 'view') {
       footer = (
         <>
+          <Button variant="ghost" className={s.footClose} onClick={onClose}>
+            Закрыть
+          </Button>
           {task.isStageTask && task.orderId && can('workspace.view') && (
-            <ButtonLink to={`/orders/${task.orderId}`} icon={<ClipboardList size={18} aria-hidden />}>
+            <ButtonLink to={`/orders/${task.orderId}`} variant="secondary" icon={<ClipboardList size={18} aria-hidden />}>
               Открыть заявку
             </ButtonLink>
-          )}
-          {canFix && (
-            <Button
-              variant="secondary"
-              icon={<Undo2 size={18} aria-hidden />}
-              onClick={() => {
-                setFixing(true);
-                setMode('transfer');
-              }}
-            >
-              Передал не тому
-            </Button>
           )}
           <Button
             variant="secondary"
@@ -310,7 +340,11 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
               Запросить подтверждение
             </Button>
           ) : (
-            <Button variant="success" icon={<Check size={18} aria-hidden />} onClick={() => setMode('close')}>
+            <Button
+              variant="success"
+              icon={<Check size={18} aria-hidden />}
+              onClick={() => (stageOrder.data && stageOrder.data.stageId === task.stageId && stageOrder.data.nextStage ? setAdvanceOpen(true) : setMode('close'))}
+            >
               Закрыть задачу
             </Button>
           )}
@@ -328,9 +362,13 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
           >
             Назад
           </Button>
-          {mode === 'close' ? (
+              {mode === 'close' ? (
             <Button variant="success" loading={close.isPending} onClick={doClose} icon={<Check size={18} aria-hidden />}>
               Закрыть
+            </Button>
+          ) : mode === 'due' ? (
+            <Button onClick={doSaveDue} icon={<Check size={18} aria-hidden />}>
+              Сохранить срок
             </Button>
           ) : mode === 'request' ? (
             <Button variant="success" onClick={doRequest} icon={<Send size={18} aria-hidden />}>
@@ -384,7 +422,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
           )
         }
         footer={footer}
-        width={600}
+        width={680}
       >
         {q.isLoading ? (
           <Spinner />
@@ -397,6 +435,19 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                 <Button variant="ghost" size="sm" icon={<Pencil size={16} aria-hidden />} onClick={() => setEditing(true)}>
                   Изменить
                 </Button>
+                {canFix && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<Undo2 size={16} aria-hidden />}
+                    onClick={() => {
+                      setFixing(true);
+                      setMode('transfer');
+                    }}
+                  >
+                    Передал не тому
+                  </Button>
+                )}
                 {!me.confirmsOverdue && task.overdue && (
                   <Button variant="ghost" size="sm" icon={<CalendarClock size={16} aria-hidden />} onClick={startExtend}>
                     Запросить продление
@@ -418,6 +469,18 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
               >
                 <Textarea value={comment} onChange={(e) => setComment(e.target.value)} data-autofocus maxLength={2000} />
               </Field>
+            )}
+            {mode === 'due' && (
+              <>
+                <Field label="Новый крайний срок" hint={`Сейчас — ${fmtWhen(task.dueAt)}. Рабочий день до ${settings.data?.work.workEnd ?? '20:00'}`}>
+                  <DueInput value={due} onChange={setDue} />
+                </Field>
+                {!me.confirmsOverdue && new Date(due).getTime() > new Date(task.dueAt).getTime() && (
+                  <Field label="Почему переносите срок" hint="Причина останется в цепочке задачи">
+                    <Textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={500} data-autofocus />
+                  </Field>
+                )}
+              </>
             )}
             {mode === 'extend' && (
               <>
@@ -465,8 +528,8 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
               <>
                 {task.status === 'open' && task.isStageTask && task.orderId && can('workspace.view') && (
                   <p className={s.stageHint}>
-                    Это задача этапа заявки №{task.orderNumber}. Чтобы выполнить этап (например, согласовать), откройте заявку и переведите её дальше:
-                    задача закроется сама. Закрывать её здесь не нужно.
+                    Это этап заявки №{task.orderNumber}. Когда закроете задачу, заявка перейдёт на следующий этап: в открывшемся окне выберите, кто
+                    отвечает дальше.
                   </p>
                 )}
                 {task.description && <p className={s.desc}>{task.description}</p>}
@@ -476,7 +539,17 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                     [task.watcherIds.length > 1 ? 'Наблюдатели' : 'Наблюдатель', task.watcherName],
                     ['Постановщик', task.creatorName],
                     ['Начало', fmtWhen(task.startAt)],
-                    ['Крайний срок', <span className={task.overdue ? s.late : undefined}>{fmtWhen(task.dueAt)}</span>],
+                    [
+                      'Крайний срок',
+                      <span className={s.dueRow}>
+                        <span className={task.overdue ? s.late : undefined}>{fmtWhen(task.dueAt)}</span>
+                        {canEdit && (me.confirmsOverdue || !task.overdue) && (
+                          <Button variant="ghost" size="sm" icon={<CalendarClock size={16} aria-hidden />} onClick={startDue}>
+                            Изменить
+                          </Button>
+                        )}
+                      </span>,
+                    ],
                     [
                       'Заявка',
                       task.orderId &&
@@ -571,6 +644,17 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
         ) : null}
       </Sheet>
       {task && editing && <TaskFormSheet open task={task} onClose={() => setEditing(false)} />}
+      {stageOrder.data && (
+        <AdvanceSheet
+          order={advanceOpen ? { ...stageOrder.data, hasAct: stageOrder.data.acts.length > 0 } : null}
+          next={stageOrder.data.nextStage}
+          onClose={() => setAdvanceOpen(false)}
+          onDone={() => {
+            inv('task', 'tasks', 'order', 'orders', 'dashboard');
+            onClose();
+          }}
+        />
+      )}
     </>
   );
 }

@@ -242,12 +242,13 @@ equipmentRouter.post(
       }
       const row = await one<{ id: number }>(
         `INSERT INTO device_works (client_id, device_id, order_id, kind, title, qty, counter, note, done_at, created_by,
-                                   performer_id, amount, part_brand, part_spec, warranty_months, resource, ops)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, now()), $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
+                                   performer_id, amount, part_brand, part_spec, warranty_months, resource, ops, purchase_price)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, now()), $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
         [
           clientId, linkDeviceId, linkOrderId, input.kind, input.title, input.qty, input.counter ?? null, input.note, input.doneAt ?? null, req.user!.id,
           performerId, input.amount ?? null, input.partBrand, input.partSpec, input.warrantyMonths ?? null, input.resource ?? null,
           input.kind === 'refill' ? input.ops : [],
+          input.purchasePrice ?? null,
         ],
         db,
       );

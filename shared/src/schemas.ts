@@ -226,6 +226,8 @@ export const deviceWorkSchema = z
     /** Кто делал (по умолчанию тот, кто записывает). */
     performerId: optionalId,
     amount: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().min(0).max(10_000_000).nullable()).optional(),
+    /** Закупочная цена (необязательно): от неё считается рекомендованная цена продажи. */
+    purchasePrice: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().min(0).max(10_000_000).nullable()).optional(),
     partBrand: optionalText(100),
     partSpec: optionalText(100),
     warrantyMonths: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().int().min(0).max(120).nullable()).optional(),

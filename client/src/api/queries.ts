@@ -398,7 +398,7 @@ export function useReopenOrder(orderId: number) {
 export function useCloseTasks() {
   const inv = useInvalidate();
   return useMutation({
-    mutationFn: (input: CloseTasksInput) => api.post<{ closed: number[]; skipped: number[]; needConfirm: number[] }>('/tasks/close', input as any),
+    mutationFn: (input: CloseTasksInput) => api.post<{ closed: number[]; skipped: number[]; needConfirm: number[]; blocked?: { id: number; message: string; need?: string }[] }>('/tasks/close', input as any),
     onSuccess: () => inv('tasks', 'task', 'dashboard', 'order', 'client'),
   });
 }

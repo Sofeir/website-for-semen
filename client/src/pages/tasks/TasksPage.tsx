@@ -1,12 +1,12 @@
 import { useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { CheckCheck, CheckCircle2, ListPlus, Search, X } from 'lucide-react';
+import { ArrowRightLeft, CheckCheck, CheckCircle2, ListPlus, Search, X } from 'lucide-react';
 import type { TaskListItem } from '@sd/shared';
 import { pluralRu } from '@sd/shared';
 import { useAuth, useMe } from '@/app/auth';
-import { ApiError } from '@/api/http';
-import { useCloseTasks, useTaskKinds, useTasks, type TaskFilters } from '@/api/queries';
+import { api, ApiError } from '@/api/http';
+import { useCloseTasks, useInvalidate, useTaskKinds, useTasks, type TaskFilters } from '@/api/queries';
 import { addDays, startOfDay } from '@/lib/dates';
 import { useBack, useDebounced, useDocumentTitle } from '@/lib/hooks';
 import { UserSelect } from '@/components/Pickers';
@@ -71,6 +71,12 @@ export default function TasksPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [comment, setComment] = useState('');
   const [creating, setCreating] = useState(false);
+  const inv = useInvalidate();
+  // Массовая передача выбранных задач одному сотруднику
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferTo, setTransferTo] = useState('');
+  const [transferWhy, setTransferWhy] = useState('');
+  const [transferring, setTransferring] = useState(false);
   const openTaskId = Number(params.get('task')) || null;
   // Задача открыта по ссылке с другого экрана (готовая техника, заявка, уведомление): при закрытии возвращаем туда же, а не оставляем в «Задачах»
   const fromElsewhere = useRef(Boolean(params.get('task')));
@@ -113,9 +119,11 @@ export default function TasksPage() {
       if (r.skipped.length) {
         toast.error(
           `Не закрыто: ${r.skipped.length}`,
-          r.needConfirm.length
-            ? `Просроченные (${r.needConfirm.length}) закрывает только директор: откройте задачу и запросите подтверждение`
-            : 'Эти задачи уже закрыты или вам не принадлежат',
+          r.blocked?.length
+            ? r.blocked[0]!.message
+            : r.needConfirm.length
+              ? `Просроченные (${r.needConfirm.length}) закрывает только директор: откройте задачу и запросите подтверждение`
+              : 'Эти задачи уже закрыты или вам не принадлежат',
         );
       }
       setSelected(new Set());
@@ -124,6 +132,35 @@ export default function TasksPage() {
     } catch (e) {
       toast.error('Не получилось', (e as ApiError).message);
     }
+  };
+
+  const doTransfer = async () => {
+    if (!transferTo) return toast.error('Выберите, кому передать');
+    if (transferWhy.trim().length < 3) return toast.error('Напишите причину передачи и что уже сделано');
+    setTransferring(true);
+    let ok = 0;
+    let failed = 0;
+    let lastError = '';
+    for (const id of selected) {
+      const t = list.find((x) => x.id === id);
+      if (!t) continue;
+      try {
+        // срок остаётся прежним: передача не двигает срок
+        await api.post(`/tasks/${id}/transfer`, { assigneeId: Number(transferTo), dueAt: t.dueAt, comment: transferWhy.trim() });
+        ok++;
+      } catch (e) {
+        failed++;
+        lastError = (e as ApiError).message;
+      }
+    }
+    setTransferring(false);
+    inv('tasks', 'task', 'dashboard', 'order', 'orders');
+    if (ok) toast.success(`Передано: ${ok} ${pluralRu(ok, 'задача', 'задачи', 'задач')}`);
+    if (failed) toast.error(`Не передано: ${failed}`, lastError);
+    setSelected(new Set());
+    setTransferOpen(false);
+    setTransferTo('');
+    setTransferWhy('');
   };
 
   const setTaskParam = (id: number | null) => {
@@ -267,6 +304,9 @@ export default function TasksPage() {
             <Button variant="ghost" size="sm" icon={<X size={16} aria-hidden />} onClick={() => setSelected(new Set())}>
               Снять
             </Button>
+            <Button variant="secondary" size="sm" icon={<ArrowRightLeft size={18} aria-hidden />} onClick={() => setTransferOpen(true)}>
+              Передать выбранные
+            </Button>
             <Button variant="success" size="sm" icon={<CheckCheck size={18} aria-hidden />} onClick={() => setConfirmOpen(true)}>
               Закрыть выбранные
             </Button>
@@ -300,6 +340,33 @@ export default function TasksPage() {
             placeholder="Например: всё сделано, клиент предупреждён"
           />
         </Field>
+      </Sheet>
+
+      <Sheet
+        open={transferOpen}
+        onClose={() => setTransferOpen(false)}
+        title={`Передать ${selected.size} ${pluralRu(selected.size, 'задачу', 'задачи', 'задач')}`}
+        subtitle="Все выбранные задачи уйдут одному сотруднику, срок у каждой остаётся прежним."
+        width={480}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setTransferOpen(false)}>
+              Отмена
+            </Button>
+            <Button loading={transferring} onClick={doTransfer} icon={<ArrowRightLeft size={18} aria-hidden />}>
+              Передать
+            </Button>
+          </>
+        }
+      >
+        <div className="stack">
+          <Field label="Кому передать">
+            <UserSelect value={transferTo} onChange={(e) => setTransferTo(e.target.value)} data-autofocus />
+          </Field>
+          <Field label="Причина передачи и что уже сделано" hint="Увидят постановщики и руководитель">
+            <Textarea value={transferWhy} onChange={(e) => setTransferWhy(e.target.value)} rows={3} maxLength={2000} />
+          </Field>
+        </div>
       </Sheet>
 
       <TaskSheet

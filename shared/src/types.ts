@@ -169,6 +169,8 @@ export interface DeviceWork {
   performerId: number | null;
   performerName: string | null;
   amount: number | null;
+  /** Закупочная цена: видна всем сотрудникам, клиенту нет. */
+  purchasePrice: number | null;
   partBrand: string | null;
   partSpec: string | null;
   warrantyMonths: number | null;
@@ -351,6 +353,9 @@ export interface TaskListItem {
   closedByName: string | null;
   closeComment: string | null;
   isStageTask: boolean;
+  /** Этап заявки, к которому относится задача (у обычных задач null). */
+  stageId: number | null;
+  stageName: string | null;
   /** Задачу поставил заказчик из своего кабинета. */
   fromCustomer: boolean;
   /** Пункты чек-листа: всего и отмечено. */

@@ -47,7 +47,8 @@ export const TASK_SELECT = `
          coalesce(t.client_id, o.client_id) AS "clientId", c.name AS "clientName",
          t.start_at AS "startAt", t.due_at AS "dueAt", t.deadline_at AS "deadlineAt",
          t.closed_at AS "closedAt", ucl.full_name AS "closedByName", t.close_comment AS "closeComment",
-         (t.stage_id IS NOT NULL) AS "isStageTask", (uc.role = 'customer') AS "fromCustomer",
+         (t.stage_id IS NOT NULL) AS "isStageTask", t.stage_id AS "stageId", (SELECT sg.name FROM stages sg WHERE sg.id = t.stage_id) AS "stageName",
+         (uc.role = 'customer') AS "fromCustomer",
          (SELECT count(*)::int FROM task_checklist_items ci WHERE ci.task_id = t.id) AS "checklistTotal",
          (SELECT count(*)::int FROM task_checklist_items ci WHERE ci.task_id = t.id AND ci.done) AS "checklistDone",
          t.is_visit AS "isVisit", t.visit_mode AS "visitMode",
@@ -79,7 +80,7 @@ export const WORK_SELECT = `
   SELECT w.id, w.client_id AS "clientId", w.device_id AS "deviceId", w.order_id AS "orderId", o.number AS "orderNumber",
          w.kind, w.title, w.qty, w.counter, w.note, w.done_at AS "doneAt", u.full_name AS "createdByName",
          w.performer_id AS "performerId", coalesce(pu.full_name, u.full_name) AS "performerName",
-         w.amount::float8 AS amount, w.part_brand AS "partBrand", w.part_spec AS "partSpec",
+         w.amount::float8 AS amount, w.purchase_price::float8 AS "purchasePrice", w.part_brand AS "partBrand", w.part_spec AS "partSpec",
          w.warranty_months AS "warrantyMonths", w.resource, w.ops
     FROM device_works w
     LEFT JOIN orders o ON o.id = w.order_id

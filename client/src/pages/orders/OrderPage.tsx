@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
   ArrowRightLeft,
@@ -22,6 +22,7 @@ import { useDictionaries, useInvalidate, useOrder } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
 import { useDocumentTitle } from '@/lib/hooks';
 import { BackLink } from '@/components/BackLink';
+import { OrderHistory } from './OrderHistory';
 import { AdvanceSheet, ReassignSheet, ReopenSheet } from '@/components/AdvanceSheet';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
 import { DeviceJournalSheet } from '@/components/DeviceJournalSheet';
@@ -59,6 +60,26 @@ export default function OrderPage() {
   const o = q.data;
   useDocumentTitle(o ? `№${o.number}` : 'Заявка');
 
+  // Не хватает записи работы или согласованных срока и суммы: окно закрытия этапа отправило сюда. Прокручиваем к нужному месту и подсвечиваем его.
+  const [params, setParams] = useSearchParams();
+  const focusParam = params.get('focus');
+  const [flash, setFlash] = useState<'works' | 'agreed' | null>(null);
+  useEffect(() => {
+    if (!o || (focusParam !== 'works' && focusParam !== 'agreed')) return;
+    const next = new URLSearchParams(params);
+    next.delete('focus');
+    setParams(next, { replace: true });
+    setFlash(focusParam);
+    // карточка рисуется уже после загрузки заявки: ждём кадр
+    const t1 = setTimeout(() => document.getElementById(`focus-${focusParam}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+    const t2 = setTimeout(() => setFlash(null), 7000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusParam, o?.id]);
+
   if (q.isLoading || !dict.data) return <Spinner />;
   if (q.isError || !o) return <ErrorBox error={q.error} />;
 
@@ -69,7 +90,6 @@ export default function OrderPage() {
   const canFixHandover = !isIssued && o.handedOverByMe;
   // Картриджам акт не нужен: предупреждения «акта нет» при выдаче им не показываем
   const target = { ...o, hasAct: o.acts.length > 0 || o.device.deviceType === CARTRIDGE_TYPE };
-  const history = [...o.history].reverse();
   // Срок этапа живёт в задаче этапа: правят его там (сотрудник — пока не просрочено, директор — всегда)
   const stageTask = o.tasks.find((t) => t.isStageTask && t.status === 'open');
   const canEditAgreed = can('orders.assign') || o.responsibleId === me.id;
@@ -291,7 +311,7 @@ export default function OrderPage() {
             />
           </Card>
 
-          <Card>
+          <Card id="focus-agreed" className={cx(flash === 'agreed' && s.flash)}>
             <CardHead title="Согласовано с клиентом">
               {canEditAgreed && (
                 <Button variant="ghost" size="sm" icon={<Pencil size={16} aria-hidden />} onClick={() => setAgreedOpen(true)}>
@@ -299,6 +319,7 @@ export default function OrderPage() {
                 </Button>
               )}
             </CardHead>
+            {flash === 'agreed' && <p className={s.flashHint}>Впишите срок и сумму, которые согласовали с клиентом: без них согласование не закрыть.</p>}
             {o.agreedTerm || o.agreedSum !== null || o.agreedNote ? (
               <DescList
                 items={[
@@ -312,12 +333,13 @@ export default function OrderPage() {
             )}
           </Card>
 
-          <Card>
+          <Card id="focus-works" className={cx(flash === 'works' && s.flash)}>
             <CardHead title="Работы по заявке" count={o.works.length}>
               <Button variant="ghost" size="sm" icon={<Wrench size={16} aria-hidden />} onClick={() => setWorkOpen(true)}>
                 Записать
               </Button>
             </CardHead>
+            {flash === 'works' && <p className={s.flashHint}>Запишите, какая работа сделана: без записи ремонт закрыть нельзя.</p>}
             {o.works.length ? (
               <ul className={s.docs}>
                 {o.works.map((w) => {
@@ -335,6 +357,7 @@ export default function OrderPage() {
                           {WORK_KIND_LABELS[w.kind]}, {fmtWhen(w.doneAt)}
                           {w.performerName && `, делал ${w.performerName}`}
                           {part && `, ${part}`}
+                          {w.purchasePrice !== null ? `, закупка ${formatMoney(w.purchasePrice)}` : ''}
                           {w.warrantyMonths ? `, гарантия ${w.warrantyMonths} мес.` : ''}
                           {w.ops.length > 0 && `, ${w.ops.map((x) => REFILL_OP_LABELS[x as RefillOp] ?? x).join(', ')}`}
                         </span>
@@ -349,7 +372,7 @@ export default function OrderPage() {
           </Card>
 
           <Card>
-            <CardHead title="Задачи по заявке" count={o.tasks.length}>
+            <CardHead title="Этапы и задачи заявки" count={o.tasks.length}>
               <Button variant="ghost" size="sm" icon={<ListPlus size={18} aria-hidden />} onClick={() => setNewTask(true)}>
                 Задача
               </Button>
@@ -437,32 +460,7 @@ export default function OrderPage() {
             </dl>
           </Plate>
 
-          <Card>
-            <CardHead title="История" />
-            <ol className={s.history}>
-              {history.map((h) => (
-                <li key={h.id} className={s.hItem} data-open={!h.finishedAt}>
-                  <span className={s.hDot} aria-hidden />
-                  <div className={s.hBody}>
-                    <b>
-                      {h.kind === 'transfer'
-                        ? `Передано: ${h.responsibleName ?? '—'}`
-                        : h.kind === 'reopen'
-                          ? `Открыта заново: ${h.stageName}`
-                          : h.stageName}
-                      {h.kind !== 'transfer' && h.responsibleName && <span className={s.hWho}>, {h.responsibleName}</span>}
-                    </b>
-                    <span className={s.hMeta}>
-                      {fmtWhen(h.startedAt)}
-                      {h.fromUserName && h.kind !== 'stage' && `, от ${h.fromUserName}`}
-                      {h.dueAt && !h.finishedAt && `, срок ${fmtWhen(h.dueAt)}`}
-                    </span>
-                    {h.comment && <span className={s.hComment}>{h.comment}</span>}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </Card>
+          <OrderHistory order={o} onOpenTask={setTaskId} onNewTask={() => setNewTask(true)} />
 
           <Card>
             <CardHead title="Файлы" count={o.attachments.length}>
