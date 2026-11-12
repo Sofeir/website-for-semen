@@ -94,6 +94,11 @@ export interface Device {
   location: string | null;
   /** Системный блок или ноутбук, в состав рабочего места которого входит эта техника. */
   parentId: number | null;
+  /** Пользователь техники (человек из организации); меняется, когда техника переезжает. Не то же, что «кто подал заявку». */
+  userContactId: number | null;
+  userName: string | null;
+  userPhone: string | null;
+  userPosition: string | null;
 }
 
 export interface Contact {

@@ -117,6 +117,14 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
     if (!contact) throw new HttpError(400, 'Этот сотрудник не из выбранной организации');
   }
 
+  // Пользователь техники: тоже человек этой организации
+  let userContactId: number | null = null;
+  if (input.userContactId) {
+    const u = await one<{ id: number }>('SELECT id FROM client_contacts WHERE id = $1 AND client_id = $2', [input.userContactId, clientId], db);
+    if (!u) throw new HttpError(400, 'Пользователь техники не из выбранной организации');
+    userContactId = u.id;
+  }
+
   // Парк техники организации правят только те, кто может править клиентов: у остальных чек-лист при приёме игнорируется, приём не блокируется.
   if (input.fleet && client.kind === 'legal' && (can(actor.role, 'clients.edit') || !input.clientId)) {
     await replaceFleet(db, clientId, input.fleet);
@@ -176,6 +184,7 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
       }
     }
 
+    if (userContactId) await db.query('UPDATE devices SET user_contact_id = $2 WHERE id = $1', [deviceId, userContactId]);
     // Если счётчик отстал от уже занятых номеров (перенос базы, ручная правка), берём следующий свободный, а не падаем на дубле.
     // Картриджи сразу в работу (заправка), без диагностики и согласования
     const cartridge = (await deviceTypeName(db, deviceId)) === CARTRIDGE_TYPE;
@@ -207,7 +216,8 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
         item.kit,
         item.kitNote,
         item.devicePassword,
-        item.department,
+        // Отдел обязателен для организации: если не назвали, это «Общий зал»
+        client.kind === 'legal' ? item.department?.trim() || 'Общий зал' : item.department,
         input.comment,
         actor.id,
         input.branch,

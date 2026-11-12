@@ -14,6 +14,8 @@ import { useToast } from '@/ui/Toast';
 import { WorkSheet } from './WorkSheet';
 import s from './DeviceJournalSheet.module.css';
 
+import { DeviceUser } from './DeviceUser';
+
 type DeviceLite = Pick<Device, 'id' | 'clientId' | 'title' | 'serial' | 'inventoryNo' | 'location'> & {
   parentId?: number | null;
   deviceType?: string;
@@ -238,6 +240,9 @@ export function DeviceJournalSheet({
                 <Input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={200} />
               </Field>
             </div>
+            <Field label="Пользователь" optional hint="Кто работает на этой технике. Меняется, когда техника переезжает">
+              <DeviceUser deviceId={device.id} clientId={device.clientId} />
+            </Field>
             <div>
               <Button variant="secondary" icon={<Save size={18} aria-hidden />} onClick={saveInfo}>
                 Сохранить паспорт

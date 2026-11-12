@@ -38,6 +38,10 @@ const asDevice = (d: VisitDevice, clientId: number): Device => ({
   inventoryNo: d.inventoryNo,
   location: d.location,
   parentId: null,
+  userContactId: null,
+  userName: null,
+  userPhone: null,
+  userPosition: null,
 });
 
 /**

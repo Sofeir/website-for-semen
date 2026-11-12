@@ -263,6 +263,24 @@ export default function OrderPage() {
                     o.requesterName
                   ),
                 ],
+                [
+                  'Пользователь',
+                  o.device.userName && (
+                    <span>
+                      {o.device.userName}
+                      {o.device.userPosition && `, ${o.device.userPosition}`}
+                      {o.device.userPhone && (
+                        <>
+                          {', '}
+                          <a href={`tel:+${o.device.userPhone.replace(/\D/g, '')}`} className={s.tel}>
+                            <Phone size={14} aria-hidden />
+                            {formatPhone(o.device.userPhone)}
+                          </a>
+                        </>
+                      )}
+                    </span>
+                  ),
+                ],
                 ['Отдел', o.department],
                 ['Неисправность', o.fault],
                 [

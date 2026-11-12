@@ -39,6 +39,11 @@ export function DeviceSection({
   const typeId = useWatch({ control, name: `${path}.device.deviceTypeId` });
   const brandId = useWatch({ control, name: `${path}.device.brandId` });
   const existingId = useWatch({ control, name: `${path}.device.id` });
+  const department = useWatch({ control, name: `${path}.department` });
+  // Отдел обязателен для организации: если не знают, остаётся «Общий зал»
+  useEffect(() => {
+    if (legal && (department === null || department === undefined)) setValue(`${path}.department`, 'Общий зал');
+  }, [legal, department, path, setValue]);
   const err = errors.devices?.[index];
   const typeName = dict.deviceTypes.find((t) => t.id === Number(typeId))?.name;
   const serialRequired = typeName === 'Ноутбук' || typeName === 'Принтеры/МФУ';
@@ -398,7 +403,7 @@ export function DeviceSection({
           </Field>
         )}
         {legal && (
-          <Field label="Отдел" optional>
+          <Field label="Отдел" hint="Если не знаете, оставьте «Общий зал»">
             {(cp) => (
               <Controller
                 control={control}

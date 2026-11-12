@@ -143,6 +143,8 @@ export const intakeSchema = z
     requesterName: optionalText(200),
     /** Человек из организации, от которого пришла заявка (из подсказок или добавленный на месте). */
     contactId: optionalId,
+    /** Пользователь техники: человек из организации, который на ней работает (по умолчанию тот, кто подал заявку). */
+    userContactId: optionalId,
     attachmentIds: z.array(id).max(20).default([]),
     fleet: z.array(fleetRowSchema).max(200).optional().nullable(),
   })

@@ -69,11 +69,13 @@ export const DEVICE_SELECT = `
   SELECT d.id, d.client_id AS "clientId", d.device_type_id AS "deviceTypeId", dt.name AS "deviceType",
          d.brand_id AS "brandId", coalesce(b.name, d.brand_text) AS brand,
          d.model_id AS "modelId", coalesce(m.name, d.model_text) AS model,
-         d.serial, ${DEVICE_TITLE} AS title, d.inventory_no AS "inventoryNo", d.location, d.parent_id AS "parentId"
+         d.serial, ${DEVICE_TITLE} AS title, d.inventory_no AS "inventoryNo", d.location, d.parent_id AS "parentId",
+         d.user_contact_id AS "userContactId", duc.full_name AS "userName", duc.phone AS "userPhone", duc.position AS "userPosition"
     FROM devices d
     JOIN device_types dt ON dt.id = d.device_type_id
     LEFT JOIN brands b ON b.id = d.brand_id
-    LEFT JOIN models m ON m.id = d.model_id`;
+    LEFT JOIN models m ON m.id = d.model_id
+    LEFT JOIN client_contacts duc ON duc.id = d.user_contact_id`;
 
 /** Запись журнала работ: кто делал, сколько стоило, какая деталь и гарантия. */
 export const WORK_SELECT = `
