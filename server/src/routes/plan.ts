@@ -6,6 +6,7 @@ import { requirePermission } from '../auth/session';
 import { Outbox } from '../notify/notify';
 import { getWorkSettings } from '../services/settings';
 import { assertActiveUser, createTask } from '../services/tasks';
+import { deleteTasksForever } from '../services/testDataCleanup';
 import { endOfWorkDay } from '../services/workTime';
 
 /**
@@ -19,6 +20,8 @@ const parseYmd = (s: string) => {
   const [y, m, d] = s.split('-').map(Number);
   return new Date(y!, m! - 1, d!);
 };
+/** Метка в описании: по ней видно, что выезд поставлен в плане месяца (и только такие выезды план может убрать). */
+export const PLAN_MARK = 'Запланировано в плане месяца.';
 const MODE_PREFIX = { onsite: 'Выезд: ', remote: 'Удалённое обслуживание: ' } as const;
 
 /** Чей план смотрим и правим: свой; чужой — руководитель. */
@@ -131,7 +134,7 @@ planRouter.post(
             req.user!,
             {
               title: `${MODE_PREFIX[it.mode]}${client.name}`,
-              description: 'Запланировано в плане месяца.',
+              description: PLAN_MARK,
               assigneeId: userId,
               clientId,
               orderId: null,
@@ -151,26 +154,32 @@ planRouter.post(
   }),
 );
 
-/** Убрать запланированный, но ещё не начатый выезд: ни проверок, ни отметок в чек-листе по нему нет. */
+/**
+ * Убрать запланированный, но ещё не начатый выезд. Только то, что поставили через план месяца (по метке в описании), без заявки и этапа,
+ * не просроченное (просроченное убирает руководитель) и без отметок о проверке. Удаляет тот, кто поставил, или руководитель.
+ */
 planRouter.delete(
   '/plan/visits/:id',
   requirePermission('workspace.view'),
   h(async (req, res) => {
     const id = intParam(req.params.id);
-    const t = await one<{ creator_id: number; status: string; is_visit: boolean; assignee_ids: number[] }>(
-      `SELECT t.creator_id, t.status, t.is_visit, ARRAY(SELECT ta.user_id FROM task_assignees ta WHERE ta.task_id = t.id) AS assignee_ids FROM tasks t WHERE t.id = $1`,
-      [id],
+    const t = await one<{ creator_id: number; status: string; due_at: Date }>(
+      `SELECT t.creator_id, t.status, t.due_at FROM tasks t
+        WHERE t.id = $1 AND t.is_visit AND t.description = $2 AND t.order_id IS NULL AND t.stage_id IS NULL`,
+      [id, PLAN_MARK],
     );
-    if (!t || !t.is_visit) throw new HttpError(404, 'Выезд не найден');
+    if (!t) throw new HttpError(404, 'Такого выезда в плане нет: убрать можно только то, что поставлено в плане месяца');
     const me = req.user!;
-    if (!(t.creator_id === me.id || t.assignee_ids.includes(me.id) || can(me.role, 'tasks.manageAll'))) throw new HttpError(403, 'Убрать выезд может его исполнитель, постановщик или руководитель');
+    const manager = can(me.role, 'tasks.manageAll');
+    if (!(t.creator_id === me.id || manager)) throw new HttpError(403, 'Убрать выезд из плана может тот, кто его поставил, или руководитель');
     if (t.status !== 'open') throw new HttpError(409, 'Выезд уже проведён: его не убрать');
+    if (t.due_at.getTime() < Date.now() && !manager) throw new HttpError(403, 'Дата выезда прошла: убрать его может руководитель');
     const worked = await one(
       `SELECT 1 FROM device_inspections WHERE task_id = $1 UNION ALL SELECT 1 FROM task_checklist_items WHERE task_id = $1 AND done LIMIT 1`,
       [id],
     );
     if (worked) throw new HttpError(409, 'По этому выезду уже есть отметки о проверке: убрать его нельзя, закройте его');
-    await pool.query('DELETE FROM tasks WHERE id = $1', [id]);
+    await deleteTasksForever([id]);
     res.json({ ok: true });
   }),
 );

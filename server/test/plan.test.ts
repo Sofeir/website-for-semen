@@ -52,6 +52,13 @@ describe('план месяца', () => {
     // убрать ещё не начатый выезд
     expect((await stas.del(`/api/plan/visits/${made.body.created[1]}`)).status).toBe(200);
     expect((await pool.query('SELECT 1 FROM tasks WHERE id = $1', [made.body.created[1]])).rowCount).toBe(0);
+
+    // чужие выезды (не из плана) и выезды, поставленные другим, через план не удаляются
+    const foreign = (await semen.post('/api/tasks', { title: 'Выезд: Школяр ООО', assigneeId: users.isakov, clientId, visit: true, startAt: new Date().toISOString(), dueAt: new Date(Date.now() + 86_400_000).toISOString() })).body.id as number;
+    expect((await stas.del(`/api/plan/visits/${foreign}`)).status).toBe(404);
+    const byBoss = await semen.post('/api/plan/visits', { clientId, userId: users.isakov, items: [{ date: ymd(later), mode: 'onsite' }] });
+    expect((await stas.del(`/api/plan/visits/${byBoss.body.created[0]}`)).status).toBe(403);
+    expect((await semen.del(`/api/plan/visits/${byBoss.body.created[0]}`)).status).toBe(200);
   });
 
   it('несколько сотрудников на одной организации; чужой план правит только руководитель', async () => {

@@ -444,7 +444,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
           )
         }
         footer={footer}
-        width={680}
+        width={760}
       >
         {q.isLoading ? (
           <Spinner />

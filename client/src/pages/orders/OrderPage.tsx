@@ -70,13 +70,9 @@ export default function OrderPage() {
     next.delete('focus');
     setParams(next, { replace: true });
     setFlash(focusParam);
-    // карточка рисуется уже после загрузки заявки: ждём кадр
-    const t1 = setTimeout(() => document.getElementById(`focus-${focusParam}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
-    const t2 = setTimeout(() => setFlash(null), 7000);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
+    // Таймеры не отменяем при смене адреса: сам параметр мы только что убрали из адреса, а прокрутка и подсветка должны дойти до конца
+    setTimeout(() => document.getElementById(`focus-${focusParam}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+    setTimeout(() => setFlash(null), 7000);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusParam, o?.id]);
 

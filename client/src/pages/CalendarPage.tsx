@@ -210,7 +210,7 @@ export default function CalendarPage() {
                             key={t.id}
                             className={cx(s.chip, t.status !== 'open' ? s.chipDone : t.overdue ? s.chipLate : s.chipOpen)}
                           >
-                            {calendarTitle(t)}
+                            {t.isStageTask && t.orderNumber ? `№${t.orderNumber.replace(/^0+/, '')}` : t.title}
                           </span>
                         ))}
                         {list.length > 3 && <span className={s.moreChip}>ещё {list.length - 3}</span>}
