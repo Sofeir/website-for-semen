@@ -2,7 +2,9 @@ import { generateKeyPairSync } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { pool } from '../src/db/pool';
 import { _setGoogleKeyForTests, syncGoogleUser } from '../src/services/googleCalendar';
-import { dict, inDays, loginAs, resetDb } from './helpers';
+import request from 'supertest';
+import { config } from '../src/config';
+import { app, dict, inDays, intakeLaptop, loginAs, resetDb } from './helpers';
 
 interface Call {
   method: string;
@@ -70,14 +72,17 @@ describe('запись в Google Календарь', () => {
     expect(second.updated).toBe(2);
     expect(calls.every((c) => c.method === 'PATCH')).toBe(true);
 
-    // задачу закрыли, событие удалили: из Google всё убирается
+    // задачу закрыли, событие удалили
     await semen.post('/api/tasks/close', { ids: [t.body.id], comment: null });
     await stas.del(`/api/calendar-events/${eventId}`);
     calls.length = 0;
     const last = await syncGoogleUser(users.isakov);
-    expect(last.removed).toBe(2);
-    expect(calls.filter((c) => c.method === 'DELETE')).toHaveLength(2);
-    expect((await pool.query('SELECT 1 FROM google_events WHERE user_id = $1', [users.isakov])).rowCount).toBe(0);
+    // событие убрано, закрытая задача остаётся серой отметкой «✓» (как в календаре сервиса)
+    expect(last.removed).toBe(1);
+    expect(last.updated).toBe(1);
+    expect(calls.filter((c) => c.method === 'DELETE')).toHaveLength(1);
+    expect(calls.find((c) => c.method === 'PATCH')?.body.summary).toBe('✓ Для календаря');
+    expect((await pool.query('SELECT 1 FROM google_events WHERE user_id = $1', [users.isakov])).rowCount).toBe(1);
     const u = (await pool.query('SELECT google_sync_error AS e, google_sync_at AS at FROM users WHERE id = $1', [users.isakov])).rows[0];
     expect(u.e).toBeNull();
     expect(u.at).not.toBeNull();
@@ -115,5 +120,103 @@ describe('запись в Google Календарь', () => {
     // у каждого свой код
     expect((await other.get('/api/me/google-calendar')).body.verifyCode).not.toBe(status.verifyCode);
     expect((await kataev.del('/api/me/google-calendar')).body.calendarId).toBeNull();
+  });
+});
+
+describe('календарь: этап заявки — это заявка', () => {
+  it('открытый этап попадает в Google одной записью «Заявка №…», закрытые этапы не попадают', async () => {
+    const { users } = await dict();
+    const calls = fakeGoogle();
+    const semen = await loginAs('semen');
+    await pool.query(`UPDATE users SET google_calendar_id = 'kat@example.com' WHERE id = $1`, [users.kataev]);
+    const orderId = await intakeLaptop(semen, users.kataev, '+7 900 777-30-01');
+    await new Promise((r) => setTimeout(r, 50));
+    calls.length = 0;
+    await syncGoogleUser(users.kataev);
+    const posts = calls.filter((c) => c.method === 'POST');
+    const summaries = posts.map((c) => c.body.summary as string);
+    expect(summaries.some((x) => /^Заявка №\d+: Ноутбук .*\(Диагностика\)$/.test(x))).toBe(true);
+    expect(summaries.some((x) => x.startsWith('Диагностика:'))).toBe(false);
+    expect(orderId).toBeGreaterThan(0);
+  });
+});
+
+describe('вход через Google', () => {
+  it('подключение по кнопке: метка одноразовая, токен лежит зашифрованным, записи идут в основной календарь', async () => {
+    const { users } = await dict();
+    config.googleClientId = 'client-id';
+    config.googleClientSecret = 'client-secret';
+    const idToken = `x.${Buffer.from(JSON.stringify({ email: 'kataev@gmail.com' })).toString('base64url')}.y`;
+    const calls: { method: string; url: string; auth: string | null }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: any = {}) => {
+        if (String(url).includes('oauth2.googleapis.com/token')) {
+          const body = new URLSearchParams(String(init.body));
+          if (body.get('grant_type') === 'authorization_code') {
+            return new Response(JSON.stringify({ refresh_token: 'secret-refresh', id_token: idToken, access_token: 'a1' }), { status: 200 });
+          }
+          return new Response(JSON.stringify({ access_token: 'user-access', expires_in: 3600 }), { status: 200 });
+        }
+        calls.push({ method: init.method, url: String(url), auth: init.headers?.Authorization ?? null });
+        return new Response(JSON.stringify({ id: 'ev1' }), { status: 200 });
+      }),
+    );
+    const kataev = await loginAs('kataev');
+    const connect = await kataev.post('/api/me/google-calendar/connect');
+    expect(connect.status).toBe(200);
+    const url = new URL(connect.body.url);
+    expect(url.searchParams.get('client_id')).toBe('client-id');
+    expect(url.searchParams.get('scope')).toContain('calendar.events');
+    expect(url.searchParams.get('access_type')).toBe('offline');
+    const state = url.searchParams.get('state')!;
+
+    // чужая или выдуманная метка не подходит
+    const bad = await request(app).get('/api/google/callback?code=abc&state=' + 'a'.repeat(48));
+    expect(bad.headers.location).toContain('google=expired');
+
+    const ok = await request(app).get(`/api/google/callback?code=abc&state=${state}`);
+    expect(ok.status).toBe(302);
+    expect(ok.headers.location).toContain('/profile?google=connected');
+    const row = (await pool.query('SELECT google_refresh_token AS t, google_email AS e, google_oauth_state AS s FROM users WHERE id = $1', [users.kataev])).rows[0];
+    expect(row.e).toBe('kataev@gmail.com');
+    expect(row.s).toBeNull();
+    expect(row.t).toBeTruthy();
+    expect(row.t).not.toContain('secret-refresh');
+    // запись пошла в основной календарь от имени сотрудника
+    expect(calls.some((c) => c.method === 'POST' && c.url.includes('/calendars/primary/events') && c.auth === 'Bearer user-access')).toBe(true);
+
+    // метка одноразовая
+    expect((await request(app).get(`/api/google/callback?code=abc&state=${state}`)).headers.location).toContain('google=expired');
+
+    const st = (await kataev.get('/api/me/google-calendar')).body;
+    expect(st).toMatchObject({ oauthConfigured: true, oauthConnected: true, connectedEmail: 'kataev@gmail.com' });
+    expect(JSON.stringify(st)).not.toContain('secret-refresh');
+
+    // Google отозвал доступ: подключение сбрасывается, в профиле понятное сообщение
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 })),
+    );
+    _setGoogleKeyForTests(null);
+    const semen = await loginAs('semen');
+    await semen.post('/api/tasks', { title: 'После отзыва доступа', assigneeId: users.kataev, startAt: new Date().toISOString(), dueAt: inDays(2) });
+    await new Promise((r) => setTimeout(r, 50));
+    await syncGoogleUser(users.kataev);
+    const after = (await pool.query('SELECT google_refresh_token AS t, google_sync_error AS e FROM users WHERE id = $1', [users.kataev])).rows[0];
+    expect(after.t).toBeNull();
+    expect(after.e).toMatch(/подключите его заново/);
+
+    config.googleClientId = '';
+    config.googleClientSecret = '';
+  });
+
+  it('без ключей приложения подключиться нельзя и сообщение понятное', async () => {
+    config.googleClientId = '';
+    config.googleClientSecret = '';
+    const golenkov = await loginAs('golenkov');
+    const r = await golenkov.post('/api/me/google-calendar/connect');
+    expect(r.status).toBe(409);
+    expect(r.body.error).toMatch(/ключи приложения Google/);
   });
 });

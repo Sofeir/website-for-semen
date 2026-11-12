@@ -18,6 +18,15 @@ export function formatMoney(value: number | string | null | undefined): string {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(n) + ' ₽';
 }
 
+/**
+ * Как называть задачу в календаре. Этап заявки — это заявка («№001107 Компьютер Сборка Офисный ПК»), а этап показывается отдельной меткой;
+ * иначе в календаре «Диагностика» и «Ремонт» одной заявки выглядят как две разные задачи.
+ */
+export function calendarTitle(t: { title: string; isStageTask?: boolean; orderNumber?: string | null; deviceTitle?: string | null }): string {
+  if (t.isStageTask && t.orderNumber) return [`№${t.orderNumber}`, t.deviceTitle].filter(Boolean).join(' ');
+  return t.title;
+}
+
 export function formatOrderNumber(n: number | string): string {
   return String(n).padStart(6, '0');
 }

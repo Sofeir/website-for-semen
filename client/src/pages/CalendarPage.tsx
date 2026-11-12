@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, CalendarCheck, Plus, Tags } from 'lucide-react';
-import type { CalendarEvent, TaskListItem } from '@sd/shared';
+import { calendarTitle, type CalendarEvent, type TaskListItem } from '@sd/shared';
 import { useAuth } from '@/app/auth';
 import { useCalendarEvents, useTaskKinds, useTasks } from '@/api/queries';
 import { addDays, fmtDay, fmtWeekday, sameDay, startOfDay } from '@/lib/dates';
@@ -72,6 +72,8 @@ export default function CalendarPage() {
     const map = new Map<string, TaskListItem[]>();
     for (const t of tasks.data ?? []) {
       if (kindNames.length && !kindNames.includes(t.kindName ?? '')) continue;
+      // Закрытые этапы заявки в календарь не идут: в нём заявка одной записью, с текущим этапом
+      if (t.isStageTask && t.status !== 'open') continue;
       const key = startOfDay(new Date(t.dueAt)).toDateString();
       const list = map.get(key) ?? [];
       list.push(t);
@@ -208,7 +210,7 @@ export default function CalendarPage() {
                             key={t.id}
                             className={cx(s.chip, t.status !== 'open' ? s.chipDone : t.overdue ? s.chipLate : s.chipOpen)}
                           >
-                            {t.title}
+                            {calendarTitle(t)}
                           </span>
                         ))}
                         {list.length > 3 && <span className={s.moreChip}>ещё {list.length - 3}</span>}
@@ -254,7 +256,7 @@ export default function CalendarPage() {
                       </button>
                     ))}
                     {tks.map((t) => (
-                      <TaskRow key={t.id} task={t} onOpen={() => setTaskId(t.id)} showAssignee={scope === 'all'} />
+                      <TaskRow key={t.id} task={t} title={calendarTitle(t)} onOpen={() => setTaskId(t.id)} showAssignee={scope === 'all'} />
                     ))}
                     <button type="button" className={s.hourAdd} aria-label={`Добавить событие на ${p2(h)}:00`} onClick={() => newEventAt(h)}>
                       <Plus size={16} aria-hidden />

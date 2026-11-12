@@ -889,8 +889,13 @@ export interface ReminderSettings {
 
 /** Состояние записи задач и событий в Google Календарь сотрудника. */
 export interface GoogleCalendarStatus {
-  /** На сервере есть ключ сервисного аккаунта. */
+  /** На сервере есть ключ сервисного аккаунта или вход через Google. */
   configured: boolean;
+  /** Включён вход через Google: достаточно нажать «Подключить». */
+  oauthConfigured: boolean;
+  /** Сотрудник подключил свой Google-аккаунт: почта, в чей календарь пишет сервис. */
+  connectedEmail: string | null;
+  oauthConnected: boolean;
   /** Адрес сервисного аккаунта: с ним нужно поделиться календарём. */
   serviceEmail: string | null;
   calendarId: string | null;

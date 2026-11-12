@@ -13,9 +13,11 @@ interface TaskRowProps {
   onOpen: () => void;
   showAssignee?: boolean;
   checkLabel?: string;
+  /** Заголовок вместо названия задачи (в календаре этап заявки подписан как заявка). */
+  title?: string;
 }
 
-export function TaskRow({ task, selected, onToggle, onOpen, showAssignee, checkLabel }: TaskRowProps) {
+export function TaskRow({ task, selected, onToggle, onOpen, showAssignee, checkLabel, title }: TaskRowProps) {
   const done = task.status !== 'open';
   // Задача по заявке: под названием клиент и техника, чтобы не открывать её ради понимания, о чём речь. В названии они уже есть у задач этапов.
   const sub = task.orderNumber
@@ -40,7 +42,7 @@ export function TaskRow({ task, selected, onToggle, onOpen, showAssignee, checkL
       )}
       <button type="button" className={s.rowLink} onClick={onOpen} style={{ textAlign: 'left' }}>
         <span className={s.main}>
-          <span className={s.title}>{task.title}</span>
+          <span className={s.title}>{title ?? task.title}</span>
           {sub && <span className={s.sub}>{sub}</span>}
           {task.confirmKind && (
             <span className={s.sub}>
@@ -74,7 +76,7 @@ export function TaskRow({ task, selected, onToggle, onOpen, showAssignee, checkL
                 чек-лист {task.checklistDone}/{task.checklistTotal}
               </Pill>
             )}
-            {task.isStageTask && <Pill tone="outline">этап заявки</Pill>}
+            {task.isStageTask && <Pill tone="outline">{task.stageName ? `этап: ${task.stageName}` : 'этап заявки'}</Pill>}
           </span>
         </span>
       </button>
