@@ -277,6 +277,66 @@ export async function closeTasks(
   return { closed, skipped, needConfirm };
 }
 
+/** Убирает уведомления об ошибочной передаче: адресат больше не видит, что задача была у него. */
+export async function retractTransferNotices(db: Db, links: string[], types: string[], since: Date) {
+  await db.query(`DELETE FROM notifications WHERE link = ANY ($1) AND type = ANY ($2) AND created_at >= $3`, [
+    links,
+    types,
+    new Date(since.getTime() - 2000),
+  ]);
+}
+
+/**
+ * «Передал не тому»: открытый шаг, который передал сам сотрудник, заменяется новым адресатом (в цепочке нет ошибочного человека).
+ * Если сотрудник возвращает задачу себе и перед этим она была у него, его прежний шаг открывается снова.
+ * Возвращает ошибочный шаг или null, если исправлять нечего.
+ */
+export async function replaceOpenHandover(
+  db: Db,
+  taskId: number,
+  actorId: number,
+  nextId: number,
+  due: Date,
+  comment: string | null,
+  opts: { requireComment?: boolean } = {},
+) {
+  const wrong = await one<{ id: number; assignee_id: number; assigned_at: Date; comment: string | null }>(
+    `SELECT id, assignee_id, assigned_at, comment FROM task_steps
+      WHERE task_id = $1 AND done_at IS NULL AND from_user_id = $2 AND assignee_id <> $2 ${opts.requireComment ? 'AND comment IS NOT NULL' : ''}
+      ORDER BY id DESC LIMIT 1`,
+    [taskId, actorId],
+    db,
+  );
+  if (!wrong) return null;
+  await db.query(`DELETE FROM task_steps WHERE task_id = $1 AND done_at IS NULL`, [taskId]);
+  const prev =
+    nextId === actorId
+      ? await one<{ id: number; assignee_id: number }>(
+          `SELECT id, assignee_id FROM task_steps WHERE task_id = $1 AND done_at IS NOT NULL ORDER BY id DESC LIMIT 1`,
+          [taskId],
+          db,
+        )
+      : null;
+  if (prev && prev.assignee_id === actorId) {
+    await db.query(`UPDATE task_steps SET done_at = NULL, due_at = $2 WHERE id = $1`, [prev.id, due]);
+  } else {
+    await db.query(`INSERT INTO task_steps (task_id, assignee_id, from_user_id, due_at, comment) VALUES ($1, $2, $3, $4, $5)`, [
+      taskId,
+      nextId,
+      actorId,
+      due,
+      comment ?? wrong.comment,
+    ]);
+  }
+  await db.query(`INSERT INTO transfer_corrections (task_id, actor_id, wrong_user_id, wrong_comment) VALUES ($1, $2, $3, $4)`, [
+    taskId,
+    actorId,
+    wrong.assignee_id,
+    wrong.comment,
+  ]);
+  return wrong;
+}
+
 /** Запрос: подтвердите закрытие просроченной задачи. Получает только тот, кто подтверждает просрочку. */
 export async function requestTaskClose(db: Db, actor: Actor, id: number, comment: string, outbox: Outbox) {
   const t = await one<TaskRow & { overdue: boolean }>(
@@ -379,6 +439,7 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
   if (!t) throw new HttpError(404, 'Задача не найдена');
   if (!canTouchTask(actor, t) && !(await wasHandedOverBy(db, id, actor.id))) throw forbidden();
   if (t.status !== 'open') throw new HttpError(409, 'Задача уже закрыта');
+  if (input.correction) return correctTaskTransfer(db, actor, t, input, outbox);
   // Себе задачу передать можно: так исполнитель переносит свой срок и оставляет запись в цепочке. Другому — только если задача ещё не у него.
   if (input.assigneeId !== actor.id && t.assignee_ids.length === 1 && t.assignee_ids[0] === input.assigneeId) {
     throw new HttpError(400, 'Задача уже у этого сотрудника');
@@ -411,5 +472,43 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
     link: `/tasks?task=${id}`,
   });
   outbox.touch('tasks');
+  return next;
+}
+
+/**
+ * «Передал не тому»: передавший меняет адресата. Ошибочный шаг заменяется (его нет ни в цепочке, ни в уведомлениях),
+ * а не дописывается новым «от ошибочного адресата ко мне».
+ */
+async function correctTaskTransfer(db: Db, actor: Actor, t: TaskRow, input: TransferTaskInput, outbox: Outbox) {
+  const id = t.id;
+  const next = await assertActiveUser(db, input.assigneeId);
+  const due = await normalizeDue(db, input.dueAt);
+  const open = await one<{ assignee_id: number; due_at: Date | null }>(
+    `SELECT assignee_id, due_at FROM task_steps WHERE task_id = $1 AND done_at IS NULL AND from_user_id = $2 AND assignee_id <> $2 AND comment IS NOT NULL ORDER BY id DESC LIMIT 1`,
+    [id, actor.id],
+    db,
+  );
+  if (!open) throw new HttpError(409, 'Исправлять нечего: вы не передавали эту задачу или она уже принята дальше');
+  if (open.assignee_id === input.assigneeId) throw new HttpError(400, 'Задача уже у этого сотрудника');
+  if (open.due_at) await assertDueNotLater(db, actor, open.due_at, due);
+  const wrong = await replaceOpenHandover(db, id, actor.id, next.id, due, input.comment, { requireComment: true });
+  await moveTask(db, id, next.id, due);
+  await retractTransferNotices(db, [`/tasks?task=${id}`], ['task_assigned', 'task_handover'], wrong!.assigned_at);
+  if (next.id !== actor.id) {
+    outbox.add({
+      userId: next.id,
+      type: 'task_assigned',
+      title: `Вам передали задачу: ${t.title}`,
+      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, input.comment].filter(Boolean).join('\n'),
+      link: `/tasks?task=${id}`,
+    });
+    notifyParticipants(outbox, await taskParticipantIds(db, id), [actor.id, next.id], {
+      type: 'task_handover',
+      title: `Задачу передали: ${t.title}`,
+      body: [`От: ${actor.fullName}. Кому: ${next.full_name}.`, `Причина и что сделано: ${input.comment}`].join('\n'),
+      link: `/tasks?task=${id}`,
+    });
+  }
+  outbox.touch('tasks', 'notifications');
   return next;
 }

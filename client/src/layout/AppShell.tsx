@@ -11,6 +11,7 @@ import { ButtonLink, IconButton, cx } from '@/ui/Button';
 import { Avatar, Spinner } from '@/ui/Display';
 import { Sheet } from '@/ui/Sheet';
 import { useIsMobile } from '@/lib/hooks';
+import { useTrail } from '@/lib/trail';
 import { setAppBadgeCount, syncPush } from '@/lib/push';
 import { Brand } from './Brand';
 import { NAV, bottomNav } from './nav';
@@ -35,6 +36,7 @@ export function AppShell() {
   const { can, appName } = useAuth();
   const mobile = useIsMobile();
   const location = useLocation();
+  useTrail();
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);

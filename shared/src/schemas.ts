@@ -315,6 +315,8 @@ export const reassignOrderSchema = z.object({
   responsibleId: id,
   dueAt: isoDate.optional().nullable(),
   comment: reasonText,
+  /** «Передал не тому»: ошибочная передача заменяется в истории и цепочке, а не дописывается. */
+  correction: z.boolean().optional(),
 });
 export type ReassignOrderInput = z.infer<typeof reassignOrderSchema>;
 
@@ -410,6 +412,8 @@ export const transferTaskSchema = z.object({
   assigneeId: id,
   dueAt: isoDate,
   comment: reasonText,
+  /** «Передал не тому»: ошибочная передача заменяется в цепочке, а не дописывается. */
+  correction: z.boolean().optional(),
 });
 export type TransferTaskInput = z.infer<typeof transferTaskSchema>;
 

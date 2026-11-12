@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  ArrowLeft,
   ArrowRight,
   ArrowRightLeft,
   Eye,
@@ -13,6 +12,7 @@ import {
   Phone,
   Printer,
   RotateCcw,
+  Undo2,
   Wrench,
 } from 'lucide-react';
 import { REFILL_OP_LABELS, WORK_KIND_LABELS, formatMoney, formatPhone, type RefillOp } from '@sd/shared';
@@ -20,7 +20,8 @@ import { api, ApiError } from '@/api/http';
 import { useAuth, useMe } from '@/app/auth';
 import { useDictionaries, useInvalidate, useOrder } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
-import { useBack, useDocumentTitle } from '@/lib/hooks';
+import { useDocumentTitle } from '@/lib/hooks';
+import { BackLink } from '@/components/BackLink';
 import { AdvanceSheet, ReassignSheet, ReopenSheet } from '@/components/AdvanceSheet';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
 import { DeviceJournalSheet } from '@/components/DeviceJournalSheet';
@@ -40,7 +41,6 @@ import { DocLink } from '@/components/FileViewer';
 
 export default function OrderPage() {
   const id = Number(useParams().id);
-  const back = useBack('/orders');
   const q = useOrder(id);
   const dict = useDictionaries();
   const me = useMe();
@@ -48,6 +48,7 @@ export default function OrderPage() {
   const inv = useInvalidate();
   const [advanceOpen, setAdvanceOpen] = useState(false);
   const [reassignOpen, setReassignOpen] = useState(false);
+  const [reassignFix, setReassignFix] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
   const [workOpen, setWorkOpen] = useState(false);
@@ -63,7 +64,9 @@ export default function OrderPage() {
 
   const stages = dict.data.stages.filter((st) => st.isActive);
   const isIssued = Boolean(o.issuedAt);
-  const canReassign = !isIssued && (can('orders.assign') || o.responsibleId === me.id || o.handedOverByMe);
+  const canReassign = !isIssued && (can('orders.assign') || o.responsibleId === me.id);
+  // Передал не тому: передавший заменяет адресата, пока заявка у того; это видно всем, кто передавал
+  const canFixHandover = !isIssued && o.handedOverByMe;
   // Картриджам акт не нужен: предупреждения «акта нет» при выдаче им не показываем
   const target = { ...o, hasAct: o.acts.length > 0 || o.device.deviceType === CARTRIDGE_TYPE };
   const history = [...o.history].reverse();
@@ -77,17 +80,7 @@ export default function OrderPage() {
 
   return (
     <div className={s.page}>
-      <Link
-        to="/orders"
-        className={s.back}
-        onClick={(e) => {
-          e.preventDefault();
-          back.goBack();
-        }}
-      >
-        <ArrowLeft size={18} aria-hidden />
-        {back.hasHistory ? 'Назад' : 'Все заявки'}
-      </Link>
+      <BackLink fallback="/orders" fallbackLabel="Все заявки" className={s.back} />
 
       <header className={s.head}>
         <div className={s.headMain}>
@@ -138,9 +131,28 @@ export default function OrderPage() {
             Записать разговор с клиентом
           </Button>
         )}
+        {canFixHandover && (
+          <Button
+            variant="secondary"
+            icon={<Undo2 size={18} aria-hidden />}
+            onClick={() => {
+              setReassignFix(true);
+              setReassignOpen(true);
+            }}
+          >
+            Передал не тому
+          </Button>
+        )}
         {canReassign && (
-          <Button variant="secondary" icon={<ArrowRightLeft size={18} aria-hidden />} onClick={() => setReassignOpen(true)}>
-            {o.handedOverByMe && o.responsibleId !== me.id && !can('orders.assign') ? 'Передал не тому: передать заново' : 'Передать'}
+          <Button
+            variant="secondary"
+            icon={<ArrowRightLeft size={18} aria-hidden />}
+            onClick={() => {
+              setReassignFix(false);
+              setReassignOpen(true);
+            }}
+          >
+            Передать
           </Button>
         )}
         {o.canReopen && (
@@ -462,7 +474,7 @@ export default function OrderPage() {
       </div>
 
       <AdvanceSheet order={advanceOpen ? target : null} next={o.nextStage} onClose={() => setAdvanceOpen(false)} />
-      <ReassignSheet order={reassignOpen ? target : null} onClose={() => setReassignOpen(false)} />
+      <ReassignSheet order={reassignOpen ? target : null} correction={reassignFix} onClose={() => setReassignOpen(false)} />
       <ReopenSheet order={reopenOpen ? target : null} onClose={() => setReopenOpen(false)} />
       <DeviceJournalSheet device={journalOpen ? o.device : null} orderId={o.id} onClose={() => setJournalOpen(false)} />
       <WorkSheet

@@ -14,7 +14,18 @@ import type { Outbox } from '../notify/notify';
 import { createClient, replaceFleet } from './clients';
 import { getWorkSettings } from './settings';
 import { DEVICE_TITLE } from './sql';
-import { assertActiveUser, assertDueNotLater, closeTasks, createTask, moveTask, normalizeDue, notifyParticipants, type Actor } from './tasks';
+import {
+  assertActiveUser,
+  assertDueNotLater,
+  closeTasks,
+  createTask,
+  moveTask,
+  normalizeDue,
+  notifyParticipants,
+  replaceOpenHandover,
+  retractTransferNotices,
+  type Actor,
+} from './tasks';
 import { defaultDue, formatDateTimeRu } from './workTime';
 
 export async function activeStages(db: Db): Promise<Stage[]> {
@@ -418,9 +429,101 @@ export async function advanceOrder(db: Db, actor: Actor, orderId: number, input:
   return next;
 }
 
+/**
+ * «Передал не тому»: передавший меняет адресата. Запись об ошибочной передаче заменяется (её нет ни в истории, ни в цепочке задачи
+ * этапа, ни в уведомлениях), а не дописывается. Возврат себе открывает прежнюю запись истории.
+ */
+async function correctOrderReassign(db: Db, actor: Actor, order: OrderRow, input: ReassignOrderInput, outbox: Outbox) {
+  const orderId = order.id;
+  const h = await one<{ id: number; kind: string; responsible_id: number; started_at: Date; due_at: Date | null }>(
+    `SELECT id, kind, responsible_id, started_at, due_at FROM order_history
+      WHERE order_id = $1 AND finished_at IS NULL AND from_user_id = $2 AND responsible_id <> $2 ORDER BY id DESC LIMIT 1`,
+    [orderId, actor.id],
+    db,
+  );
+  if (!h) throw new HttpError(409, 'Исправлять нечего: вы не передавали эту заявку или она уже принята дальше');
+  if (h.responsible_id === input.responsibleId) throw new HttpError(400, 'Заявка уже у этого сотрудника');
+  const stage = await one<{ is_final: boolean; name: string }>('SELECT is_final, name FROM stages WHERE id = $1', [order.stage_id], db);
+  if (stage?.is_final) throw new HttpError(409, 'Заявка уже выдана');
+  const responsible = await assertActiveUser(db, input.responsibleId);
+  const due = input.dueAt ? await normalizeDue(db, input.dueAt) : h.due_at;
+  if (!due) throw new HttpError(400, 'Укажите срок');
+  if (h.due_at) await assertDueNotLater(db, actor, h.due_at, due);
+
+  let reverted = false;
+  if (h.kind === 'transfer' && responsible.id === actor.id) {
+    const prev = await one<{ id: number; responsible_id: number | null }>(
+      `SELECT id, responsible_id FROM order_history WHERE order_id = $1 AND id < $2 ORDER BY id DESC LIMIT 1`,
+      [orderId, h.id],
+      db,
+    );
+    if (prev && prev.responsible_id === actor.id) {
+      await db.query('DELETE FROM order_history WHERE id = $1', [h.id]);
+      await db.query('UPDATE order_history SET finished_at = NULL, due_at = $2 WHERE id = $1', [prev.id, due]);
+      reverted = true;
+    }
+  }
+  if (!reverted) {
+    await db.query(
+      `UPDATE order_history SET responsible_id = $2, due_at = $3,
+              comment = CASE WHEN kind = 'transfer' THEN $4 ELSE comment END,
+              started_at = CASE WHEN kind = 'transfer' THEN now() ELSE started_at END
+        WHERE id = $1`,
+      [h.id, responsible.id, due, input.comment],
+    );
+  }
+  await db.query(`UPDATE orders SET responsible_id = $2, stage_due_at = $3, updated_at = now() WHERE id = $1`, [orderId, responsible.id, due]);
+  await db.query(`INSERT INTO transfer_corrections (order_id, actor_id, wrong_user_id, wrong_comment) VALUES ($1, $2, $3, $4)`, [
+    orderId,
+    actor.id,
+    h.responsible_id,
+    null,
+  ]);
+
+  const task = await one<{ id: number }>(
+    `SELECT id FROM tasks WHERE order_id = $1 AND stage_id = $2 AND status = 'open' ORDER BY id DESC LIMIT 1`,
+    [orderId, order.stage_id],
+    db,
+  );
+  const links = [`/orders/${orderId}`];
+  if (task) {
+    links.push(`/tasks?task=${task.id}`);
+    const done = await replaceOpenHandover(db, task.id, actor.id, responsible.id, due, h.kind === 'transfer' ? input.comment : null);
+    if (!done) {
+      await db.query(`UPDATE task_steps SET assignee_id = $2, due_at = $3 WHERE task_id = $1 AND done_at IS NULL`, [task.id, responsible.id, due]);
+    }
+    await moveTask(db, task.id, responsible.id, due);
+  }
+  await retractTransferNotices(
+    db,
+    links,
+    ['order_assigned', 'order_handover', 'order_stage', 'task_assigned', 'task_handover'],
+    h.started_at,
+  );
+
+  if (responsible.id !== actor.id) {
+    const title = await deviceTitle(db, order.device_id);
+    outbox.add({
+      userId: responsible.id,
+      type: 'order_assigned',
+      title: `Вам передали заявку №${order.number}`,
+      body: [`${stage?.name}: ${title}. От: ${actor.fullName}.`, `Срок — ${formatDateTimeRu(due)}.`, input.comment].filter(Boolean).join('\n'),
+      link: `/orders/${orderId}`,
+    });
+    notifyParticipants(outbox, await orderParticipantIds(db, orderId), [actor.id, responsible.id], {
+      type: 'order_handover',
+      title: `Заявку №${order.number} передали`,
+      body: [`${title}. От: ${actor.fullName}. Кому: ${responsible.full_name}.`, `Причина и что сделано: ${input.comment}`].join('\n'),
+      link: `/orders/${orderId}`,
+    });
+  }
+  outbox.touch('orders', 'tasks', 'dashboard', 'notifications');
+}
+
 /** Передача заявки другому сотруднику без смены этапа (например, диагност → мастер). */
 export async function reassignOrder(db: Db, actor: Actor, orderId: number, input: ReassignOrderInput, outbox: Outbox) {
   const order = await lockOrder(db, orderId);
+  if (input.correction) return correctOrderReassign(db, actor, order, input, outbox);
   // Передавший заявку тоже может исправить адресата, пока она у того, кому он её отдал
   const handedOverByActor = Boolean(
     await one(

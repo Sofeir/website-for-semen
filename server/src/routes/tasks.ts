@@ -407,7 +407,9 @@ tasksRouter.post(
       );
       if (!t) throw new HttpError(404, 'Задача не найдена');
       const due = await normalizeDue(db, input.dueAt);
-      if (input.assigneeId === req.user!.id) {
+      if (input.correction) {
+        // «Передал не тому»: срок и права проверяет само исправление
+      } else if (input.assigneeId === req.user!.id) {
         // Себе передать может любой. Срок при этом можно сдвинуть, пока он не прошёл; у просроченной задачи срок согласует директор.
         if (t.status === 'open' && t.due_at.getTime() < Date.now() && !(await canConfirmOverdue(db, req.user!.id))) {
           await requestTaskExtension(db, req.user!, id, due, input.comment, outbox);
@@ -426,7 +428,7 @@ tasksRouter.post(
           db,
           req.user!,
           t.order_id!,
-          { responsibleId: input.assigneeId, dueAt: input.dueAt, comment: input.comment },
+          { responsibleId: input.assigneeId, dueAt: input.dueAt, comment: input.comment, correction: input.correction },
           outbox,
         );
       } else {

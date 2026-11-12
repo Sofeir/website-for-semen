@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BellRing, Volume2 } from 'lucide-react';
-import { api, ApiError } from '@/api/http';
+import { ApiError } from '@/api/http';
 import { disablePush, enablePush, pushState, type PushState } from '@/lib/push';
 import { playNotifySound, setSoundEnabled, soundEnabled } from '@/lib/sound';
 import { Button } from '@/ui/Button';
@@ -39,22 +39,10 @@ export function PushCard() {
     try {
       const next = state === 'on' ? await disablePush() : await enablePush();
       setState(next);
-      if (next === 'on') toast.success('Уведомления включены', 'Проверьте их кнопкой «Прислать пробное»');
+      if (next === 'on') toast.success('Уведомления включены');
       if (next === 'denied') toast.error('Разрешение не выдано', 'Разрешите уведомления для сайта в настройках');
     } catch (e) {
       toast.error('Не получилось', (e as ApiError).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const test = async () => {
-    setBusy(true);
-    try {
-      const r = await api.post<{ devices: number; sent: number }>('/push/test');
-      if (!r.sent) toast.error('Не дошло', 'Устройство не отвечает. Выключите и включите уведомления заново.');
-    } catch (e) {
-      toast.error('Не дошло', (e as ApiError).message);
     } finally {
       setBusy(false);
     }
@@ -76,11 +64,6 @@ export function PushCard() {
             <Button variant={state === 'on' ? 'secondary' : 'primary'} size="sm" loading={busy} onClick={toggle}>
               {state === 'on' ? 'Выключить' : 'Включить уведомления'}
             </Button>
-            {state === 'on' && (
-              <Button variant="secondary" size="sm" loading={busy} onClick={test}>
-                Прислать пробное
-              </Button>
-            )}
           </div>
         )}
         <div className="row wrap">

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, FileDown, Plus, Save, Search, Trash2 } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { FileDown, Plus, Save, Search, Trash2 } from 'lucide-react';
 import { actTotal, formatMoney, type ActItem } from '@sd/shared';
 import { useAuth } from '@/app/auth';
 import { api, ApiError } from '@/api/http';
 import { useAct, useDictionaries, useInvalidate, useOrder, useSaveAct } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
 import { useDocumentTitle } from '@/lib/hooks';
+import { BackLink } from '@/components/BackLink';
 import { Button, IconButton, cx } from '@/ui/Button';
 import { Card, CardHead, ErrorBox, NumberTag, Spinner } from '@/ui/Display';
 import { Checkbox, Field, Input, Select, Textarea } from '@/ui/Form';
@@ -126,10 +127,7 @@ export default function ActPage() {
 
   return (
     <div className={s.page}>
-      <Link to={`/orders/${orderId}`} className={s.back}>
-        <ArrowLeft size={18} aria-hidden />
-        Заявка №{o.number}
-      </Link>
+      <BackLink fallback={`/orders/${orderId}`} fallbackLabel={`Заявка №${o.number}`} className={s.back} />
       <header className={s.head}>
         <div className={s.headTags}>
           {act.data && <NumberTag>{act.data.number}</NumberTag>}

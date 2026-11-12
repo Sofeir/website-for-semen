@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeft,
   Building2,
   CalendarCheck,
   FileText,
@@ -24,6 +23,7 @@ import { useClient, useContacts, useInvalidate } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
 import { useDocumentTitle } from '@/lib/hooks';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
+import { BackLink } from '@/components/BackLink';
 import { ClientFormSheet } from '@/components/ClientFormSheet';
 import { ContactFormSheet, contactLine } from '@/components/ContactPicker';
 import { DeviceAddSheet } from '@/components/DeviceAddSheet';
@@ -143,10 +143,7 @@ export default function ClientPage() {
 
   return (
     <div>
-      <Link to="/clients" className={s.back}>
-        <ArrowLeft size={18} aria-hidden />
-        Все клиенты
-      </Link>
+      <BackLink fallback="/clients" fallbackLabel="Все клиенты" className={s.back} />
 
       <header className={s.head}>
         <span className={s.avatar}>{legal ? <Building2 aria-hidden /> : <UserRound aria-hidden />}</span>

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Download, LineChart, TrendingDown, TrendingUp, Minus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LineChart, TrendingDown, TrendingUp, Minus } from 'lucide-react';
 import { WORK_KIND_LABELS, REFILL_OP_LABELS, type Analytics, type AnalyticsMaster, type AnalyticsTotals, type RefillOp } from '@sd/shared';
 import { useAnalytics, useMasterWorks } from '@/api/queries';
 import { fmtWhen } from '@/lib/dates';
@@ -9,7 +9,7 @@ import { Avatar, Card, CardHead, EmptyState, ErrorBox, PageHeader, Pill, Plate, 
 import { Button, IconButton, cx } from '@/ui/Button';
 import { Segmented } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
-import { downloadCsv, label, monthShift, thisMonth } from './reportUtils';
+import { label, monthShift, thisMonth } from './reportUtils';
 import s from './Analytics.module.css';
 
 type MetricKey = keyof AnalyticsTotals;
@@ -471,20 +471,6 @@ function Clients({ a }: { a: Analytics }) {
   );
 }
 
-function analyticsCsv(a: Analytics): (string | number)[][] {
-  const rows: (string | number)[][] = [['Показатель', label(a.month), label(a.compare)]];
-  for (const m of METRICS) rows.push([m.label, m.fmt(a.current[m.key]), m.fmt(a.previous[m.key])]);
-  rows.push([], ['Динамика по месяцам', 'Заявок', 'Ремонтов', 'Без ремонта', 'Картриджей', 'Выездов', 'Выручка, руб.']);
-  for (const p of a.trend) rows.push([label(p.month), p.requests, p.repaired, p.declined, p.refills, p.visits, Math.round(p.revenue)]);
-  rows.push([], ['Инженер', 'Должность', 'Работ', 'Заявок', 'Картриджей', 'Выездов', 'Выручка, руб.']);
-  for (const m of a.masters) rows.push([m.name, m.position ?? '', m.works, m.orders, m.refills, m.visits, Math.round(m.revenue)]);
-  rows.push([], ['Техника', 'Клиент', 'Работ', 'Выручка, руб.', 'Замен раньше срока']);
-  for (const d of a.devices) rows.push([`${d.inventoryNo ? d.inventoryNo + ' ' : ''}${d.title}`, d.clientName, d.works, Math.round(d.revenue), d.early]);
-  rows.push([], ['Клиент', 'Заявок за период', 'Заявок всего', 'Выручка, руб.']);
-  for (const c of a.clients) rows.push([c.name, c.requests, c.allTime, Math.round(c.revenue)]);
-  return rows;
-}
-
 /**
  * Аналитика для руководителя: что изменилось к прошлому месяцу, как шёл год, кто сколько сделал,
  * какая техника дорого обходится и где детали меняют раньше срока. Деньги берутся из сумм в журнале работ.
@@ -519,11 +505,6 @@ export default function AnalyticsPage() {
       <PageHeader
         title="Аналитика"
         subtitle="Итоги месяца и сравнение с другим месяцем, работа сотрудников, расходы на технику, клиенты. Суммы берутся из записей работ."
-        actions={
-          <Button variant="secondary" icon={<Download size={18} aria-hidden />} onClick={() => a && ready && downloadCsv(`analitika-${a.month}.csv`, analyticsCsv(a))} disabled={!a || !ready}>
-            Скачать CSV
-          </Button>
-        }
       />
 
       <div className={s.bar}>

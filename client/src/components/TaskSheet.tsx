@@ -84,6 +84,8 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   const transfer = useTransferTask(taskId ?? 0);
   useMarkSeen(taskId ? `/tasks?task=${taskId}` : null);
   const [mode, setMode] = useState<Mode>('view');
+  /** «Передал не тому»: ошибочная передача заменяется, а не дописывается. */
+  const [fixing, setFixing] = useState(false);
   const [comment, setComment] = useState('');
   const [assignee, setAssignee] = useState('');
   const [due, setDue] = useState('');
@@ -108,6 +110,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
 
   useEffect(() => {
     setMode('view');
+    setFixing(false);
     setComment('');
     setAssignee('');
     setError('');
@@ -159,9 +162,15 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
     if (!assignee) return setError('Выберите, кому передать');
     if (comment.trim().length < 3) return setError('Напишите причину передачи и что уже сделано');
     try {
-      const r = await transfer.mutateAsync({ assigneeId: Number(assignee), dueAt: me.confirmsOverdue || toSelf ? due : task!.dueAt, comment: comment.trim() });
+      const r = await transfer.mutateAsync({
+        assigneeId: Number(assignee),
+        dueAt: me.confirmsOverdue || toSelf ? due : task!.dueAt,
+        comment: comment.trim(),
+        correction: fixing || undefined,
+      });
       if (r.requested) toast.success('Запрос отправлен', 'Задача просрочена: срок согласует директор, он получил уведомление');
-      else toast.success(toSelf ? 'Срок обновлён' : 'Задача передана');
+      else toast.success(fixing ? 'Передача исправлена' : toSelf ? 'Срок обновлён' : 'Задача передана');
+      setFixing(false);
       setMode('view');
       setComment('');
     } catch (e) {
@@ -241,8 +250,15 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
           </Button>
         </>
       ) : (
-        <Button variant="secondary" icon={<ArrowRightLeft size={18} aria-hidden />} onClick={() => setMode('transfer')}>
-          Передал не тому: передать заново
+        <Button
+          variant="secondary"
+          icon={<Undo2 size={18} aria-hidden />}
+          onClick={() => {
+            setFixing(true);
+            setMode('transfer');
+          }}
+        >
+          Передал не тому
         </Button>
       );
   } else if (task && canTouch) {
@@ -268,11 +284,25 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
             </ButtonLink>
           )}
           {canFix && (
-            <Button variant="secondary" icon={<Undo2 size={18} aria-hidden />} onClick={() => setMode('transfer')}>
+            <Button
+              variant="secondary"
+              icon={<Undo2 size={18} aria-hidden />}
+              onClick={() => {
+                setFixing(true);
+                setMode('transfer');
+              }}
+            >
               Передал не тому
             </Button>
           )}
-          <Button variant="secondary" icon={<ArrowRightLeft size={18} aria-hidden />} onClick={() => setMode('transfer')}>
+          <Button
+            variant="secondary"
+            icon={<ArrowRightLeft size={18} aria-hidden />}
+            onClick={() => {
+              setFixing(false);
+              setMode('transfer');
+            }}
+          >
             Передать
           </Button>
           {needsManager ? (
@@ -289,7 +319,13 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
     } else {
       footer = (
         <>
-          <Button variant="secondary" onClick={() => setMode('view')}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setFixing(false);
+              setMode('view');
+            }}
+          >
             Назад
           </Button>
           {mode === 'close' ? (
@@ -395,8 +431,11 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
             )}
             {mode === 'transfer' && (
               <>
-                {(canFix || canRedirect) && (
-                  <p className="muted">Сейчас задача у: {task.assigneeName}. Выберите, кому передать вместо него.</p>
+                {fixing && (
+                  <p className="muted">
+                    Сейчас задача у: {task.assigneeName}. Выберите, кому передать вместо него. Записи о прежней передаче не останется: в цепочке и
+                    уведомлениях её заменит новая.
+                  </p>
                 )}
                 <Field label="Кому передать">
                   <UserSelect value={assignee} onChange={(e) => setAssignee(e.target.value)} data-autofocus />

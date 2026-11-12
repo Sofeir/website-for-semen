@@ -8,7 +8,7 @@ import { Button, IconButton, cx } from '@/ui/Button';
 import { EmptyState, ErrorBox, PageHeader, Plate, Spinner } from '@/ui/Display';
 import { Segmented } from '@/ui/Form';
 import { ClientReportSheet } from './ClientReportSheet';
-import { downloadCsv, label, monthShift, thisMonth } from './reportUtils';
+import { label, monthShift, thisMonth } from './reportUtils';
 import s from './ReportsPage.module.css';
 
 type Scope = 'all' | 'legal' | 'person';
@@ -130,14 +130,6 @@ export default function ReportsPage() {
                 Картриджи и ремонты, Excel
               </Button>
             )}
-            <Button
-              variant="secondary"
-              icon={<Download size={18} aria-hidden />}
-              onClick={() => report && downloadCsv(`otchet-${month}.csv`, reportCsv(report, scope))}
-              disabled={!report}
-            >
-              Скачать CSV
-            </Button>
           </>
         }
       />
@@ -267,10 +259,3 @@ export default function ReportsPage() {
   );
 }
 
-function reportCsv(report: MonthlyReport, scope: Scope) {
-  const head = ['Клиент', 'Тип', 'Принято заявок', 'Ремонтов', 'Без ремонта', 'Картриджей', 'Выездов'];
-  const rows = report.rows
-    .filter((r) => scope === 'all' || r.kind === scope)
-    .map((r) => [r.clientName, r.kind === 'legal' ? 'Юрлицо' : 'Физлицо', r.accepted, r.repaired, r.declined, r.refills, r.visits]);
-  return [head, ...rows];
-}

@@ -187,7 +187,7 @@ export function AdvanceSheet({
 }
 
 /** Передача заявки другому сотруднику на том же этапе (диагност → мастер). */
-export function ReassignSheet({ order, onClose }: { order: AdvanceTarget | null; onClose: () => void }) {
+export function ReassignSheet({ order, onClose, correction = false }: { order: AdvanceTarget | null; onClose: () => void; correction?: boolean }) {
   const settings = useSettings();
   const toast = useToast();
   const reassign = useReassignOrder(order?.id ?? 0);
@@ -209,8 +209,8 @@ export function ReassignSheet({ order, onClose }: { order: AdvanceTarget | null;
     if (!responsible) return setError('Выберите, кому передать');
     if (comment.trim().length < 3) return setError('Напишите причину передачи и что уже сделано');
     try {
-      await reassign.mutateAsync({ responsibleId: Number(responsible), dueAt: due, comment: comment.trim() });
-      toast.success(`Заявка №${order!.number} передана`);
+      await reassign.mutateAsync({ responsibleId: Number(responsible), dueAt: due, comment: comment.trim(), correction: correction || undefined });
+      toast.success(correction ? `Заявка №${order!.number}: передача исправлена` : `Заявка №${order!.number} передана`);
       onClose();
     } catch (e) {
       setError((e as ApiError).message);
@@ -221,8 +221,13 @@ export function ReassignSheet({ order, onClose }: { order: AdvanceTarget | null;
     <Sheet
       open={Boolean(order)}
       onClose={onClose}
-      title="Передать другому сотруднику"
-      subtitle={order && `№${order.number}, этап «${order.stageName}» не меняется`}
+      title={correction ? 'Передал не тому: выберите другого' : 'Передать другому сотруднику'}
+      subtitle={
+        order &&
+        (correction
+          ? `№${order.number}. Записи о прежней передаче не останется: в истории и уведомлениях её заменит новая`
+          : `№${order.number}, этап «${order.stageName}» не меняется`)
+      }
       width={520}
       footer={
         <>

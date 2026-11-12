@@ -28,18 +28,17 @@ export async function loadMonthWorks(range: { from: Date; to: Date }, clientId?:
   );
 }
 
-/** «ТК-1150 - 2 шт (замена ролика)»: картриджи всегда с количеством, остальное — когда штук больше одной. */
-export function workLine(w: Pick<MonthWork, 'kind' | 'title' | 'qty' | 'ops'>): string {
+/** «ТК-1150 - 2 шт»: картриджи всегда с количеством, остальное — когда штук больше одной. Названия операций (refill, chip и т.п.) в выгрузку не попадают. */
+export function workLine(w: Pick<MonthWork, 'kind' | 'title' | 'qty'>): string {
   const qty = w.kind === 'refill' || w.qty > 1 ? ` - ${w.qty} шт` : '';
-  const ops = w.ops.length ? ` (${w.ops.join(', ')})` : '';
-  return `${w.title.trim()}${qty}${ops}`;
+  return `${w.title.trim()}${qty}`;
 }
 
-/** Одинаковые работы (то же название и те же операции) складываются в одну запись с суммарным количеством. */
+/** Одинаковые работы (то же название) складываются в одну запись с суммарным количеством. */
 export function groupWorks(works: MonthWork[]): MonthWork[] {
   const map = new Map<string, MonthWork>();
   for (const w of works) {
-    const key = [w.kind, w.title.trim().toLowerCase(), [...w.ops].sort().join('|')].join('\u0000');
+    const key = [w.kind, w.title.trim().toLowerCase()].join('\u0000');
     const prev = map.get(key);
     if (prev) {
       prev.qty += w.qty;

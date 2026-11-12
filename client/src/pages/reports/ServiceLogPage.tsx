@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, Truck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Truck } from 'lucide-react';
 import { useServiceLog } from '@/api/queries';
-import { useBack, useDocumentTitle } from '@/lib/hooks';
+import { useDocumentTitle } from '@/lib/hooks';
+import { BackLink } from '@/components/BackLink';
 import { fmtDate } from '@/lib/dates';
 import { Button, IconButton } from '@/ui/Button';
 import { Card, EmptyState, ErrorBox, PageHeader, Pill, Spinner } from '@/ui/Display';
 import { Segmented } from '@/ui/Form';
-import { downloadCsv, label, monthShift, thisMonth } from './reportUtils';
+import { label, monthShift, thisMonth } from './reportUtils';
 import r from './ReportsPage.module.css';
 import s from './ServiceLogPage.module.css';
 
@@ -25,7 +26,6 @@ export default function ServiceLogPage() {
   const [month, setMonth] = useState(thisMonth);
   const [year, setYear] = useState(new Date().getFullYear());
   const key = period === 'month' ? `month=${month}` : `year=${year}`;
-  const back = useBack('/reports');
   const q = useServiceLog(key);
   const log = q.data;
 
@@ -35,35 +35,12 @@ export default function ServiceLogPage() {
 
   const step = (n: number) => (period === 'month' ? setMonth(monthShift(month, n)) : setYear(year + n));
 
-  const csv = () => {
-    if (!log) return;
-    const rows: (string | number)[][] = [['Дата', 'Клиент', 'Вид', 'Задача', 'Кто проводил']];
-    for (const i of log.items) rows.push([fmtDate(i.doneAt), i.clientName ?? '', MODE_LABEL[i.mode], i.title, i.performers]);
-    rows.push([], ['Выездов', log.totals.onsite], ['Удалённо', log.totals.remote]);
-    downloadCsv(`obsluzhivanie-${period === 'month' ? month : year}.csv`, rows);
-  };
-
   return (
     <>
-      <Link
-        to="/reports"
-        className={s.back}
-        onClick={(e) => {
-          e.preventDefault();
-          back.goBack();
-        }}
-      >
-        <ArrowLeft size={18} aria-hidden />
-        {back.hasHistory ? 'Назад' : 'Все отчёты'}
-      </Link>
+      <BackLink fallback="/reports" fallbackLabel="Все отчёты" className={s.back} />
       <PageHeader
         title="Выезды и удалённое обслуживание"
         subtitle="Когда и к кому ездили, кого обслуживали удалённо. Датой считается день, когда задачу закрыли."
-        actions={
-          <Button variant="secondary" icon={<Download size={18} aria-hidden />} onClick={csv} disabled={!log}>
-            Скачать CSV
-          </Button>
-        }
       />
 
       <div className={r.bar}>
