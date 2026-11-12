@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Building2,
+  GitMerge,
   CalendarCheck,
   FileText,
   Mail,
@@ -24,6 +25,7 @@ import { fmtWhen } from '@/lib/dates';
 import { useDocumentTitle } from '@/lib/hooks';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
 import { BackLink } from '@/components/BackLink';
+import { MergeClientSheet } from '@/components/MergeClientSheet';
 import { ClientFormSheet } from '@/components/ClientFormSheet';
 import { ContactFormSheet, contactLine } from '@/components/ContactPicker';
 import { DeviceAddSheet } from '@/components/DeviceAddSheet';
@@ -54,6 +56,7 @@ export default function ClientPage() {
   const confirm = useConfirm();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [params] = useSearchParams();
   const [tab, setTab] = useState<Tab>(params.get('tab') === 'service' ? 'service' : 'orders');
   const [taskId, setTaskId] = useState<number | null>(null);
@@ -213,12 +216,18 @@ export default function ClientPage() {
             </Button>
           )}
           {can('clients.edit') && (
+            <Button variant="secondary" icon={<GitMerge size={18} aria-hidden />} onClick={() => setMerging(true)}>
+              Перенести всё в другую организацию
+            </Button>
+          )}
+          {can('clients.edit') && (
             <Button variant="danger" icon={<Trash2 size={18} aria-hidden />} onClick={removeClient}>
               Удалить
             </Button>
           )}
         </div>
       </header>
+      <MergeClientSheet open={merging} onClose={() => setMerging(false)} from={{ id: c.id, name: c.name }} />
 
       <div className={s.tabs}>
         <Tabs label="Разделы карточки" items={tabs} value={tab} onChange={setTab} />
