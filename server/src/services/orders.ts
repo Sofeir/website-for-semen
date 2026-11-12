@@ -13,10 +13,11 @@ import { forbidden, HttpError } from '../lib/http';
 import type { Outbox } from '../notify/notify';
 import { createClient, replaceFleet } from './clients';
 import { getWorkSettings } from './settings';
-import { DEVICE_TITLE } from './sql';
+import { DEVICE_TITLE, TASK_AWAITING_ISSUE } from './sql';
 import {
   assertActiveUser,
   assertDueNotLater,
+  canConfirmOverdue,
   closeTasks,
   createTask,
   moveTask,
@@ -303,7 +304,31 @@ async function lockOrder(db: Db, id: number) {
   return o;
 }
 
-export async function advanceOrder(db: Db, actor: Actor, orderId: number, input: AdvanceOrderInput, outbox: Outbox) {
+/**
+ * Что должно быть сделано, чтобы закрыть этап. Ремонт закрывают только с записанной работой, согласование (если клиент не отказался) —
+ * с согласованными сроком и суммой. В ответе есть `need`: по нему экран подсвечивает нужное место.
+ */
+async function assertStageReady(db: Db, orderId: number, code: string | undefined, declined: boolean) {
+  if (code === 'repair') {
+    const w = await one('SELECT 1 FROM device_works WHERE order_id = $1 LIMIT 1', [orderId], db);
+    if (!w) throw new HttpError(409, 'Сначала запишите, какая работа сделана: без записи ремонт закрыть нельзя', { need: 'works' });
+  }
+  if (code === 'approval' && !declined) {
+    const o = await one<{ agreed_term: string | null; agreed_sum: string | null }>('SELECT agreed_term, agreed_sum FROM orders WHERE id = $1', [orderId], db);
+    if (!o?.agreed_term?.trim() || o.agreed_sum == null) {
+      throw new HttpError(409, 'Впишите срок и сумму, которые согласовали с клиентом: без них согласование закрыть нельзя', { need: 'agreed' });
+    }
+  }
+}
+
+export async function advanceOrder(
+  db: Db,
+  actor: Actor,
+  orderId: number,
+  input: AdvanceOrderInput,
+  outbox: Outbox,
+  opts: { skipChecks?: boolean } = {},
+) {
   const order = await lockOrder(db, orderId);
   const stages = await activeStages(db);
   const current = stages.find((s) => s.id === order.stage_id);
@@ -324,6 +349,7 @@ export async function advanceOrder(db: Db, actor: Actor, orderId: number, input:
     throw new HttpError(409, `Этапы идут строго по порядку: следующий — «${next.name}».`, { nextStageId: next.id });
   }
   if (!canAdvanceOrder(actor, order)) throw forbidden('Перевести заявку может ответственный или руководитель');
+  if (!opts.skipChecks) await assertStageReady(db, orderId, current?.code, Boolean(input.declined));
 
   const responsible = await assertActiveUser(db, input.responsibleId);
   const ws = await getWorkSettings(db);
@@ -448,7 +474,15 @@ async function correctOrderReassign(db: Db, actor: Actor, order: OrderRow, input
   const responsible = await assertActiveUser(db, input.responsibleId);
   const due = input.dueAt ? await normalizeDue(db, input.dueAt) : h.due_at;
   if (!due) throw new HttpError(400, 'Укажите срок');
-  if (h.due_at) await assertDueNotLater(db, actor, h.due_at, due);
+  // Срок сверяется с нынешним сроком этапа, как при обычной передаче: исправление не даёт обойти правило продления.
+  const currentDue = await one<{ d: Date | null }>(
+    `SELECT coalesce((SELECT t.due_at FROM tasks t WHERE t.order_id = o.id AND t.stage_id = o.stage_id AND t.status = 'open' ORDER BY t.id DESC LIMIT 1), o.stage_due_at) AS d
+       FROM orders o WHERE o.id = $1`,
+    [orderId],
+    db,
+  );
+  const selfBeforeDue = input.responsibleId === actor.id && !!currentDue?.d && currentDue.d.getTime() >= Date.now();
+  if (currentDue?.d && !selfBeforeDue) await assertDueNotLater(db, actor, currentDue.d, due);
 
   let reverted = false;
   if (h.kind === 'transfer' && responsible.id === actor.id) {
@@ -519,6 +553,63 @@ async function correctOrderReassign(db: Db, actor: Actor, order: OrderRow, input
   }
   outbox.touch('orders', 'tasks', 'dashboard', 'notifications');
 }
+
+/**
+ * Закрытие задач этапа само двигает заявку на следующий этап: ответственный остаётся прежним, срок по умолчанию.
+ * Согласование (нужно «Согласовано» или «Отказ») и выдача (нужна отметка «техника возвращена») закрываются только в окне этапа.
+ * Задачи, которые не относятся к текущему этапу заявки, закрываются как обычные: это делает вызывающий код.
+ */
+export async function closeStageTasks(db: Db, actor: Actor, ids: number[], comment: string | null, outbox: Outbox) {
+  const advanced: number[] = [];
+  const needConfirm: number[] = [];
+  const blocked: { id: number; message: string; need?: string }[] = [];
+  const rows = await many<{ id: number; order_id: number; stage_id: number; overdue: boolean }>(
+    `SELECT t.id, t.order_id, t.stage_id, ((t.due_at < now() OR t.was_overdue) AND NOT ${TASK_AWAITING_ISSUE}) AS overdue
+       FROM tasks t JOIN orders o ON o.id = t.order_id
+      WHERE t.id = ANY ($1) AND t.status = 'open' AND t.stage_id IS NOT NULL AND o.stage_id = t.stage_id ORDER BY t.id`,
+    [ids],
+    db,
+  );
+  if (!rows.length) return { advanced, needConfirm, blocked, live: new Set<number>() };
+  const stages = await activeStages(db);
+  const confirms = await canConfirmOverdue(db, actor.id);
+  for (const t of rows) {
+    const order = await lockOrder(db, t.order_id);
+    // заявку уже подвинули прошлой задачей из этой же пачки
+    if (order.stage_id !== t.stage_id) {
+      advanced.push(t.id);
+      continue;
+    }
+    const current = stages.find((s) => s.id === order.stage_id);
+    const next = nextStageFor(stages, order.stage_id, await deviceTypeName(db, order.device_id));
+    if (!canTouchOrderTask(actor, order)) {
+      blocked.push({ id: t.id, message: 'Перевести заявку может ответственный или руководитель' });
+    } else if (t.overdue && !confirms) {
+      needConfirm.push(t.id);
+    } else if (current?.code === 'approval') {
+      blocked.push({ id: t.id, message: 'Согласование закрывается кнопками «Согласовано» или «Отказ» в окне задачи', need: 'decision' });
+    } else if (!next || next.isFinal) {
+      blocked.push({ id: t.id, message: 'Выдачу закрывают в окне задачи: отметьте, что техника возвращена клиенту', need: 'issue' });
+    } else {
+      try {
+        await advanceOrder(
+          db,
+          actor,
+          order.id,
+          { toStageId: next.id, responsibleId: order.responsible_id ?? actor.id, dueAt: null, comment, estimatedCost: null, declined: false },
+          outbox,
+        );
+        advanced.push(t.id);
+      } catch (e) {
+        if (!(e instanceof HttpError)) throw e;
+        blocked.push({ id: t.id, message: e.message, need: typeof e.extra?.need === 'string' ? e.extra.need : undefined });
+      }
+    }
+  }
+  return { advanced, needConfirm, blocked, live: new Set(rows.map((r) => r.id)) };
+}
+
+const canTouchOrderTask = canAdvanceOrder;
 
 /** Передача заявки другому сотруднику без смены этапа (например, диагност → мастер). */
 export async function reassignOrder(db: Db, actor: Actor, orderId: number, input: ReassignOrderInput, outbox: Outbox) {

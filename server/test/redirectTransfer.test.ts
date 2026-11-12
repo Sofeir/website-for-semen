@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pool } from '../src/db/pool';
-import { dict, inDays, intakeLaptop, loginAs, resetDb } from './helpers';
+import { dict, inDays, intakeLaptop, loginAs, resetDb, satisfyStageChecks } from './helpers';
 
 beforeAll(resetDb);
 afterAll(() => pool.end());
@@ -103,6 +103,7 @@ describe('готовая техника: передача ответственн
     const { users, stage } = await dict();
     const semen = await loginAs('semen');
     const orderId = await intakeLaptop(semen, users.isakov, '+7 900 555-00-88');
+    await satisfyStageChecks(orderId);
     for (const code of ['approval', 'repair', 'ready']) {
       const r = await semen.post(`/api/orders/${orderId}/advance`, { toStageId: stage[code], responsibleId: users.isakov, dueAt: inDays(1), comment: 'дальше' });
       expect(r.status).toBe(200);

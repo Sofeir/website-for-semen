@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pool } from '../src/db/pool';
 import { notifyOverdueTasks } from '../src/services/overdue';
-import { dict, inDays, intakeLaptop, loginAs, resetDb } from './helpers';
+import { dict, inDays, intakeLaptop, loginAs, resetDb, satisfyStageChecks } from './helpers';
 
 beforeAll(resetDb);
 afterAll(() => pool.end());
@@ -11,6 +11,7 @@ describe('статус «Ожидает выдачи»', () => {
     const semen = await loginAs('semen');
     const { stage, users } = await dict();
     const id = await intakeLaptop(semen, users.semen, '+7 900 000-00-31');
+    await satisfyStageChecks(id);
     for (const code of ['approval', 'repair', 'ready']) {
       const r = await semen.post(`/api/orders/${id}/advance`, { toStageId: stage[code], responsibleId: users.semen, dueAt: inDays(1) });
       expect(r.status).toBe(200);

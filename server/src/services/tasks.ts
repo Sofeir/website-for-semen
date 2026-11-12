@@ -483,14 +483,19 @@ async function correctTaskTransfer(db: Db, actor: Actor, t: TaskRow, input: Tran
   const id = t.id;
   const next = await assertActiveUser(db, input.assigneeId);
   const due = await normalizeDue(db, input.dueAt);
-  const open = await one<{ assignee_id: number; due_at: Date | null }>(
-    `SELECT assignee_id, due_at FROM task_steps WHERE task_id = $1 AND done_at IS NULL AND from_user_id = $2 AND assignee_id <> $2 AND comment IS NOT NULL ORDER BY id DESC LIMIT 1`,
+  const open = await one<{ assignee_id: number }>(
+    `SELECT assignee_id FROM task_steps WHERE task_id = $1 AND done_at IS NULL AND from_user_id = $2 AND assignee_id <> $2 AND comment IS NOT NULL ORDER BY id DESC LIMIT 1`,
     [id, actor.id],
     db,
   );
   if (!open) throw new HttpError(409, 'Исправлять нечего: вы не передавали эту задачу или она уже принята дальше');
   if (open.assignee_id === input.assigneeId) throw new HttpError(400, 'Задача уже у этого сотрудника');
-  if (open.due_at) await assertDueNotLater(db, actor, open.due_at, due);
+  // Срок сверяется с нынешним сроком самой задачи, как при обычной передаче: исправление не даёт обойти правило продления.
+  const cur = (await one<{ due_at: Date; was_overdue: boolean }>('SELECT due_at, was_overdue FROM tasks WHERE id = $1', [id], db))!;
+  const toSelf = input.assigneeId === actor.id;
+  if (!(toSelf && cur.due_at.getTime() >= Date.now() && !cur.was_overdue)) {
+    await assertDueNotLater(db, actor, cur.due_at, due, cur.was_overdue);
+  }
   const wrong = await replaceOpenHandover(db, id, actor.id, next.id, due, input.comment, { requireComment: true });
   await moveTask(db, id, next.id, due);
   await retractTransferNotices(db, [`/tasks?task=${id}`], ['task_assigned', 'task_handover'], wrong!.assigned_at);

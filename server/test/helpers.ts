@@ -67,6 +67,16 @@ export const inDays = (n: number) => {
   return d.toISOString();
 };
 
+/** Условия закрытия этапов: согласованы срок и сумма, записана работа. Без них заявку не провести через согласование и ремонт. */
+export async function satisfyStageChecks(orderId: number) {
+  await pool.query(`UPDATE orders SET agreed_term = '3 дня', agreed_sum = 1000 WHERE id = $1`, [orderId]);
+  await pool.query(
+    `INSERT INTO device_works (client_id, device_id, order_id, kind, title, qty)
+     SELECT client_id, device_id, id, 'repair', 'Замена детали', 1 FROM orders WHERE id = $1`,
+    [orderId],
+  );
+}
+
 /** Приём одного ноутбука от нового физлица. Возвращает id заявки. */
 export async function intakeLaptop(s: Session, responsibleId: number, phone = '+7 900 000-00-01') {
   const { laptop } = await dict();

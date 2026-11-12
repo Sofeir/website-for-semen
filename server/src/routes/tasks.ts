@@ -25,7 +25,7 @@ import {
   transferTask,
   wasHandedOverBy,
 } from '../services/tasks';
-import { reassignOrder } from '../services/orders';
+import { closeStageTasks, reassignOrder } from '../services/orders';
 import { deleteTasksForever } from '../services/testDataCleanup';
 import { isAssignee, isWatcher, likeEscape, TASK_AWAITING_ISSUE, TASK_OVERDUE, TASK_SELECT } from '../services/sql';
 import { assertTaskVisible } from '../services/access';
@@ -325,9 +325,27 @@ tasksRouter.post(
   h(async (req, res) => {
     const input = parse(closeTasksSchema, req.body);
     const outbox = new Outbox();
-    const result = await tx((db) => closeTasks(db, req.user!, input.ids, input.comment, outbox, { overdueNeedsManager: true }));
+    const result = await tx(async (db) => {
+      // задачи текущего этапа заявки двигают заявку дальше, остальные просто закрываются
+      const stage = await closeStageTasks(db, req.user!, input.ids, input.comment, outbox);
+      const rest = await closeTasks(
+        db,
+        req.user!,
+        input.ids.filter((x) => !stage.live.has(x)),
+        input.comment,
+        outbox,
+        { overdueNeedsManager: true },
+      );
+      return {
+        closed: [...rest.closed, ...stage.advanced],
+        skipped: [...rest.skipped, ...stage.needConfirm, ...stage.blocked.map((b) => b.id)],
+        needConfirm: [...rest.needConfirm, ...stage.needConfirm],
+        blocked: stage.blocked,
+      };
+    });
     await outbox.flush();
     if (input.ids.length === 1 && result.needConfirm.length) throw new HttpError(403, OVERDUE_CLOSE_MESSAGE);
+    if (input.ids.length === 1 && result.blocked.length) throw new HttpError(409, result.blocked[0].message, { need: result.blocked[0].need });
     res.json(result);
   }),
 );
