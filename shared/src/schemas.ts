@@ -143,6 +143,8 @@ export const intakeSchema = z
     requesterName: optionalText(200),
     /** Человек из организации, от которого пришла заявка (из подсказок или добавленный на месте). */
     contactId: optionalId,
+    /** Пользователь техники: человек из организации, который на ней работает (по умолчанию тот, кто подал заявку). */
+    userContactId: optionalId,
     attachmentIds: z.array(id).max(20).default([]),
     fleet: z.array(fleetRowSchema).max(200).optional().nullable(),
   })
@@ -226,6 +228,8 @@ export const deviceWorkSchema = z
     /** Кто делал (по умолчанию тот, кто записывает). */
     performerId: optionalId,
     amount: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().min(0).max(10_000_000).nullable()).optional(),
+    /** Закупочная цена (необязательно): от неё считается рекомендованная цена продажи. */
+    purchasePrice: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().min(0).max(10_000_000).nullable()).optional(),
     partBrand: optionalText(100),
     partSpec: optionalText(100),
     warrantyMonths: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().int().min(0).max(120).nullable()).optional(),
@@ -315,6 +319,8 @@ export const reassignOrderSchema = z.object({
   responsibleId: id,
   dueAt: isoDate.optional().nullable(),
   comment: reasonText,
+  /** «Передал не тому»: ошибочная передача заменяется в истории и цепочке, а не дописывается. */
+  correction: z.boolean().optional(),
 });
 export type ReassignOrderInput = z.infer<typeof reassignOrderSchema>;
 
@@ -410,6 +416,8 @@ export const transferTaskSchema = z.object({
   assigneeId: id,
   dueAt: isoDate,
   comment: reasonText,
+  /** «Передал не тому»: ошибочная передача заменяется в цепочке, а не дописывается. */
+  correction: z.boolean().optional(),
 });
 export type TransferTaskInput = z.infer<typeof transferTaskSchema>;
 

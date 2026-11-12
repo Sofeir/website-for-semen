@@ -227,7 +227,7 @@ export const useClientDevices = (id: number | null | undefined) =>
   });
 
 export interface TaskFilters {
-  scope?: 'mine' | 'created' | 'control' | 'watching' | 'all';
+  scope?: 'mine' | 'created' | 'control' | 'watching' | 'all' | 'confirm';
   status?: 'open' | 'done' | 'any';
   q?: string;
   assignee?: number | '';
@@ -237,11 +237,12 @@ export interface TaskFilters {
   order?: number;
 }
 
-export const useTasks = (f: TaskFilters = {}) =>
+export const useTasks = (f: TaskFilters = {}, enabled = true) =>
   useQuery({
     queryKey: keys.tasks(f),
     queryFn: () => api.get<TaskListItem[]>(`/tasks${qs(f as Record<string, string>)}`),
     placeholderData: keepPreviousData,
+    enabled,
   });
 
 export const useTask = (id: number | null) =>
@@ -398,7 +399,7 @@ export function useReopenOrder(orderId: number) {
 export function useCloseTasks() {
   const inv = useInvalidate();
   return useMutation({
-    mutationFn: (input: CloseTasksInput) => api.post<{ closed: number[]; skipped: number[]; needConfirm: number[] }>('/tasks/close', input as any),
+    mutationFn: (input: CloseTasksInput) => api.post<{ closed: number[]; skipped: number[]; needConfirm: number[]; blocked?: { id: number; message: string; need?: string }[] }>('/tasks/close', input as any),
     onSuccess: () => inv('tasks', 'task', 'dashboard', 'order', 'client'),
   });
 }

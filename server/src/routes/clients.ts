@@ -13,6 +13,7 @@ import { many, one, pool, tx } from '../db/pool';
 import { h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
 import { createClient, replaceFleet, updateClient } from '../services/clients';
+import { mergeClients, previewMerge } from '../services/clientMerge';
 import { deleteClients } from '../services/testDataCleanup';
 import { CLIENT_FIELDS, DEVICE_SELECT, isAssignee, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT, taskAccess } from '../services/sql';
 import { broadcast } from '../notify/hub';
@@ -292,5 +293,22 @@ clientsRouter.delete(
     await one('DELETE FROM service_plans WHERE client_id = $1', [intParam(req.params.id)]);
     broadcast('changed', { scopes: ['clients'] });
     res.json({ ok: true });
+  }),
+);
+
+/**
+ * Перенос всего от одной организации к другой (например, дубль, заведённый до выгрузки из 1С): заявки, техника, работы, выезды, задачи.
+ * Без apply только показывает, что переедет. Старая организация остаётся пустой, удалять её должен человек.
+ */
+clientsRouter.post(
+  '/clients/:id/merge',
+  requirePermission('clients.edit'),
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const target = intParam(req.body?.targetId, 'targetId');
+    if (req.body?.apply !== true) return res.json(await previewMerge(pool, id, target));
+    const result = await tx((db) => mergeClients(db, id, target));
+    broadcast('changed', { scopes: ['clients', 'orders', 'tasks', 'dashboard'] });
+    res.json(result);
   }),
 );

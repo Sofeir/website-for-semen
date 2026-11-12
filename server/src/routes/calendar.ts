@@ -24,7 +24,11 @@ calendarFeedRouter.get(
     if (!user) throw new HttpError(404, 'Ссылка на календарь не найдена или отключена');
     const tasks = await many<CalendarTask>(
       `SELECT t.id, t.title, t.description, t.due_at AS "dueAt", t.updated_at AS "updatedAt",
-              c.name AS "clientName", o.number AS "orderNumber"
+              c.name AS "clientName", o.number AS "orderNumber",
+              (SELECT sg.name FROM stages sg WHERE sg.id = t.stage_id) AS "stageName",
+              (SELECT concat_ws(' ', dt.name, coalesce(b.name, d.brand_text), coalesce(m.name, d.model_text))
+                 FROM devices d JOIN device_types dt ON dt.id = d.device_type_id
+                 LEFT JOIN brands b ON b.id = d.brand_id LEFT JOIN models m ON m.id = d.model_id WHERE d.id = o.device_id) AS "deviceTitle"
          FROM tasks t
          LEFT JOIN orders o ON o.id = t.order_id
          LEFT JOIN clients c ON c.id = coalesce(t.client_id, o.client_id)

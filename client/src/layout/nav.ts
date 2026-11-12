@@ -1,5 +1,6 @@
 import {
   CalendarDays,
+  CalendarRange,
   ClipboardList,
   FileText,
   ListChecks,
@@ -31,6 +32,7 @@ export const NAV: NavItem[] = [
   { to: '/tasks', label: 'Задачи', icon: ListChecks },
   { to: '/calendar', label: 'Календарь', icon: CalendarDays },
   { to: '/visits', label: 'Выезды', icon: Truck, permission: 'workspace.view' },
+  { to: '/plan', label: 'План месяца', icon: CalendarRange, permission: 'workspace.view' },
   { to: '/clients', label: 'Клиенты', icon: Users, permission: 'workspace.view' },
   { to: '/acts', label: 'Акты', icon: FileText, permission: 'workspace.view' },
   { to: '/ready', label: 'Готовая техника', icon: PackageCheck, permission: 'workspace.view' },

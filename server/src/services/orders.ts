@@ -13,9 +13,22 @@ import { forbidden, HttpError } from '../lib/http';
 import type { Outbox } from '../notify/notify';
 import { createClient, replaceFleet } from './clients';
 import { getWorkSettings } from './settings';
-import { DEVICE_TITLE } from './sql';
-import { assertActiveUser, assertDueNotLater, closeTasks, createTask, moveTask, normalizeDue, notifyParticipants, type Actor } from './tasks';
-import { defaultDue, formatDateTimeRu } from './workTime';
+import { orderContext } from './context';
+import { DEVICE_TITLE, TASK_AWAITING_ISSUE } from './sql';
+import {
+  assertActiveUser,
+  assertDueNotLater,
+  canConfirmOverdue,
+  closeTasks,
+  createTask,
+  moveTask,
+  normalizeDue,
+  notifyParticipants,
+  replaceOpenHandover,
+  retractTransferNotices,
+  type Actor,
+} from './tasks';
+import { defaultDue, formatDateTimeRu, monthAhead } from './workTime';
 
 export async function activeStages(db: Db): Promise<Stage[]> {
   return many<Stage>(
@@ -105,6 +118,14 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
     if (!contact) throw new HttpError(400, 'Этот сотрудник не из выбранной организации');
   }
 
+  // Пользователь техники: тоже человек этой организации
+  let userContactId: number | null = null;
+  if (input.userContactId) {
+    const u = await one<{ id: number }>('SELECT id FROM client_contacts WHERE id = $1 AND client_id = $2', [input.userContactId, clientId], db);
+    if (!u) throw new HttpError(400, 'Пользователь техники не из выбранной организации');
+    userContactId = u.id;
+  }
+
   // Парк техники организации правят только те, кто может править клиентов: у остальных чек-лист при приёме игнорируется, приём не блокируется.
   if (input.fleet && client.kind === 'legal' && (can(actor.role, 'clients.edit') || !input.clientId)) {
     await replaceFleet(db, clientId, input.fleet);
@@ -164,6 +185,7 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
       }
     }
 
+    if (userContactId) await db.query('UPDATE devices SET user_contact_id = $2 WHERE id = $1', [deviceId, userContactId]);
     // Если счётчик отстал от уже занятых номеров (перенос базы, ручная правка), берём следующий свободный, а не падаем на дубле.
     // Картриджи сразу в работу (заправка), без диагностики и согласования
     const cartridge = (await deviceTypeName(db, deviceId)) === CARTRIDGE_TYPE;
@@ -195,7 +217,8 @@ export async function createIntake(db: Db, actor: Actor, input: IntakeInput, out
         item.kit,
         item.kitNote,
         item.devicePassword,
-        item.department,
+        // Отдел обязателен для организации: если не назвали, это «Общий зал»
+        client.kind === 'legal' ? item.department?.trim() || 'Общий зал' : item.department,
         input.comment,
         actor.id,
         input.branch,
@@ -292,7 +315,31 @@ async function lockOrder(db: Db, id: number) {
   return o;
 }
 
-export async function advanceOrder(db: Db, actor: Actor, orderId: number, input: AdvanceOrderInput, outbox: Outbox) {
+/**
+ * Что должно быть сделано, чтобы закрыть этап. Ремонт закрывают только с записанной работой, согласование (если клиент не отказался) —
+ * с согласованными сроком и суммой. В ответе есть `need`: по нему экран подсвечивает нужное место.
+ */
+async function assertStageReady(db: Db, orderId: number, code: string | undefined, declined: boolean) {
+  if (code === 'repair') {
+    const w = await one('SELECT 1 FROM device_works WHERE order_id = $1 LIMIT 1', [orderId], db);
+    if (!w) throw new HttpError(409, 'Сначала запишите, какая работа сделана: без записи ремонт закрыть нельзя', { need: 'works' });
+  }
+  if (code === 'approval' && !declined) {
+    const o = await one<{ agreed_term: string | null; agreed_sum: string | null }>('SELECT agreed_term, agreed_sum FROM orders WHERE id = $1', [orderId], db);
+    if (!o?.agreed_term?.trim() || o.agreed_sum == null) {
+      throw new HttpError(409, 'Впишите срок и сумму, которые согласовали с клиентом: без них согласование закрыть нельзя', { need: 'agreed' });
+    }
+  }
+}
+
+export async function advanceOrder(
+  db: Db,
+  actor: Actor,
+  orderId: number,
+  input: AdvanceOrderInput,
+  outbox: Outbox,
+  opts: { skipChecks?: boolean } = {},
+) {
   const order = await lockOrder(db, orderId);
   const stages = await activeStages(db);
   const current = stages.find((s) => s.id === order.stage_id);
@@ -313,10 +360,12 @@ export async function advanceOrder(db: Db, actor: Actor, orderId: number, input:
     throw new HttpError(409, `Этапы идут строго по порядку: следующий — «${next.name}».`, { nextStageId: next.id });
   }
   if (!canAdvanceOrder(actor, order)) throw forbidden('Перевести заявку может ответственный или руководитель');
+  if (!opts.skipChecks) await assertStageReady(db, orderId, current?.code, Boolean(input.declined));
 
   const responsible = await assertActiveUser(db, input.responsibleId);
   const ws = await getWorkSettings(db);
-  const due = next.isFinal ? null : await normalizeDue(db, input.dueAt ?? defaultDue(ws).toISOString());
+  // На выдачу готовой техники дан месяц, если срок не назвали (его можно поменять в задаче)
+  const due = next.isFinal ? null : await normalizeDue(db, input.dueAt ?? (next.code === 'ready' ? monthAhead() : defaultDue(ws)).toISOString());
 
   // Закрываем текущий этап и его задачу. Если задачу ставил другой сотрудник, он получит уведомление.
   await db.query('UPDATE order_history SET finished_at = now() WHERE order_id = $1 AND finished_at IS NULL', [orderId]);
@@ -410,7 +459,7 @@ export async function advanceOrder(db: Db, actor: Actor, orderId: number, input:
     {
       type: 'order_stage',
       title: `Заявка №${order.number}: ${next.name}`,
-      body: `${title}. Перевёл: ${actor.fullName}. Ответственный: ${responsible.full_name}.`,
+      body: [`Перевёл: ${actor.fullName}. Ответственный: ${responsible.full_name}.`, ...(await orderContext(db, orderId))].join('\n'),
       link: `/orders/${orderId}`,
     },
   );
@@ -418,9 +467,166 @@ export async function advanceOrder(db: Db, actor: Actor, orderId: number, input:
   return next;
 }
 
+/**
+ * «Передал не тому»: передавший меняет адресата. Запись об ошибочной передаче заменяется (её нет ни в истории, ни в цепочке задачи
+ * этапа, ни в уведомлениях), а не дописывается. Возврат себе открывает прежнюю запись истории.
+ */
+async function correctOrderReassign(db: Db, actor: Actor, order: OrderRow, input: ReassignOrderInput, outbox: Outbox) {
+  const orderId = order.id;
+  const h = await one<{ id: number; kind: string; responsible_id: number; started_at: Date; due_at: Date | null }>(
+    `SELECT id, kind, responsible_id, started_at, due_at FROM order_history
+      WHERE order_id = $1 AND finished_at IS NULL AND from_user_id = $2 AND responsible_id <> $2 ORDER BY id DESC LIMIT 1`,
+    [orderId, actor.id],
+    db,
+  );
+  if (!h) throw new HttpError(409, 'Исправлять нечего: вы не передавали эту заявку или она уже принята дальше');
+  if (h.responsible_id === input.responsibleId) throw new HttpError(400, 'Заявка уже у этого сотрудника');
+  const stage = await one<{ is_final: boolean; name: string }>('SELECT is_final, name FROM stages WHERE id = $1', [order.stage_id], db);
+  if (stage?.is_final) throw new HttpError(409, 'Заявка уже выдана');
+  const responsible = await assertActiveUser(db, input.responsibleId);
+  const due = input.dueAt ? await normalizeDue(db, input.dueAt) : h.due_at;
+  if (!due) throw new HttpError(400, 'Укажите срок');
+  // Срок сверяется с нынешним сроком этапа, как при обычной передаче: исправление не даёт обойти правило продления.
+  const currentDue = await one<{ d: Date | null }>(
+    `SELECT coalesce((SELECT t.due_at FROM tasks t WHERE t.order_id = o.id AND t.stage_id = o.stage_id AND t.status = 'open' ORDER BY t.id DESC LIMIT 1), o.stage_due_at) AS d
+       FROM orders o WHERE o.id = $1`,
+    [orderId],
+    db,
+  );
+  const selfBeforeDue = input.responsibleId === actor.id && !!currentDue?.d && currentDue.d.getTime() >= Date.now();
+  if (currentDue?.d && !selfBeforeDue) await assertDueNotLater(db, actor, currentDue.d, due);
+
+  let reverted = false;
+  if (h.kind === 'transfer' && responsible.id === actor.id) {
+    const prev = await one<{ id: number; responsible_id: number | null }>(
+      `SELECT id, responsible_id FROM order_history WHERE order_id = $1 AND id < $2 ORDER BY id DESC LIMIT 1`,
+      [orderId, h.id],
+      db,
+    );
+    if (prev && prev.responsible_id === actor.id) {
+      await db.query('DELETE FROM order_history WHERE id = $1', [h.id]);
+      await db.query('UPDATE order_history SET finished_at = NULL, due_at = $2 WHERE id = $1', [prev.id, due]);
+      reverted = true;
+    }
+  }
+  if (!reverted) {
+    await db.query(
+      `UPDATE order_history SET responsible_id = $2, due_at = $3,
+              comment = CASE WHEN kind = 'transfer' THEN $4 ELSE comment END,
+              started_at = CASE WHEN kind = 'transfer' THEN now() ELSE started_at END
+        WHERE id = $1`,
+      [h.id, responsible.id, due, input.comment],
+    );
+  }
+  await db.query(`UPDATE orders SET responsible_id = $2, stage_due_at = $3, updated_at = now() WHERE id = $1`, [orderId, responsible.id, due]);
+  await db.query(`INSERT INTO transfer_corrections (order_id, actor_id, wrong_user_id, wrong_comment) VALUES ($1, $2, $3, $4)`, [
+    orderId,
+    actor.id,
+    h.responsible_id,
+    null,
+  ]);
+
+  const task = await one<{ id: number }>(
+    `SELECT id FROM tasks WHERE order_id = $1 AND stage_id = $2 AND status = 'open' ORDER BY id DESC LIMIT 1`,
+    [orderId, order.stage_id],
+    db,
+  );
+  const links = [`/orders/${orderId}`];
+  if (task) {
+    links.push(`/tasks?task=${task.id}`);
+    const done = await replaceOpenHandover(db, task.id, actor.id, responsible.id, due, h.kind === 'transfer' ? input.comment : null);
+    if (!done) {
+      await db.query(`UPDATE task_steps SET assignee_id = $2, due_at = $3 WHERE task_id = $1 AND done_at IS NULL`, [task.id, responsible.id, due]);
+    }
+    await moveTask(db, task.id, responsible.id, due);
+  }
+  await retractTransferNotices(
+    db,
+    links,
+    ['order_assigned', 'order_handover', 'order_stage', 'task_assigned', 'task_handover'],
+    h.started_at,
+  );
+
+  if (responsible.id !== actor.id) {
+    const ctx = await orderContext(db, orderId);
+    outbox.add({
+      userId: responsible.id,
+      type: 'order_assigned',
+      title: `Вам передали заявку №${order.number}`,
+      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, `Причина и что сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
+      link: `/orders/${orderId}`,
+    });
+    notifyParticipants(outbox, await orderParticipantIds(db, orderId), [actor.id, responsible.id], {
+      type: 'order_handover',
+      title: `Заявку №${order.number} передали`,
+      body: [`От: ${actor.fullName}. Кому: ${responsible.full_name}.`, `Причина и что сделано: ${input.comment}`, ...ctx].join('\n'),
+      link: `/orders/${orderId}`,
+    });
+  }
+  outbox.touch('orders', 'tasks', 'dashboard', 'notifications');
+}
+
+/**
+ * Закрытие задач этапа само двигает заявку на следующий этап: ответственный остаётся прежним, срок по умолчанию.
+ * Согласование (нужно «Согласовано» или «Отказ») и выдача (нужна отметка «техника возвращена») закрываются только в окне этапа.
+ * Задачи, которые не относятся к текущему этапу заявки, закрываются как обычные: это делает вызывающий код.
+ */
+export async function closeStageTasks(db: Db, actor: Actor, ids: number[], comment: string | null, outbox: Outbox) {
+  const advanced: number[] = [];
+  const needConfirm: number[] = [];
+  const blocked: { id: number; message: string; need?: string }[] = [];
+  const rows = await many<{ id: number; order_id: number; stage_id: number; overdue: boolean }>(
+    `SELECT t.id, t.order_id, t.stage_id, ((t.due_at < now() OR t.was_overdue) AND NOT ${TASK_AWAITING_ISSUE}) AS overdue
+       FROM tasks t JOIN orders o ON o.id = t.order_id
+      WHERE t.id = ANY ($1) AND t.status = 'open' AND t.stage_id IS NOT NULL AND o.stage_id = t.stage_id ORDER BY t.id`,
+    [ids],
+    db,
+  );
+  if (!rows.length) return { advanced, needConfirm, blocked, live: new Set<number>() };
+  const stages = await activeStages(db);
+  const confirms = await canConfirmOverdue(db, actor.id);
+  for (const t of rows) {
+    const order = await lockOrder(db, t.order_id);
+    // заявку уже подвинули прошлой задачей из этой же пачки
+    if (order.stage_id !== t.stage_id) {
+      advanced.push(t.id);
+      continue;
+    }
+    const current = stages.find((s) => s.id === order.stage_id);
+    const next = nextStageFor(stages, order.stage_id, await deviceTypeName(db, order.device_id));
+    if (!canTouchOrderTask(actor, order)) {
+      blocked.push({ id: t.id, message: 'Перевести заявку может ответственный или руководитель' });
+    } else if (t.overdue && !confirms) {
+      needConfirm.push(t.id);
+    } else if (current?.code === 'approval') {
+      blocked.push({ id: t.id, message: 'Согласование закрывается кнопками «Согласовано» или «Отказ» в окне задачи', need: 'decision' });
+    } else if (!next || next.isFinal) {
+      blocked.push({ id: t.id, message: 'Выдачу закрывают в окне задачи: отметьте, что техника возвращена клиенту', need: 'issue' });
+    } else {
+      try {
+        await advanceOrder(
+          db,
+          actor,
+          order.id,
+          { toStageId: next.id, responsibleId: order.responsible_id ?? actor.id, dueAt: null, comment, estimatedCost: null, declined: false },
+          outbox,
+        );
+        advanced.push(t.id);
+      } catch (e) {
+        if (!(e instanceof HttpError)) throw e;
+        blocked.push({ id: t.id, message: e.message, need: typeof e.extra?.need === 'string' ? e.extra.need : undefined });
+      }
+    }
+  }
+  return { advanced, needConfirm, blocked, live: new Set(rows.map((r) => r.id)) };
+}
+
+const canTouchOrderTask = canAdvanceOrder;
+
 /** Передача заявки другому сотруднику без смены этапа (например, диагност → мастер). */
 export async function reassignOrder(db: Db, actor: Actor, orderId: number, input: ReassignOrderInput, outbox: Outbox) {
   const order = await lockOrder(db, orderId);
+  if (input.correction) return correctOrderReassign(db, actor, order, input, outbox);
   // Передавший заявку тоже может исправить адресата, пока она у того, кому он её отдал
   const handedOverByActor = Boolean(
     await one(
@@ -486,14 +692,12 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
     await moveTask(db, task.id, responsible.id, due);
   }
   const handoverTitle = await deviceTitle(db, order.device_id);
+  const ctx = await orderContext(db, orderId);
   // Приёмщик, прошлые ответственные и передававшие заявку тоже получают уведомление, чтобы видеть, как она движется.
   notifyParticipants(outbox, await orderParticipantIds(db, orderId), [actor.id, responsible.id], {
     type: 'order_handover',
     title: `Заявку №${order.number} передали`,
-    body: [
-      `${handoverTitle}. От: ${actor.fullName}. Кому: ${responsible.full_name}.`,
-      `Причина и что сделано: ${input.comment}`,
-    ].join('\n'),
+    body: [`От: ${actor.fullName}. Кому: ${responsible.full_name}.`, `Причина и что сделано: ${input.comment}`, ...ctx].join('\n'),
     link: `/orders/${orderId}`,
   });
   if (responsible.id !== actor.id) {
@@ -502,7 +706,7 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
       userId: responsible.id,
       type: 'order_assigned',
       title: `Вам передали заявку №${order.number}`,
-      body: [`${stage?.name}: ${title}. От: ${actor.fullName}.`, due && `Срок — ${formatDateTimeRu(due)}.`, input.comment]
+      body: [`От: ${actor.fullName}.`, due && `Срок — ${formatDateTimeRu(due)}.`, `Причина и что сделано: ${input.comment}`, ...ctx]
         .filter(Boolean)
         .join('\n'),
       link: `/orders/${orderId}`,

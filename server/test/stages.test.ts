@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Stage } from '@sd/shared';
 import { pool } from '../src/db/pool';
 import { nextStageOf } from '../src/services/orders';
-import { dict, inDays, intakeLaptop, loginAs, resetDb } from './helpers';
+import { dict, inDays, intakeLaptop, loginAs, resetDb, satisfyStageChecks } from './helpers';
 
 const st = (id: number, sort: number, isFinal = false): Stage => ({
   id,
@@ -87,6 +87,7 @@ describe('переходы заявки по API', () => {
     const semen = await loginAs('semen');
     const { stage, users } = await dict();
     const id = await intakeLaptop(semen, users.isakov, '+7 900 000-00-14');
+    await satisfyStageChecks(id);
     for (const code of ['approval', 'repair', 'ready']) {
       await semen.post(`/api/orders/${id}/advance`, { toStageId: stage[code], responsibleId: users.semen, dueAt: inDays(1) });
     }
@@ -115,6 +116,7 @@ describe('переходы заявки по API', () => {
     const semen = await loginAs('semen');
     const { stage, users } = await dict();
     const id = await intakeLaptop(semen, users.isakov, '+7 900 000-00-16');
+    await satisfyStageChecks(id);
     for (const code of ['approval', 'repair', 'ready', 'issued']) {
       await semen.post(`/api/orders/${id}/advance`, {
         toStageId: stage[code],
@@ -147,6 +149,7 @@ describe('переходы заявки по API', () => {
     const semen = await loginAs('semen');
     const { stage, users } = await dict();
     const id = await intakeLaptop(semen, users.isakov, '+7 900 000-00-04');
+    await satisfyStageChecks(id);
     for (const code of ['approval', 'repair', 'ready', 'issued']) {
       const r = await semen.post(`/api/orders/${id}/advance`, {
         toStageId: stage[code],

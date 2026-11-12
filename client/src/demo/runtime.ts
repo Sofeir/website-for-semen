@@ -26,6 +26,7 @@ import { importRouter } from '../../../server/src/routes/import';
 import { customerRouter } from '../../../server/src/routes/customer';
 import { customersRouter } from '../../../server/src/routes/customers';
 import { personalRouter } from '../../../server/src/routes/personal';
+import { planRouter } from '../../../server/src/routes/plan';
 import { googleRouter } from '../../../server/src/routes/google';
 import { resetDb } from './pg-shim';
 
@@ -53,6 +54,7 @@ for (const r of [
   analyticsRouter,
   notificationsRouter,
   personalRouter,
+  planRouter,
   googleRouter,
   actsRouter,
   documentsRouter,

@@ -23,10 +23,109 @@ import {
   reassignOrder,
   reopenOrder,
 } from '../services/orders';
-import { DEVICE_SELECT, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT, WORK_SELECT } from '../services/sql';
+import { DEVICE_SELECT, DEVICE_TITLE, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT, WORK_SELECT } from '../services/sql';
 import { assertOrderVisible } from '../services/access';
 
 export const ordersRouter = Router();
+
+/**
+ * Заявки, которые «застряли»: задачу текущего этапа закрыли, а заявка осталась на этом этапе (так было до того, как закрытие задачи
+ * стало двигать этап). Показываем, что с каждой будет, и двигаем только те, что можно без решения человека (диагностика, ремонт).
+ */
+const STUCK_SQL = `
+  SELECT o.id, o.number, c.name AS "clientName", ${DEVICE_TITLE} AS "deviceTitle", s.name AS "stageName", s.code AS "stageCode",
+         u.full_name AS "responsibleName", o.responsible_id AS "responsibleId",
+         lt.closed_at AS "closedAt", lt.close_comment AS "closeComment", lt.closed_by AS "closedBy",
+         (SELECT n.name FROM stages n WHERE n.is_active AND n.sort > s.sort ORDER BY n.sort LIMIT 1) AS "nextStageName",
+         EXISTS (SELECT 1 FROM device_works w WHERE w.order_id = o.id) AS "hasWorks"
+    FROM orders o
+    JOIN clients c ON c.id = o.client_id
+    JOIN devices d ON d.id = o.device_id
+    JOIN device_types dt ON dt.id = d.device_type_id
+    LEFT JOIN brands b ON b.id = d.brand_id
+    LEFT JOIN models m ON m.id = d.model_id
+    JOIN stages s ON s.id = o.stage_id
+    LEFT JOIN users u ON u.id = o.responsible_id
+    JOIN LATERAL (
+      SELECT t.closed_at, t.close_comment, t.closed_by FROM tasks t
+       WHERE t.order_id = o.id AND t.stage_id = o.stage_id AND t.status = 'done' AND t.closed_at >= o.stage_started_at
+       ORDER BY t.closed_at DESC LIMIT 1
+    ) lt ON true
+   WHERE NOT s.is_final
+     AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.order_id = o.id AND t.stage_id = o.stage_id AND t.status = 'open')`;
+
+interface StuckRow {
+  id: number;
+  number: string;
+  clientName: string;
+  deviceTitle: string;
+  stageName: string;
+  stageCode: string;
+  responsibleName: string | null;
+  responsibleId: number | null;
+  closedAt: Date;
+  closeComment: string | null;
+  closedBy: number | null;
+  nextStageName: string | null;
+  hasWorks: boolean;
+}
+
+/** Почему заявку нельзя подвинуть сама: нужен человек. */
+function stuckProblem(r: StuckRow): string | null {
+  if (r.stageCode === 'approval') return 'Нужно решение клиента: откройте заявку и нажмите «Согласовано» или «Отказ»';
+  if (r.stageCode === 'ready') return 'Выдачу подтверждает человек: откройте заявку и отметьте, что техника возвращена';
+  if (r.stageCode === 'repair' && !r.hasWorks) return 'Не записана работа по заявке: откройте заявку и запишите её';
+  if (!r.nextStageName) return 'Дальше этапов нет';
+  return null;
+}
+
+ordersRouter.get(
+  '/orders/stuck',
+  requirePermission('orders.advanceAny'),
+  h(async (_req, res) => {
+    const rows = await many<StuckRow>(`${STUCK_SQL} ORDER BY lt.closed_at`);
+    res.json(rows.map((r) => ({ ...r, problem: stuckProblem(r) })));
+  }),
+);
+
+/** Двигает выбранные застрявшие заявки на следующий этап: ответственный тот, кто закрыл задачу, комментарий — её комментарий. */
+ordersRouter.post(
+  '/orders/stuck/advance',
+  requirePermission('orders.advanceAny'),
+  h(async (req, res) => {
+    const ids: number[] = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter((n: number) => Number.isInteger(n) && n > 0).slice(0, 200) : [];
+    const advanced: number[] = [];
+    const blocked: { id: number; message: string }[] = [];
+    for (const id of ids) {
+      const outbox = new Outbox();
+      try {
+        await tx(async (db) => {
+          const r = await one<StuckRow>(`${STUCK_SQL} AND o.id = $1`, [id], db);
+          if (!r) throw new HttpError(409, 'Заявка уже не застряла');
+          const problem = stuckProblem(r);
+          if (problem) throw new HttpError(409, problem);
+          const stages = await activeStages(db);
+          const cur = stages.find((s) => s.code === r.stageCode)!;
+          const next = nextStageFor(stages, cur.id, null);
+          if (!next || next.isFinal) throw new HttpError(409, 'Дальше этапов нет');
+          await advanceOrder(
+            db,
+            req.user!,
+            id,
+            { toStageId: next.id, responsibleId: r.closedBy ?? r.responsibleId ?? req.user!.id, dueAt: null, comment: r.closeComment, estimatedCost: null, declined: false },
+            outbox,
+          );
+        });
+        await outbox.flush();
+        advanced.push(id);
+      } catch (e) {
+        if (!(e instanceof HttpError)) throw e;
+        blocked.push({ id, message: e.message });
+      }
+    }
+    res.json({ advanced, blocked });
+  }),
+);
 
 ordersRouter.get(
   '/orders',
@@ -44,7 +143,7 @@ ordersRouter.get(
     if (req.query.mine === '1') add((p) => `o.responsible_id = ${p}`, req.user!.id);
     if (req.query.kind === 'person' || req.query.kind === 'legal') add((p) => `c.kind = ${p}`, req.query.kind);
     if (req.query.client) add((p) => `o.client_id = ${p}`, Number(req.query.client));
-    if (req.query.overdue === '1') where.push(`o.stage_due_at < now() AND NOT s.is_final AND s.code <> 'ready'`);
+    if (req.query.overdue === '1') where.push(`o.stage_due_at < now() AND NOT s.is_final`);
     // По умолчанию выданные показываем только за последние 14 дней, чтобы список не разрастался.
     if (req.query.issued === 'all') {
       /* все */

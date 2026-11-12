@@ -1,0 +1,86 @@
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+
+.month {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.month b {
+  min-width: 9ch;
+  text-align: center;
+}
+
+.list {
+  display: grid;
+  gap: var(--s-4);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+
+.name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name a {
+  color: inherit;
+}
+
+.visits {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-3);
+  padding: 0;
+  list-style: none;
+}
+
+.visit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.visit[data-done='true'] .date {
+  color: var(--text-muted);
+}
+
+.date {
+  min-width: 14ch;
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+
+.add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.add input[type='date'] {
+  width: auto;
+  min-width: 170px;
+}
+
+@media (max-width: 480px) {
+  .add > * {
+    flex: 1 1 auto;
+  }
+}

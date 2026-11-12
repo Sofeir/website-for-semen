@@ -44,6 +44,9 @@ export const config = {
   publicUrl: process.env.PUBLIC_URL || 'http://localhost:5179',
   /** Файл ключа сервисного аккаунта Google для записи в календари сотрудников. Пусто — синхронизация выключена. */
   googleKeyFile: process.env.GOOGLE_SERVICE_ACCOUNT_FILE || '',
+  /** Ключи приложения Google (OAuth): по ним сотрудник входит через Google и разрешает запись в свой календарь. */
+  googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
   maxBotToken: process.env.MAX_BOT_TOKEN || '',
   maxApiUrl: process.env.MAX_API_URL || 'https://platform-api.max.ru',

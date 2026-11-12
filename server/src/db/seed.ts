@@ -297,6 +297,7 @@ export async function seedDemo() {
         estimatedCost: 3500,
       },
       ob,
+      { skipChecks: true },
     ),
   );
 
@@ -343,6 +344,7 @@ export async function seedDemo() {
         estimatedCost: 6800,
       },
       ob,
+      { skipChecks: true },
     ),
   );
   await tx((db) =>
@@ -358,6 +360,7 @@ export async function seedDemo() {
         estimatedCost: null,
       },
       ob,
+      { skipChecks: true },
     ),
   );
 
@@ -404,6 +407,7 @@ export async function seedDemo() {
         estimatedCost: 1000,
       },
       ob,
+      { skipChecks: true },
     ),
   );
   await tx((db) =>
@@ -413,6 +417,7 @@ export async function seedDemo() {
       o4,
       { toStageId: I.stage('repair'), responsibleId: stas.id, dueAt: due(1), comment: null, estimatedCost: null },
       ob,
+      { skipChecks: true },
     ),
   );
   await tx((db) =>
@@ -428,6 +433,7 @@ export async function seedDemo() {
         estimatedCost: null,
       },
       ob,
+      { skipChecks: true },
     ),
   );
   const svc = await many('SELECT id, name, price FROM services');
@@ -583,6 +589,7 @@ export async function seedDemo() {
           deviceReturned: code === 'issued' ? true : undefined,
         },
         ob,
+        { skipChecks: true },
       ),
     );
   }

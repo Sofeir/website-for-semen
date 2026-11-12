@@ -94,6 +94,11 @@ export interface Device {
   location: string | null;
   /** Системный блок или ноутбук, в состав рабочего места которого входит эта техника. */
   parentId: number | null;
+  /** Пользователь техники (человек из организации); меняется, когда техника переезжает. Не то же, что «кто подал заявку». */
+  userContactId: number | null;
+  userName: string | null;
+  userPhone: string | null;
+  userPosition: string | null;
 }
 
 export interface Contact {
@@ -169,6 +174,8 @@ export interface DeviceWork {
   performerId: number | null;
   performerName: string | null;
   amount: number | null;
+  /** Закупочная цена: видна всем сотрудникам, клиенту нет. */
+  purchasePrice: number | null;
   partBrand: string | null;
   partSpec: string | null;
   warrantyMonths: number | null;
@@ -351,6 +358,9 @@ export interface TaskListItem {
   closedByName: string | null;
   closeComment: string | null;
   isStageTask: boolean;
+  /** Этап заявки, к которому относится задача (у обычных задач null). */
+  stageId: number | null;
+  stageName: string | null;
   /** Задачу поставил заказчик из своего кабинета. */
   fromCustomer: boolean;
   /** Пункты чек-листа: всего и отмечено. */
@@ -366,6 +376,13 @@ export interface TaskListItem {
   overdue: boolean;
   /** Задача этапа «Готово»: техника сделана и ждёт выдачи (не считается просроченной). */
   awaitingIssue: boolean;
+  /** Просьба к директору: подтвердить закрытие или продлить срок. Видна ему в списке «Ждут вашего подтверждения». */
+  confirmKind: 'close' | 'extend' | null;
+  confirmComment: string | null;
+  confirmByName: string | null;
+  confirmAt: string | null;
+  /** Срок, до которого просят продлить (только при confirmKind = extend). */
+  confirmDue: string | null;
 }
 
 export interface TaskKind {
@@ -872,8 +889,13 @@ export interface ReminderSettings {
 
 /** Состояние записи задач и событий в Google Календарь сотрудника. */
 export interface GoogleCalendarStatus {
-  /** На сервере есть ключ сервисного аккаунта. */
+  /** На сервере есть ключ сервисного аккаунта или вход через Google. */
   configured: boolean;
+  /** Включён вход через Google: достаточно нажать «Подключить». */
+  oauthConfigured: boolean;
+  /** Сотрудник подключил свой Google-аккаунт: почта, в чей календарь пишет сервис. */
+  connectedEmail: string | null;
+  oauthConnected: boolean;
   /** Адрес сервисного аккаунта: с ним нужно поделиться календарём. */
   serviceEmail: string | null;
   calendarId: string | null;

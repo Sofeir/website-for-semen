@@ -23,8 +23,8 @@ describe('работы за месяц в формате их таблицы', (
     const list = [w({ qty: 2, amount: 600 }), w({ id: 2, qty: 3, amount: 900 }), w({ id: 3, title: 'ТК-1170', qty: 1 }), w({ id: 4, kind: 'repair', title: 'Замена печки M2135', qty: 1 })];
     expect(groupWorks(list)).toHaveLength(3);
     expect(worksText(list)).toBe('ТК-1150 - 5 шт, ТК-1170 - 1 шт, Замена печки M2135');
-    // другие операции — другая запись
-    expect(worksText([w({ ops: ['замена ролика'] }), w({ id: 2, ops: [] })])).toBe('ТК-1150 - 1 шт (замена ролика), ТК-1150 - 1 шт');
+    // названия операций в выгрузку не попадают, одинаковые картриджи складываются
+    expect(worksText([w({ ops: ['refill', 'chip'] }), w({ id: 2, ops: [] })])).toBe('ТК-1150 - 2 шт');
   });
 
   async function readSheet(buf: Buffer) {

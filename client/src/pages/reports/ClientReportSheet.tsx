@@ -6,7 +6,7 @@ import { fmtWhen } from '@/lib/dates';
 import { Button } from '@/ui/Button';
 import { ErrorBox, Pill, Spinner } from '@/ui/Display';
 import { Sheet } from '@/ui/Sheet';
-import { downloadCsv, label } from './reportUtils';
+import { label } from './reportUtils';
 import s from './ClientReportSheet.module.css';
 
 const opsLine = (w: ClientReportWork) => w.ops.map((o) => REFILL_OP_LABELS[o as RefillOp] ?? o).join(', ');
@@ -47,27 +47,6 @@ export function ClientReportSheet({ clientId, month, onClose }: { clientId: numb
   const r = q.data;
   const empty = r && !r.orders.length && !r.refills.length && !r.otherWorks.length && !r.visits.length;
 
-  const csv = () => {
-    if (!r) return;
-    const rows: (string | number)[][] = [['Раздел', 'Заявка', 'Техника', 'Что сделано', 'Количество', 'Сумма, руб.', 'Дата']];
-    const date = (iso: string) => new Date(iso).toLocaleDateString('ru-RU');
-    const what = (w: ClientReportWork) => `${WORK_KIND_LABELS[w.kind]}: ${w.title}`;
-    for (const x of r.refills) {
-      rows.push(['Заправка картриджей', x.orderNumber ?? '', '', [x.title, opsLine(x)].filter(Boolean).join(': '), x.qty, x.amount ?? '', date(x.doneAt)]);
-    }
-    for (const o of r.orders) {
-      const status = o.outcome === 'declined' ? 'без ремонта' : o.outcome === 'repaired' ? 'ремонт выполнен' : o.acceptedInMonth ? 'принята' : o.stageName;
-      rows.push(['Заявка', o.number, o.deviceTitle, status, 1, '', date(o.outcomeAt ?? o.createdAt)]);
-      for (const w of o.works) rows.push(['Работа по заявке', o.number, w.deviceTitle ?? o.deviceTitle, what(w), w.qty, w.amount ?? '', date(w.doneAt)]);
-    }
-    for (const v of r.visits) {
-      const list = v.checklistTotal ? `чек-лист ${v.checklistDone}/${v.checklistTotal}` : v.inspected ? `проверено техники: ${v.inspected}` : '';
-      rows.push(['Выезд', '', '', [v.title, v.performerName, list].filter(Boolean).join(', '), 1, '', date(v.closedAt)]);
-    }
-    for (const w of r.otherWorks) rows.push(['Прочая работа', w.orderNumber ?? '', w.deviceTitle ?? '', what(w), w.qty, w.amount ?? '', date(w.doneAt)]);
-    downloadCsv(`schet-${r.clientName.replace(/[^\p{L}\p{N}]+/gu, '-')}-${r.month}.csv`, rows);
-  };
-
   return (
     <Sheet
       open={clientId !== null}
@@ -92,9 +71,6 @@ export function ClientReportSheet({ clientId, month, onClose }: { clientId: numb
               Excel
             </Button>
           )}
-          <Button icon={<Download size={18} aria-hidden />} onClick={csv} disabled={!r || Boolean(empty)}>
-            Скачать CSV
-          </Button>
         </>
       }
     >

@@ -1,16 +1,26 @@
 import { Router } from 'express';
 import type { GoogleCalendarStatus } from '@sd/shared';
+import { config } from '../config';
 import { one, pool } from '../db/pool';
 import { h, HttpError } from '../lib/http';
 import {
   clearGoogleUser,
+  exchangeGoogleCode,
   GoogleError,
+  googleAuthUrl,
   googleCalendarDescription,
   googleCheckCalendar,
   googleConfigured,
+  googleOauthConfigured,
   googleServiceEmail,
+  sealSecret,
   syncGoogleUser,
 } from '../services/googleCalendar';
+
+/** Случайная строка для одноразовой метки подключения. Web Crypto: работает и в демо в браузере. */
+const STATE_COOKIE = 'sd_google_state';
+
+const randomToken = (bytes = 24) => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, '0')).join('');
 
 /** Код подтверждения у сотрудника один и тот же, пока он его не сменит: создаётся при первом обращении. */
 async function verifyCodeOf(userId: number): Promise<string> {
@@ -22,16 +32,61 @@ async function verifyCodeOf(userId: number): Promise<string> {
   return (await one<{ code: string }>('SELECT google_verify_code AS code FROM users WHERE id = $1', [userId]))!.code;
 }
 
-/** Свой Google Календарь сотрудника: ID календаря и состояние записи. Ключ сервисного аккаунта наружу не отдаётся. */
+/** Свой Google Календарь сотрудника: подключение и состояние записи. Ключи приложения и токены наружу не отдаются. */
 export const googleRouter = Router();
 
+/**
+ * Возврат из Google после того, как сотрудник разрешил доступ. Открывается переходом из браузера, без входа в сервис:
+ * сотрудника находим по одноразовой метке (state), которую выдали при нажатии «Подключить».
+ */
+export const googleCallbackRouter = Router();
+
+googleCallbackRouter.get(
+  '/google/callback',
+  h(async (req, res) => {
+    const back = (result: string) => res.redirect(`${config.publicUrl.replace(/\/$/, '')}/profile?google=${result}`);
+    const state = String(req.query.state ?? '');
+    const code = String(req.query.code ?? '');
+    if (req.query.error || !code || !/^[a-f0-9]{20,100}$/.test(state)) return back('cancelled');
+    // Метка должна совпасть с той, что при нажатии «Подключить» записана в cookie этого же браузера: ссылку с чужой меткой, присланную
+    // сотруднику со стороны, сервис не примет.
+    const cookieState = (req as unknown as { cookies?: Record<string, string> }).cookies?.[STATE_COOKIE];
+    res.clearCookie(STATE_COOKIE, { path: '/api/google' });
+    if (cookieState !== state) return back('expired');
+    const user = await one<{ id: number }>(
+      `SELECT id FROM users WHERE google_oauth_state = $1 AND google_oauth_state_at > now() - interval '15 minutes' AND is_active`,
+      [state],
+    );
+    if (!user) return back('expired');
+    // метка одноразовая
+    await pool.query('UPDATE users SET google_oauth_state = NULL, google_oauth_state_at = NULL WHERE id = $1', [user.id]);
+    try {
+      const { refreshToken, email } = await exchangeGoogleCode(code);
+      await pool.query(
+        `UPDATE users SET google_refresh_token = $2, google_email = $3, google_sync_error = NULL, google_calendar_id = NULL WHERE id = $1`,
+        [user.id, await sealSecret(refreshToken), email],
+      );
+      await pool.query('DELETE FROM google_events WHERE user_id = $1', [user.id]);
+      await syncGoogleUser(user.id);
+      return back('connected');
+    } catch (e) {
+      console.error('Google Календарь: подключение не удалось:', (e as Error).message);
+      return back('error');
+    }
+  }),
+);
+
 async function status(userId: number): Promise<GoogleCalendarStatus> {
-  const u = await one<{ calendar_id: string | null; at: Date | null; error: string | null }>(
-    'SELECT google_calendar_id AS calendar_id, google_sync_at AS at, google_sync_error AS error FROM users WHERE id = $1',
+  const u = await one<{ calendar_id: string | null; at: Date | null; error: string | null; token: string | null; email: string | null }>(
+    `SELECT google_calendar_id AS calendar_id, google_sync_at AS at, google_sync_error AS error,
+            google_refresh_token AS token, google_email AS email FROM users WHERE id = $1`,
     [userId],
   );
   return {
     configured: await googleConfigured(),
+    oauthConfigured: googleOauthConfigured(),
+    oauthConnected: Boolean(u?.token),
+    connectedEmail: u?.token ? (u.email ?? null) : null,
     serviceEmail: await googleServiceEmail(),
     calendarId: u?.calendar_id ?? null,
     verifyCode: await verifyCodeOf(userId),
@@ -47,10 +102,23 @@ googleRouter.get(
   }),
 );
 
+/** Адрес Google, куда сотрудник идёт разрешить доступ к своему календарю. */
+googleRouter.post(
+  '/me/google-calendar/connect',
+  h(async (req, res) => {
+    if (!googleOauthConfigured()) throw new HttpError(409, 'Вход через Google пока не включён: администратору нужно добавить ключи приложения Google');
+    const state = randomToken();
+    await pool.query('UPDATE users SET google_oauth_state = $2, google_oauth_state_at = now() WHERE id = $1', [req.user!.id, state]);
+    // Та же метка в cookie этого браузера: при возврате из Google они должны совпасть
+    res.cookie(STATE_COOKIE, state, { httpOnly: true, sameSite: 'lax', secure: config.cookieSecure, maxAge: 15 * 60 * 1000, path: '/api/google' });
+    res.json({ url: googleAuthUrl(state) });
+  }),
+);
+
 googleRouter.put(
   '/me/google-calendar',
   h(async (req, res) => {
-    if (!(await googleConfigured())) throw new HttpError(409, 'Сервер пока не подключён к Google: администратору нужно добавить ключ сервисного аккаунта');
+    if (!(await googleServiceEmail())) throw new HttpError(409, 'Сервер пока не подключён к Google: администратору нужно добавить ключ сервисного аккаунта');
     const calendarId = typeof req.body?.calendarId === 'string' ? req.body.calendarId.trim() : '';
     if (calendarId.length < 5 || calendarId.length > 200 || /\s/.test(calendarId)) throw new HttpError(400, 'Введите ID календаря: он выглядит как адрес почты');
     // Календарь подключает один сотрудник: чужой, уже занятый коллегой, не принять
@@ -88,9 +156,11 @@ googleRouter.post(
 googleRouter.delete(
   '/me/google-calendar',
   h(async (req, res) => {
-    const u = await one<{ calendar_id: string | null }>('SELECT google_calendar_id AS calendar_id FROM users WHERE id = $1', [req.user!.id]);
-    await clearGoogleUser(req.user!.id, u?.calendar_id ?? null);
-    await pool.query('UPDATE users SET google_calendar_id = NULL, google_sync_at = NULL, google_sync_error = NULL WHERE id = $1', [req.user!.id]);
+    await clearGoogleUser(req.user!.id);
+    await pool.query(
+      'UPDATE users SET google_calendar_id = NULL, google_refresh_token = NULL, google_email = NULL, google_sync_at = NULL, google_sync_error = NULL WHERE id = $1',
+      [req.user!.id],
+    );
     res.json(await status(req.user!.id));
   }),
 );

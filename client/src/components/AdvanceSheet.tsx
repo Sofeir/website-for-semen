@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, ArrowRightLeft, RotateCcw } from 'lucide-react';
+import { ArrowRight, ArrowRightLeft, Ban, Check, RotateCcw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import type { Stage } from '@sd/shared';
 import { useMe } from '@/app/auth';
 import { ApiError } from '@/api/http';
@@ -38,6 +39,7 @@ export function AdvanceSheet({
   onDone?: () => void;
 }) {
   const me = useMe();
+  const navigate = useNavigate();
   const users = useUsers();
   const settings = useSettings();
   const toast = useToast();
@@ -62,7 +64,10 @@ export function AdvanceSheet({
       acceptor ??
       ((prefer.includes(me.role) && me.id) || list.find((u) => u.role === prefer[0] && u.isActive !== false)?.id || me.id);
     setResponsible(String(pick));
-    setDue(defaultDueDate(settings.data?.work, dueDaysFor(next)).toISOString());
+    // На выдачу готовой техники даётся месяц: дату можно поменять
+    const dueDate = defaultDueDate(settings.data?.work, dueDaysFor(next));
+    if (next.code === 'ready') dueDate.setMonth(dueDate.getMonth() + 1);
+    setDue(dueDate.toISOString());
     setComment('');
     setCost('');
     setError('');
@@ -76,25 +81,38 @@ export function AdvanceSheet({
   const afterNext = next ? stageList[stageList.findIndex((st) => st.id === next.id) + 1] : undefined;
   const target = declined && canDecline && afterNext ? afterNext : next;
 
-  const submit = async () => {
+  // На согласовании решение клиента — две кнопки: «Согласовано» и «Отказ» (без ремонта)
+  const isApproval = order?.stageCode === 'approval' && canDecline;
+
+  const submit = async (decline?: boolean) => {
     setError('');
+    const wantDecline = (decline ?? declined) && canDecline;
+    const tg = wantDecline && afterNext ? afterNext : next!;
     if (!responsible) return setError('Выберите ответственного');
-    if (target!.isFinal && !returned) return setError('Отметьте, что техника возвращена клиенту');
+    if (tg.isFinal && !returned) return setError('Отметьте, что техника возвращена клиенту');
     try {
       await advance.mutateAsync({
-        toStageId: target!.id,
+        toStageId: tg.id,
         responsibleId: Number(responsible),
-        dueAt: target!.isFinal ? null : due,
-        comment: target!.isFinal ? null : comment || null,
+        dueAt: tg.isFinal ? null : due,
+        comment: tg.isFinal ? null : comment || null,
         estimatedCost: cost ? Number(cost.replace(',', '.')) : null,
-        declined: declined && canDecline,
-        deviceReturned: target!.isFinal ? returned : undefined,
+        declined: wantDecline,
+        deviceReturned: tg.isFinal ? returned : undefined,
       });
-      toast.success(target!.isFinal ? `Заявка №${order!.number} выдана` : `Заявка №${order!.number}: ${target!.name}`);
+      toast.success(tg.isFinal ? `Заявка №${order!.number} выдана` : `Заявка №${order!.number}: ${tg.name}`);
       onDone?.();
       onClose();
     } catch (e) {
-      setError((e as ApiError).message);
+      const err = e as ApiError;
+      // Не записана работа или не согласованы срок и сумма: ведём на страницу заявки, нужное место там подсвечено
+      if (err.data?.need === 'works' || err.data?.need === 'agreed') {
+        toast.error('Сначала заполните', err.message);
+        onClose();
+        navigate(`/orders/${order!.id}?focus=${err.data.need}`);
+        return;
+      }
+      setError(err.message);
     }
   };
 
@@ -104,7 +122,7 @@ export function AdvanceSheet({
     <Sheet
       open={Boolean(order && next)}
       onClose={onClose}
-      title={target?.isFinal ? 'Выдать технику' : `Перевести на «${target?.name ?? ''}»`}
+      title={isApproval ? 'Решение клиента' : target?.isFinal ? 'Выдать технику' : `Перевести на «${target?.name ?? ''}»`}
       subtitle={order && `№${order.number}, ${order.deviceTitle}`}
       width={520}
       footer={
@@ -112,14 +130,25 @@ export function AdvanceSheet({
           <Button variant="secondary" onClick={onClose}>
             Отмена
           </Button>
-          <Button
-            onClick={submit}
-            loading={advance.isPending}
-            icon={<ArrowRight size={18} aria-hidden />}
-            variant={target?.isFinal ? 'success' : 'primary'}
-          >
-            {target?.isFinal ? 'Выдать' : 'Перевести'}
-          </Button>
+          {isApproval ? (
+            <>
+              <Button variant="danger" onClick={() => submit(true)} loading={advance.isPending} icon={<Ban size={18} aria-hidden />}>
+                Отказ
+              </Button>
+              <Button variant="success" onClick={() => submit(false)} loading={advance.isPending} icon={<Check size={18} aria-hidden />}>
+                Согласовано
+              </Button>
+            </>
+          ) : (
+            <Button
+              onClick={() => submit()}
+              loading={advance.isPending}
+              icon={<ArrowRight size={18} aria-hidden />}
+              variant={target?.isFinal ? 'success' : 'primary'}
+            >
+              {target?.isFinal ? 'Выдать' : 'Перевести'}
+            </Button>
+          )}
         </>
       }
     >
@@ -130,12 +159,10 @@ export function AdvanceSheet({
             <ArrowRight size={16} aria-hidden className="muted" />
             <StagePill name={target!.name} color={target!.color} />
           </div>
-          {canDecline && (
-            <Checkbox
-              checked={declined}
-              onChange={(e) => setDeclined(e.target.checked)}
-              label="Клиент отказался от ремонта: вернуть без ремонта"
-            />
+          {isApproval && (
+            <p className="muted">
+              «Согласовано»: заявка идёт в ремонт (срок и сумма должны быть записаны). «Отказ»: заявка сразу идёт в «Готово» без ремонта.
+            </p>
           )}
           {error && <ErrorBox>{error}</ErrorBox>}
           {target!.isFinal && order.hasAct === false && (
@@ -187,7 +214,7 @@ export function AdvanceSheet({
 }
 
 /** Передача заявки другому сотруднику на том же этапе (диагност → мастер). */
-export function ReassignSheet({ order, onClose }: { order: AdvanceTarget | null; onClose: () => void }) {
+export function ReassignSheet({ order, onClose, correction = false }: { order: AdvanceTarget | null; onClose: () => void; correction?: boolean }) {
   const settings = useSettings();
   const toast = useToast();
   const reassign = useReassignOrder(order?.id ?? 0);
@@ -209,8 +236,8 @@ export function ReassignSheet({ order, onClose }: { order: AdvanceTarget | null;
     if (!responsible) return setError('Выберите, кому передать');
     if (comment.trim().length < 3) return setError('Напишите причину передачи и что уже сделано');
     try {
-      await reassign.mutateAsync({ responsibleId: Number(responsible), dueAt: due, comment: comment.trim() });
-      toast.success(`Заявка №${order!.number} передана`);
+      await reassign.mutateAsync({ responsibleId: Number(responsible), dueAt: due, comment: comment.trim(), correction: correction || undefined });
+      toast.success(correction ? `Заявка №${order!.number}: передача исправлена` : `Заявка №${order!.number} передана`);
       onClose();
     } catch (e) {
       setError((e as ApiError).message);
@@ -221,8 +248,13 @@ export function ReassignSheet({ order, onClose }: { order: AdvanceTarget | null;
     <Sheet
       open={Boolean(order)}
       onClose={onClose}
-      title="Передать другому сотруднику"
-      subtitle={order && `№${order.number}, этап «${order.stageName}» не меняется`}
+      title={correction ? 'Передал не тому: выберите другого' : 'Передать другому сотруднику'}
+      subtitle={
+        order &&
+        (correction
+          ? `№${order.number}. Записи о прежней передаче не останется: в истории и уведомлениях её заменит новая`
+          : `№${order.number}, этап «${order.stageName}» не меняется`)
+      }
       width={520}
       footer={
         <>

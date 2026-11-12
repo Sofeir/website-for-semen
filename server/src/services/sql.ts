@@ -1,10 +1,11 @@
 /** Общие SQL-фрагменты для списков: одинаковые поля в заявках, задачах, карточке клиента. */
 
 /**
- * Задача этапа «Готово»: техника сделана и ждёт выдачи. Такая задача не считается просроченной, у неё отдельный статус «Ожидает выдачи».
+ * Задача этапа «Готово»: техника сделана и ждёт выдачи (на выдачу дан месяц). Пока срок не вышел, она не считается просроченной,
+ * у неё отдельный статус «Ожидает выдачи». Когда месяц прошёл, это обычная просрочка: директор получает уведомление.
  * Условие для задачи с псевдонимом `t`.
  */
-export const TASK_AWAITING_ISSUE = `(t.status = 'open' AND EXISTS (SELECT 1 FROM stages ws WHERE ws.id = t.stage_id AND ws.code = 'ready'))`;
+export const TASK_AWAITING_ISSUE = `(t.status = 'open' AND t.due_at >= now() AND EXISTS (SELECT 1 FROM stages ws WHERE ws.id = t.stage_id AND ws.code = 'ready'))`;
 
 /** Открытая просроченная задача (кроме ожидающих выдачи). Для псевдонима `t`. */
 export const TASK_OVERDUE = `(t.status = 'open' AND (t.due_at < now() OR t.was_overdue) AND NOT ${TASK_AWAITING_ISSUE})`;
@@ -23,7 +24,7 @@ export const ORDER_SELECT = `
          o.stage_started_at AS "stageStartedAt", o.stage_due_at AS "stageDueAt",
          o.created_at AS "createdAt", o.issued_at AS "issuedAt", o.outcome,
          (SELECT count(*)::int FROM acts ac WHERE ac.order_id = o.id) AS "actsCount",
-         (o.stage_due_at IS NOT NULL AND o.stage_due_at < now() AND NOT s.is_final AND s.code <> 'ready') AS overdue
+         (o.stage_due_at IS NOT NULL AND o.stage_due_at < now() AND NOT s.is_final) AS overdue
     FROM orders o
     JOIN clients c ON c.id = o.client_id
     JOIN devices d ON d.id = o.device_id
@@ -47,7 +48,8 @@ export const TASK_SELECT = `
          coalesce(t.client_id, o.client_id) AS "clientId", c.name AS "clientName",
          t.start_at AS "startAt", t.due_at AS "dueAt", t.deadline_at AS "deadlineAt",
          t.closed_at AS "closedAt", ucl.full_name AS "closedByName", t.close_comment AS "closeComment",
-         (t.stage_id IS NOT NULL) AS "isStageTask", (uc.role = 'customer') AS "fromCustomer",
+         (t.stage_id IS NOT NULL) AS "isStageTask", t.stage_id AS "stageId", (SELECT sg.name FROM stages sg WHERE sg.id = t.stage_id) AS "stageName",
+         (uc.role = 'customer') AS "fromCustomer",
          (SELECT count(*)::int FROM task_checklist_items ci WHERE ci.task_id = t.id) AS "checklistTotal",
          (SELECT count(*)::int FROM task_checklist_items ci WHERE ci.task_id = t.id AND ci.done) AS "checklistDone",
          t.is_visit AS "isVisit", t.visit_mode AS "visitMode",
@@ -55,12 +57,15 @@ export const TASK_SELECT = `
          ARRAY(SELECT tw.user_id FROM task_watchers tw WHERE tw.task_id = t.id ORDER BY tw.user_id) AS "watcherIds",
          (SELECT string_agg(wu.full_name, ', ' ORDER BY wu.full_name)
             FROM task_watchers tw JOIN users wu ON wu.id = tw.user_id WHERE tw.task_id = t.id) AS "watcherName",
-         ${TASK_OVERDUE} AS overdue, ${TASK_AWAITING_ISSUE} AS "awaitingIssue"
+         ${TASK_OVERDUE} AS overdue, ${TASK_AWAITING_ISSUE} AS "awaitingIssue",
+         t.confirm_kind AS "confirmKind", t.confirm_comment AS "confirmComment", ucb.full_name AS "confirmByName",
+         t.confirm_at AS "confirmAt", t.confirm_due AS "confirmDue"
     FROM tasks t
     JOIN users ua ON ua.id = t.assignee_id
     JOIN users uc ON uc.id = t.creator_id
     LEFT JOIN task_kinds tk ON tk.id = t.kind_id
     LEFT JOIN users ucl ON ucl.id = t.closed_by
+    LEFT JOIN users ucb ON ucb.id = t.confirm_by
     LEFT JOIN orders o ON o.id = t.order_id
     LEFT JOIN clients c ON c.id = coalesce(t.client_id, o.client_id)`;
 
@@ -68,18 +73,20 @@ export const DEVICE_SELECT = `
   SELECT d.id, d.client_id AS "clientId", d.device_type_id AS "deviceTypeId", dt.name AS "deviceType",
          d.brand_id AS "brandId", coalesce(b.name, d.brand_text) AS brand,
          d.model_id AS "modelId", coalesce(m.name, d.model_text) AS model,
-         d.serial, ${DEVICE_TITLE} AS title, d.inventory_no AS "inventoryNo", d.location, d.parent_id AS "parentId"
+         d.serial, ${DEVICE_TITLE} AS title, d.inventory_no AS "inventoryNo", d.location, d.parent_id AS "parentId",
+         d.user_contact_id AS "userContactId", duc.full_name AS "userName", duc.phone AS "userPhone", duc.position AS "userPosition"
     FROM devices d
     JOIN device_types dt ON dt.id = d.device_type_id
     LEFT JOIN brands b ON b.id = d.brand_id
-    LEFT JOIN models m ON m.id = d.model_id`;
+    LEFT JOIN models m ON m.id = d.model_id
+    LEFT JOIN client_contacts duc ON duc.id = d.user_contact_id`;
 
 /** Запись журнала работ: кто делал, сколько стоило, какая деталь и гарантия. */
 export const WORK_SELECT = `
   SELECT w.id, w.client_id AS "clientId", w.device_id AS "deviceId", w.order_id AS "orderId", o.number AS "orderNumber",
          w.kind, w.title, w.qty, w.counter, w.note, w.done_at AS "doneAt", u.full_name AS "createdByName",
          w.performer_id AS "performerId", coalesce(pu.full_name, u.full_name) AS "performerName",
-         w.amount::float8 AS amount, w.part_brand AS "partBrand", w.part_spec AS "partSpec",
+         w.amount::float8 AS amount, w.purchase_price::float8 AS "purchasePrice", w.part_brand AS "partBrand", w.part_spec AS "partSpec",
          w.warranty_months AS "warrantyMonths", w.resource, w.ops
     FROM device_works w
     LEFT JOIN orders o ON o.id = w.order_id

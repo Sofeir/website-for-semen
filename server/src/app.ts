@@ -28,7 +28,8 @@ import { customerRouter } from './routes/customer';
 import { customersRouter } from './routes/customers';
 import { calendarFeedRouter } from './routes/calendar';
 import { personalRouter } from './routes/personal';
-import { googleRouter } from './routes/google';
+import { planRouter } from './routes/plan';
+import { googleCallbackRouter, googleRouter } from './routes/google';
 
 export function createApp() {
   const app = express();
@@ -80,6 +81,8 @@ export function createApp() {
   api.use('/calendar', createLimiter({ windowMs: 60_000, max: 60 }));
   api.use('/auth', authRouter);
   api.use(calendarFeedRouter); // лента задач для внешнего календаря: открывается по секретной ссылке, без входа
+  api.use('/google/callback', createLimiter({ windowMs: 60_000, max: 30 }));
+  api.use(googleCallbackRouter); // возврат из Google после подключения календаря: сотрудника находим по одноразовой метке
   api.use(requireAuth);
   // Тяжёлые действия (загрузка файлов, отчёты, документы, выгрузки) — не чаще 60 раз в минуту на сотрудника
   const heavy = createLimiter({ windowMs: 60_000, max: 60 });
@@ -101,6 +104,7 @@ export function createApp() {
   api.use(notificationsRouter);
   api.use(pushRouter);
   api.use(personalRouter);
+  api.use(planRouter);
   api.use(googleRouter);
   api.use(actsRouter);
   api.use(documentsRouter);

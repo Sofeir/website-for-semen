@@ -26,9 +26,10 @@ import { useToast } from '@/ui/Toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { DictionaryEditor, useDictConfigs } from './DictionaryEditor';
 import { ImportPanel } from './ImportPanel';
+import { StuckOrders } from './StuckOrders';
 import s from './Settings.module.css';
 
-type Section = 'dict' | 'users' | 'company' | 'work' | 'import';
+type Section = 'dict' | 'users' | 'company' | 'work' | 'import' | 'stuck';
 
 export default function SettingsPage() {
   useDocumentTitle('Настройки');
@@ -47,6 +48,7 @@ export default function SettingsPage() {
             { value: 'company', label: 'Реквизиты и документы' },
             { value: 'work', label: 'Рабочее время' },
             { value: 'import', label: 'Импорт из Excel' },
+            { value: 'stuck', label: 'Застрявшие заявки' },
           ]}
         />
       </div>
@@ -55,6 +57,7 @@ export default function SettingsPage() {
       {section === 'company' && <Company />}
       {section === 'work' && <Work />}
       {section === 'import' && <ImportPanel />}
+      {section === 'stuck' && <StuckOrders />}
     </>
   );
 }

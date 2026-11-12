@@ -16,6 +16,9 @@ export interface CalendarTask {
   updatedAt: Date;
   clientName: string | null;
   orderNumber: string | null;
+  /** Этап заявки и техника: этап в календаре подписывается как заявка. */
+  stageName?: string | null;
+  deviceTitle?: string | null;
 }
 
 /** Экранирует текст поля. Любые переводы строки (и одиночный \r) становятся «\n», остальные управляющие символы убираются: иначе в ленту можно было бы вставить свои строки календаря. */
@@ -90,7 +93,7 @@ export function buildCalendar(
       `LAST-MODIFIED:${utc(t.updatedAt)}`,
       `DTSTART:${utc(new Date(t.dueAt.getTime() - 30 * 60_000))}`,
       `DTEND:${utc(t.dueAt)}`,
-      `SUMMARY:${escapeText(`Крайний срок: ${t.title}`)}`,
+      `SUMMARY:${escapeText(t.stageName && t.orderNumber ? `Заявка №${t.orderNumber}: ${t.deviceTitle ?? ''} (${t.stageName})`.replace(/\s+\(/, ' (') : `Крайний срок: ${t.title}`)}`,
       `DESCRIPTION:${escapeText(description)}`,
       `URL:${link}`,
       ...alarms(reminders, `Скоро крайний срок: ${t.title}`),

@@ -252,6 +252,70 @@
   color: var(--text-muted);
 }
 
+/* Кликабельная запись истории: выглядит так же, как обычная, при наведении подсвечивается */
+.hBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+  margin: -6px -8px 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-md, 10px);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hBtn b {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+
+.hBtn:hover {
+  background: var(--surface-2);
+}
+
+.hBtn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* Подсветка места, куда надо пойти (например, «Записать работу» перед закрытием ремонта) */
+.flash {
+  animation: flash 2.4s ease-out 1;
+  box-shadow: 0 0 0 3px var(--amber-500);
+}
+
+.flashHint {
+  margin: 0 0 var(--s-3);
+  padding: 8px 12px;
+  border-radius: var(--r-md, 10px);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+@keyframes flash {
+  0%,
+  60% {
+    box-shadow: 0 0 0 6px var(--amber-500);
+  }
+  100% {
+    box-shadow: 0 0 0 3px var(--amber-500);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash {
+    animation: none;
+  }
+}
+
 .hComment {
   margin-top: 4px;
   font-size: var(--fs-sm);

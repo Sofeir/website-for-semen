@@ -78,7 +78,7 @@ describe('несколько ответственных и кому приход
     expect(await got('Починить сервер')).not.toContain('leonid');
   });
 
-  it('просрочка приходит ответственным, постановщику и передавшему, а директорам за всех нет', async () => {
+  it('просрочка приходит ответственным, постановщику, передавшему и директору (тому, кто подтверждает просрочку); остальным руководителям нет', async () => {
     const { users } = await dict();
     const ins = await pool.query(
       `INSERT INTO tasks (title, creator_id, assignee_id, start_at, due_at) VALUES ('Просроченная', $1, $2, now() - interval '3 days', now() - interval '1 hour') RETURNING id`,
@@ -86,10 +86,10 @@ describe('несколько ответственных и кому приход
     );
     await pool.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2)', [ins.rows[0].id, users.kataev]);
     await notifyOverdueTasks();
-    expect(await got('Просрочена задача: Просроченная')).toEqual(['golenkov', 'isakov', 'kataev']);
+    expect(await got('Просрочена задача: Просроченная')).toEqual(['golenkov', 'isakov', 'kataev', 'semen']);
     // повторно не шлём
     await notifyOverdueTasks();
-    expect(await got('Просрочена задача: Просроченная')).toHaveLength(3);
+    expect(await got('Просрочена задача: Просроченная')).toHaveLength(4);
   });
 
   it('напоминания: за сутки, за 2 часа и за 15 минут, ответственным и по одному разу', async () => {

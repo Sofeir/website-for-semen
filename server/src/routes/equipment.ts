@@ -87,6 +87,45 @@ equipmentRouter.put(
   }),
 );
 
+equipmentRouter.get(
+  '/devices/:id/user',
+  requirePermission('workspace.view'),
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    await assertDeviceVisible(req.user!, id);
+    const contact = await one(
+      `SELECT c.id, c.client_id AS "clientId", c.full_name AS "fullName", c.phone, c.position, c.person_client_id AS "personClientId"
+         FROM client_contacts c JOIN devices d ON d.user_contact_id = c.id WHERE d.id = $1`,
+      [id],
+    );
+    res.json({ contact: contact ?? null });
+  }),
+);
+
+/** Пользователь техники: человек из организации, который на ней работает. Меняется, когда техника переезжает. */
+equipmentRouter.put(
+  '/devices/:id/user',
+  requirePermission('workspace.view'),
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    await assertDeviceVisible(req.user!, id);
+    const raw = req.body?.contactId;
+    const contactId = raw == null || raw === '' ? null : Number(raw);
+    if (contactId !== null) {
+      if (!Number.isInteger(contactId) || contactId <= 0) throw new HttpError(400, 'Выберите человека из списка');
+      const ok = await one(
+        'SELECT 1 FROM client_contacts c JOIN devices d ON d.client_id = c.client_id WHERE c.id = $1 AND d.id = $2',
+        [contactId, id],
+      );
+      if (!ok) throw new HttpError(400, 'Этот человек не из организации-владельца техники');
+    }
+    const r = await pool.query('UPDATE devices SET user_contact_id = $2 WHERE id = $1', [id, contactId]);
+    if (!r.rowCount) throw new HttpError(404, 'Техника не найдена');
+    broadcast('changed', { scopes: ['clients', 'orders'] });
+    res.json({ ok: true });
+  }),
+);
+
 /** Рабочее место: техника, входящая в состав этой (монитор, клавиатура, мышь). */
 equipmentRouter.get(
   '/devices/:id/components',
@@ -242,12 +281,13 @@ equipmentRouter.post(
       }
       const row = await one<{ id: number }>(
         `INSERT INTO device_works (client_id, device_id, order_id, kind, title, qty, counter, note, done_at, created_by,
-                                   performer_id, amount, part_brand, part_spec, warranty_months, resource, ops)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, now()), $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
+                                   performer_id, amount, part_brand, part_spec, warranty_months, resource, ops, purchase_price)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, now()), $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
         [
           clientId, linkDeviceId, linkOrderId, input.kind, input.title, input.qty, input.counter ?? null, input.note, input.doneAt ?? null, req.user!.id,
           performerId, input.amount ?? null, input.partBrand, input.partSpec, input.warrantyMonths ?? null, input.resource ?? null,
           input.kind === 'refill' ? input.ops : [],
+          input.purchasePrice ?? null,
         ],
         db,
       );

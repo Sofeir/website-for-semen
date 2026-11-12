@@ -11,6 +11,7 @@ import {
   assigneeList,
   canConfirmOverdue,
   canTouchTask,
+  CLEAR_CONFIRM,
   closeTasks,
   createTask,
   normalizeDue,
@@ -25,7 +26,7 @@ import {
   transferTask,
   wasHandedOverBy,
 } from '../services/tasks';
-import { reassignOrder } from '../services/orders';
+import { closeStageTasks, reassignOrder } from '../services/orders';
 import { deleteTasksForever } from '../services/testDataCleanup';
 import { isAssignee, isWatcher, likeEscape, TASK_AWAITING_ISSUE, TASK_OVERDUE, TASK_SELECT } from '../services/sql';
 import { assertTaskVisible } from '../services/access';
@@ -60,6 +61,10 @@ tasksRouter.get(
            AND NOT ${isAssignee('t', p)}`,
         user.id,
       );
+    } else if (scope === 'confirm') {
+      // Ждут вашего подтверждения: просят закрыть просроченную задачу или продлить срок. Список только у директора.
+      if (!(await canConfirmOverdue(pool, user.id))) return res.json([]);
+      where.push('t.confirm_kind IS NOT NULL');
     } else if (scope === 'watching') add((p) => isWatcher('t', p), user.id);
     else if (scope === 'all' && manageAll) {
       if (req.query.assignee) add((p) => isAssignee('t', p), Number(req.query.assignee));
@@ -232,7 +237,7 @@ tasksRouter.put(
       await db.query(
         `UPDATE tasks SET title = $2, description = $3, start_at = $4, due_at = $5,
                 kind_id = COALESCE($6, kind_id), was_overdue = CASE WHEN $7 THEN false ELSE was_overdue OR due_at < now() END,
-                ${dueChanged ? `${remindReset()},` : ''} updated_at = now() WHERE id = $1`,
+                ${dueChanged ? `${remindReset()}, ${CLEAR_CONFIRM},` : ''} updated_at = now() WHERE id = $1`,
         [id, input.title, input.description, input.startAt, dueChanged ? due : t.due_at, owner ? (input.kindId ?? null) : null, confirms && dueChanged],
       );
       if (dueChanged && due.getTime() > Date.now()) await settleOverdueNotices(db, [id]);
@@ -325,9 +330,27 @@ tasksRouter.post(
   h(async (req, res) => {
     const input = parse(closeTasksSchema, req.body);
     const outbox = new Outbox();
-    const result = await tx((db) => closeTasks(db, req.user!, input.ids, input.comment, outbox, { overdueNeedsManager: true }));
+    const result = await tx(async (db) => {
+      // задачи текущего этапа заявки двигают заявку дальше, остальные просто закрываются
+      const stage = await closeStageTasks(db, req.user!, input.ids, input.comment, outbox);
+      const rest = await closeTasks(
+        db,
+        req.user!,
+        input.ids.filter((x) => !stage.live.has(x)),
+        input.comment,
+        outbox,
+        { overdueNeedsManager: true },
+      );
+      return {
+        closed: [...rest.closed, ...stage.advanced],
+        skipped: [...rest.skipped, ...stage.needConfirm, ...stage.blocked.map((b) => b.id)],
+        needConfirm: [...rest.needConfirm, ...stage.needConfirm],
+        blocked: stage.blocked,
+      };
+    });
     await outbox.flush();
     if (input.ids.length === 1 && result.needConfirm.length) throw new HttpError(403, OVERDUE_CLOSE_MESSAGE);
+    if (input.ids.length === 1 && result.blocked.length) throw new HttpError(409, result.blocked[0].message, { need: result.blocked[0].need });
     res.json(result);
   }),
 );
@@ -407,7 +430,9 @@ tasksRouter.post(
       );
       if (!t) throw new HttpError(404, 'Задача не найдена');
       const due = await normalizeDue(db, input.dueAt);
-      if (input.assigneeId === req.user!.id) {
+      if (input.correction) {
+        // «Передал не тому»: срок и права проверяет само исправление
+      } else if (input.assigneeId === req.user!.id) {
         // Себе передать может любой. Срок при этом можно сдвинуть, пока он не прошёл; у просроченной задачи срок согласует директор.
         if (t.status === 'open' && t.due_at.getTime() < Date.now() && !(await canConfirmOverdue(db, req.user!.id))) {
           await requestTaskExtension(db, req.user!, id, due, input.comment, outbox);
@@ -426,7 +451,7 @@ tasksRouter.post(
           db,
           req.user!,
           t.order_id!,
-          { responsibleId: input.assigneeId, dueAt: input.dueAt, comment: input.comment },
+          { responsibleId: input.assigneeId, dueAt: input.dueAt, comment: input.comment, correction: input.correction },
           outbox,
         );
       } else {

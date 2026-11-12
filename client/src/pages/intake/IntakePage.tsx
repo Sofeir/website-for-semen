@@ -27,7 +27,7 @@ import { ContactPicker } from '@/components/ContactPicker';
 import { DueInput, UserSelect } from '@/components/Pickers';
 import { Button } from '@/ui/Button';
 import { Card, ErrorBox, PageHeader, Spinner } from '@/ui/Display';
-import { Field, Input, Segmented, Textarea, formStyles } from '@/ui/Form';
+import { Checkbox, Field, Input, Segmented, Textarea, formStyles } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
 import { DeviceSection } from './DeviceSection';
@@ -74,6 +74,9 @@ export default function IntakePage() {
   const [kind, setKind] = useState<ClientKind>('person');
   const [client, setClient] = useState<Client | null>(null);
   const [contact, setContact] = useState<Contact | null>(null);
+  // Пользователь техники: по умолчанию тот же, кто подал заявку; можно выбрать другого человека организации
+  const [userSame, setUserSame] = useState(true);
+  const [userContact, setUserContact] = useState<Contact | null>(null);
   const [mode, setMode] = useState<ClientMode>('search');
   const [files, setFiles] = useState<Attachment[]>([]);
   const [fleet, setFleet] = useState<FleetRowDto[] | null>(null);
@@ -93,6 +96,7 @@ export default function IntakePage() {
       branch: null,
       requesterName: null,
       contactId: null,
+      userContactId: null,
       attachmentIds: [],
       fleet: null,
     },
@@ -153,6 +157,7 @@ export default function IntakePage() {
     setContact(c);
     setValue('contactId', c?.id ?? null);
     setValue('requesterName', c?.fullName ?? null);
+    if (!c) setUserContact(null);
   };
 
   const selectClient = (c: Client | null) => {
@@ -221,6 +226,7 @@ export default function IntakePage() {
           clientKind: kind,
           newClient: mode === 'new' && values.newClient ? { ...values.newClient, kind } : null,
           contactId: kind === 'legal' ? (contact?.id ?? null) : null,
+          userContactId: kind === 'legal' ? ((userSame ? contact?.id : userContact?.id) ?? null) : null,
           requesterName: kind === 'legal' ? (contact?.fullName ?? values.requesterName) : null,
           attachmentIds: files.map((f) => f.id),
           // Чек-лист парка при приёме не меняем: он заполняется в карточке организации
@@ -261,9 +267,12 @@ export default function IntakePage() {
       branch: null,
       requesterName: null,
       contactId: null,
+      userContactId: null,
       attachmentIds: [],
       fleet: null,
     });
+    setUserSame(true);
+    setUserContact(null);
     window.scrollTo({ top: 0 });
   };
 
@@ -457,6 +466,17 @@ export default function IntakePage() {
                       ) : (
                         <p className="muted">Сначала выберите или сохраните организацию.</p>
                       )}
+                    </div>
+                  </Field>
+                  <Field label="Пользователь техники" optional group hint="Кто работает на этой технике. Меняется, когда техника переезжает">
+                    <div className="stack" style={{ gap: 'var(--s-2)' }}>
+                      <Checkbox label="Тот же, кто подал заявку" checked={userSame} onChange={(e) => setUserSame(e.target.checked)} />
+                      {!userSame &&
+                        (client ? (
+                          <ContactPicker clientId={client.id} value={userContact} onChange={setUserContact} />
+                        ) : (
+                          <p className="muted">Сначала выберите или сохраните организацию.</p>
+                        ))}
                     </div>
                   </Field>
                   <Field label="Филиал" optional hint="Если у организации несколько филиалов">
