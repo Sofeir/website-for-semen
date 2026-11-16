@@ -297,6 +297,8 @@ export const agreedSchema = z.object({
   /** Что обсуждали с клиентом: озвученная сумма, варианты, чего ждём. */
   agreedNote: optionalText(2000),
   agreedSum: z.preprocess((v) => (v === '' || v == null ? null : v), z.coerce.number().min(0).max(10_000_000).nullable()).optional(),
+  /** Закупочная цена: необязательна; не передали, значит прежнее значение остаётся. */
+  agreedPurchase: z.preprocess((v) => (v === '' ? null : v), z.coerce.number().min(0).max(10_000_000).nullable()).optional(),
 });
 export type AgreedInput = z.infer<typeof agreedSchema>;
 

@@ -218,7 +218,7 @@ function KanbanCard({
           title={`Дальше: ${next.name}`}
         >
           <ChevronsRight aria-hidden />
-          <span>{next.isFinal ? 'Выдать' : next.name}</span>
+          <span>{next.name}</span>
         </button>
       )}
     </motion.div>

@@ -46,6 +46,8 @@ export function AdvanceSheet({
   const advance = useAdvanceOrder(order?.id ?? 0);
   const dict = useDictionaries();
   const [declined, setDeclined] = useState(false);
+  // Согласование: после «Согласовано» выбирают, кто делает ремонт
+  const [agreedStep, setAgreedStep] = useState(false);
   const [returned, setReturned] = useState(false);
   const [responsible, setResponsible] = useState('');
   const [due, setDue] = useState('');
@@ -72,6 +74,7 @@ export function AdvanceSheet({
     setCost('');
     setError('');
     setDeclined(false);
+    setAgreedStep(false);
     setReturned(false);
   }, [order, next, users.data, settings.data?.work, me.id, me.role]);
 
@@ -122,7 +125,7 @@ export function AdvanceSheet({
     <Sheet
       open={Boolean(order && next)}
       onClose={onClose}
-      title={isApproval ? 'Решение клиента' : target?.isFinal ? 'Выдать технику' : `Перевести на «${target?.name ?? ''}»`}
+      title={isApproval ? 'Решение клиента' : target?.isFinal ? 'Выдача техники' : `Перевести на «${target?.name ?? ''}»`}
       subtitle={order && `№${order.number}, ${order.deviceTitle}`}
       width={520}
       footer={
@@ -130,12 +133,21 @@ export function AdvanceSheet({
           <Button variant="secondary" onClick={onClose}>
             Отмена
           </Button>
-          {isApproval ? (
+          {isApproval && agreedStep ? (
+            <>
+              <Button variant="secondary" onClick={() => setAgreedStep(false)}>
+                Назад
+              </Button>
+              <Button variant="success" onClick={() => submit(false)} loading={advance.isPending} icon={<ArrowRight size={18} aria-hidden />}>
+                Передать в ремонт
+              </Button>
+            </>
+          ) : isApproval ? (
             <>
               <Button variant="danger" onClick={() => submit(true)} loading={advance.isPending} icon={<Ban size={18} aria-hidden />}>
                 Отказ
               </Button>
-              <Button variant="success" onClick={() => submit(false)} loading={advance.isPending} icon={<Check size={18} aria-hidden />}>
+              <Button variant="success" onClick={() => setAgreedStep(true)} icon={<Check size={18} aria-hidden />}>
                 Согласовано
               </Button>
             </>
@@ -159,19 +171,22 @@ export function AdvanceSheet({
             <ArrowRight size={16} aria-hidden className="muted" />
             <StagePill name={target!.name} color={target!.color} />
           </div>
-          {isApproval && (
+          {isApproval && !agreedStep && (
             <p className="muted">
-              «Согласовано»: заявка идёт в ремонт (срок и сумма должны быть записаны). «Отказ»: заявка сразу идёт в «Готово» без ремонта.
+              «Согласовано»: дальше выберете, кто делает ремонт (срок и сумма должны быть записаны). «Отказ»: заявка сразу идёт в «Готово» без ремонта.
             </p>
           )}
+          {isApproval && agreedStep && <p className="muted">Клиент согласился. Выберите, кто делает ремонт.</p>}
           {error && <ErrorBox>{error}</ErrorBox>}
           {target!.isFinal && order.hasAct === false && (
             <ErrorBox>Акта выполненных работ ещё нет. Выдать можно, но лучше сначала оформить акт.</ErrorBox>
           )}
-          <Field label={next.isFinal ? 'Кто выдаёт' : 'Ответственный'}>
-            <UserSelect value={responsible} onChange={(e) => setResponsible(e.target.value)} preferRoles={preferRolesFor(next)} />
-          </Field>
-          {!target!.isFinal && (
+          {(!isApproval || agreedStep) && (
+            <Field label={next.isFinal ? 'Кто выдаёт' : isApproval ? 'Кто делает ремонт' : 'Ответственный'}>
+              <UserSelect value={responsible} onChange={(e) => setResponsible(e.target.value)} preferRoles={preferRolesFor(next)} />
+            </Field>
+          )}
+          {!target!.isFinal && (!isApproval || agreedStep) && (
             <Field label="Срок" hint={`Рабочий день до ${settings.data?.work.workEnd ?? '20:00'}`}>
               <DueInput value={due} onChange={setDue} />
             </Field>

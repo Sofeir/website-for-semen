@@ -84,7 +84,7 @@ export function ClientPicker({
         onChange={(e) => setQ(e.target.value)}
         data-autofocus
       />
-      {dq.length >= 2 && (
+      {q.trim().length >= 2 && dq.length >= 2 && (
         <div className={s.results}>
           {clients.isFetching && !items.length && <p className={s.hint}>Ищем…</p>}
           {items.map((c) => (

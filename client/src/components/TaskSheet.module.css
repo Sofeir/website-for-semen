@@ -134,10 +134,27 @@
   gap: var(--space-2, 8px);
 }
 
-/* Кнопка «Закрыть» окно слева: рядом с зелёной «Закрыть задачу» её не перепутать, они подписаны и расставлены по-разному */
-@media (min-width: 768px) {
-  .footClose {
-    margin-right: auto;
+/* Подвал окна задачи: ряд из трёх кнопок и ниже отдельная строка «Назад» */
+.footStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: 100%;
+}
+
+.footRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.footRow > * {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 767px) {
+  .footRow > * {
+    flex: 1 1 auto;
   }
 }
 

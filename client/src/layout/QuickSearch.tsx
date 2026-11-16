@@ -21,7 +21,9 @@ export function QuickSearch({ autoFocus, inline, onDone }: { autoFocus?: boolean
   const wrap = useRef<HTMLDivElement>(null);
   const listId = useId();
 
-  const results = enabled
+  // Список виден только пока в строке есть текст: очистили поле, подсказки сразу пропали (debounce не держит старый список)
+  const typed = enabled && q.trim().length >= 2;
+  const results = typed
     ? [
         ...(orders.data ?? []).slice(0, 5).map((o) => ({ key: `o${o.id}`, to: `/orders/${o.id}`, kind: 'order' as const, o })),
         ...(clients.data?.items ?? [])
@@ -48,7 +50,7 @@ export function QuickSearch({ autoFocus, inline, onDone }: { autoFocus?: boolean
     onDone?.();
   };
 
-  const showList = (inline || open) && enabled;
+  const showList = (inline || open) && typed;
 
   return (
     <div className={cx(s.wrap, inline && s.inline)} ref={wrap}>

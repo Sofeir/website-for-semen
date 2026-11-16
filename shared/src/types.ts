@@ -294,6 +294,8 @@ export interface OrderDetail extends OrderListItem {
   /** Согласовано с клиентом: срок текстом и сумма. */
   agreedTerm: string | null;
   agreedSum: number | null;
+  /** Закупочная цена, вписанная вместе с согласованной суммой. */
+  agreedPurchase: number | null;
   /** Запись о разговоре с клиентом на согласовании. */
   agreedNote: string | null;
   /** Работы по заявке: кто и что делал. */

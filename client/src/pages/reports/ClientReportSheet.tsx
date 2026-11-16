@@ -68,7 +68,7 @@ export function ClientReportSheet({ clientId, month, onClose }: { clientId: numb
               icon={<Download size={18} aria-hidden />}
               onClick={() => (window.location.href = `/api/reports/client/${r.clientId}/works.xlsx?month=${month}`)}
             >
-              Excel
+              Скачать отчёт Excel
             </Button>
           )}
         </>

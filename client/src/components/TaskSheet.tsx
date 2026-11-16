@@ -337,40 +337,45 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
         </>
       );
     } else if (mode === 'view') {
+      // Верхний ряд: «Закрыть задачу», «Открыть заявку», «Передать». Ниже отдельной строкой «Назад» (закрывает окно).
       footer = (
-        <>
-          <Button variant="ghost" className={s.footClose} onClick={onClose}>
-            Закрыть
-          </Button>
-          {task.isStageTask && task.orderId && can('workspace.view') && (
-            <ButtonLink to={`/orders/${task.orderId}`} variant="secondary" icon={<ClipboardList size={18} aria-hidden />}>
-              Открыть заявку
-            </ButtonLink>
-          )}
-          <Button
-            variant="secondary"
-            icon={<ArrowRightLeft size={18} aria-hidden />}
-            onClick={() => {
-              setFixing(false);
-              setMode('transfer');
-            }}
-          >
-            Передать
-          </Button>
-          {needsManager ? (
-            <Button variant="success" icon={<Send size={18} aria-hidden />} onClick={() => setMode('request')}>
-              Запросить подтверждение
-            </Button>
-          ) : (
+        <div className={s.footStack}>
+          <div className={s.footRow}>
+            {needsManager ? (
+              <Button variant="success" icon={<Send size={18} aria-hidden />} onClick={() => setMode('request')}>
+                Запросить подтверждение
+              </Button>
+            ) : (
+              <Button
+                variant="success"
+                icon={<Check size={18} aria-hidden />}
+                onClick={() => (stageOrder.data && stageOrder.data.stageId === task.stageId && stageOrder.data.nextStage ? setAdvanceOpen(true) : setMode('close'))}
+              >
+                Закрыть задачу
+              </Button>
+            )}
+            {task.isStageTask && task.orderId && can('workspace.view') && (
+              <ButtonLink to={`/orders/${task.orderId}`} variant="secondary" icon={<ClipboardList size={18} aria-hidden />}>
+                Открыть заявку
+              </ButtonLink>
+            )}
             <Button
-              variant="success"
-              icon={<Check size={18} aria-hidden />}
-              onClick={() => (stageOrder.data && stageOrder.data.stageId === task.stageId && stageOrder.data.nextStage ? setAdvanceOpen(true) : setMode('close'))}
+              variant="secondary"
+              icon={<ArrowRightLeft size={18} aria-hidden />}
+              onClick={() => {
+                setFixing(false);
+                setMode('transfer');
+              }}
             >
-              Закрыть задачу
+              Передать
             </Button>
-          )}
-        </>
+          </div>
+          <div className={s.footRow}>
+            <Button variant="ghost" onClick={onClose}>
+              Назад
+            </Button>
+          </div>
+        </div>
       );
     } else {
       footer = (
@@ -444,7 +449,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
           )
         }
         footer={footer}
-        width={760}
+        width={600}
       >
         {q.isLoading ? (
           <Spinner />
