@@ -70,8 +70,10 @@ export function ContactPicker({
     );
   }
 
-  const items = people.data ?? [];
-  const personItems = (persons.data?.items ?? []).filter((p) => !items.some((c) => c.personClientId === p.id));
+  // Подсказки есть только пока в поле есть текст. Очистили поле: список сразу пропадает (в том числе старый результат поиска).
+  const active = q.trim().length > 0 && dq.length > 0;
+  const items = active ? (people.data ?? []) : [];
+  const personItems = active && dq.length >= 2 ? (persons.data?.items ?? []).filter((p) => !items.some((c) => c.personClientId === p.id)) : [];
   return (
     <div className={s.wrap}>
       <Input
@@ -84,7 +86,7 @@ export function ContactPicker({
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
-      {(items.length > 0 || personItems.length > 0 || dq.length >= 2) && (
+      {active && (items.length > 0 || personItems.length > 0 || dq.length >= 2) && (
         <div className={s.results}>
           {items.slice(0, 6).map((c) => (
             <button key={c.id} type="button" className={s.item} onClick={() => onChange(c)}>

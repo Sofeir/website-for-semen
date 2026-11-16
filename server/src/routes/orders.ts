@@ -246,6 +246,7 @@ ordersRouter.get(
       contact: contact ?? null,
       agreedTerm: raw.agreed_term,
       agreedSum: raw.agreed_sum == null ? null : Number(raw.agreed_sum),
+      agreedPurchase: raw.agreed_purchase == null ? null : Number(raw.agreed_purchase),
       agreedNote: raw.agreed_note,
       works,
       deviceReturnedAt: raw.device_returned_at,
@@ -330,12 +331,11 @@ ordersRouter.put(
       throw new HttpError(403, 'Править согласованное может ответственный или руководитель');
     }
     const input = parse(agreedSchema, req.body);
-    await pool.query('UPDATE orders SET agreed_term = $2, agreed_sum = $3, agreed_note = $4, updated_at = now() WHERE id = $1', [
-      id,
-      input.agreedTerm,
-      input.agreedSum ?? null,
-      input.agreedNote ?? null,
-    ]);
+    await pool.query(
+      `UPDATE orders SET agreed_term = $2, agreed_sum = $3, agreed_note = $4,
+              agreed_purchase = CASE WHEN $5::boolean THEN $6::numeric ELSE agreed_purchase END, updated_at = now() WHERE id = $1`,
+      [id, input.agreedTerm, input.agreedSum ?? null, input.agreedNote ?? null, input.agreedPurchase !== undefined, input.agreedPurchase ?? null],
+    );
     res.json({ ok: true });
   }),
 );

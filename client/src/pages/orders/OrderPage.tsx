@@ -89,6 +89,12 @@ export default function OrderPage() {
   // Срок этапа живёт в задаче этапа: правят его там (сотрудник — пока не просрочено, директор — всегда)
   const stageTask = o.tasks.find((t) => t.isStageTask && t.status === 'open');
   const canEditAgreed = can('orders.assign') || o.responsibleId === me.id;
+  // Деньги по заявке: пока работы записаны без суммы или закупки, показываем то, что вписали при согласовании
+  const worksSum = o.works.some((w) => w.amount !== null) ? o.works.reduce((acc, w) => acc + (w.amount ?? 0), 0) : null;
+  const worksPurchase = o.works.some((w) => w.purchasePrice !== null) ? o.works.reduce((acc, w) => acc + (w.purchasePrice ?? 0), 0) : null;
+  const moneySum = worksSum ?? o.agreedSum;
+  const moneyPurchase = worksPurchase ?? o.agreedPurchase;
+  const money = moneySum !== null || moneyPurchase !== null ? { sum: moneySum, purchase: moneyPurchase, fromWorks: worksSum !== null } : null;
   // Результат диагностики: то, что написал мастер, передавая заявку дальше с этапа «Диагностика». Хранится в записи следующего этапа.
   const diagIndex = o.history.reduce((acc, h, i) => (h.kind === 'stage' && h.stageCode === 'diagnostics' ? i : acc), -1);
   const diagResult =
@@ -137,9 +143,8 @@ export default function OrderPage() {
           <Button
             icon={<ArrowRight size={18} aria-hidden />}
             onClick={() => setAdvanceOpen(true)}
-            variant={o.nextStage.isFinal ? 'success' : 'primary'}
           >
-            {o.nextStage.isFinal ? 'Выдать технику' : `Дальше: ${o.nextStage.name}`}
+            {`Дальше: ${o.nextStage.name}`}
           </Button>
         )}
         {o.stageCode === 'approval' && canEditAgreed && (
@@ -334,11 +339,12 @@ export default function OrderPage() {
               )}
             </CardHead>
             {flash === 'agreed' && <p className={s.flashHint}>Впишите срок и сумму, которые согласовали с клиентом: без них согласование не закрыть.</p>}
-            {o.agreedTerm || o.agreedSum !== null || o.agreedNote ? (
+            {o.agreedTerm || o.agreedSum !== null || o.agreedPurchase !== null || o.agreedNote ? (
               <DescList
                 items={[
                   ['Срок', o.agreedTerm],
                   ['Сумма', o.agreedSum !== null && formatMoney(o.agreedSum)],
+                  ['Закупка', o.agreedPurchase !== null && formatMoney(o.agreedPurchase)],
                   ['Разговор с клиентом', o.agreedNote && <span style={{ whiteSpace: 'pre-wrap' }}>{o.agreedNote}</span>],
                 ]}
               />
@@ -354,6 +360,15 @@ export default function OrderPage() {
               </Button>
             </CardHead>
             {flash === 'works' && <p className={s.flashHint}>Запишите, какая работа сделана: без записи ремонт закрыть нельзя.</p>}
+            {money && (
+              <DescList
+                items={[
+                  ['Сумма', money.sum !== null && `${formatMoney(money.sum)} (${money.fromWorks ? 'по записанным работам' : 'согласованная с клиентом'})`],
+                  ['Закупка', money.purchase !== null && formatMoney(money.purchase)],
+                  ['Разница', money.sum !== null && money.purchase !== null && formatMoney(Math.round((money.sum - money.purchase) * 100) / 100)],
+                ]}
+              />
+            )}
             {o.works.length ? (
               <ul className={s.docs}>
                 {o.works.map((w) => {
@@ -501,6 +516,7 @@ export default function OrderPage() {
         orderId={o.id}
         term={o.agreedTerm}
         sum={o.agreedSum}
+        purchase={o.agreedPurchase}
         note={o.agreedNote}
         onClose={() => setAgreedOpen(false)}
       />
@@ -522,6 +538,7 @@ function AgreedSheet({
   orderId,
   term,
   sum,
+  purchase,
   note,
   onClose,
 }: {
@@ -529,6 +546,7 @@ function AgreedSheet({
   orderId: number;
   term: string | null;
   sum: number | null;
+  purchase: number | null;
   note: string | null;
   onClose: () => void;
 }) {
@@ -536,6 +554,7 @@ function AgreedSheet({
   const toast = useToast();
   const [t, setT] = useState('');
   const [m, setM] = useState('');
+  const [pp, setPp] = useState('');
   const [n, setN] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -544,17 +563,20 @@ function AgreedSheet({
     if (!open) return;
     setT(term ?? '');
     setM(sum === null ? '' : String(sum));
+    setPp(purchase === null ? '' : String(purchase));
     setN(note ?? '');
     setError('');
-  }, [open, term, sum, note]);
+  }, [open, term, sum, purchase, note]);
 
   const save = async () => {
     setError('');
     const amount = m.trim() ? Number(m.replace(/\s/g, '').replace(',', '.')) : null;
     if (amount !== null && (!Number.isFinite(amount) || amount < 0)) return setError('Сумма — неотрицательное число');
+    const buy = pp.trim() ? Number(pp.replace(/\s/g, '').replace(',', '.')) : null;
+    if (buy !== null && (!Number.isFinite(buy) || buy < 0)) return setError('Закупочная цена — неотрицательное число');
     setBusy(true);
     try {
-      await api.put(`/orders/${orderId}/agreed`, { agreedTerm: t.trim() || null, agreedSum: amount, agreedNote: n.trim() || null });
+      await api.put(`/orders/${orderId}/agreed`, { agreedTerm: t.trim() || null, agreedSum: amount, agreedPurchase: buy, agreedNote: n.trim() || null });
       inv('order', 'orders');
       toast.success('Сохранено');
       onClose();
@@ -586,11 +608,14 @@ function AgreedSheet({
       <div className="stack">
         {error && <ErrorBox>{error}</ErrorBox>}
         <div className={formStyles.grid2}>
-          <Field label="Срок" optional hint="Можно текстом: до пятницы, 3 рабочих дня">
+          <Field label="Срок" optional hint="Можно текстом: до пятницы, 3 рабочих дня" className={formStyles.span2}>
             <Input value={t} onChange={(e) => setT(e.target.value)} maxLength={200} data-autofocus />
           </Field>
           <Field label="Сумма, ₽" optional>
             <Input inputMode="decimal" value={m} onChange={(e) => setM(e.target.value)} placeholder="4500" />
+          </Field>
+          <Field label="Закупочная цена, ₽" optional hint="Видят все сотрудники, клиент не видит">
+            <Input inputMode="decimal" value={pp} onChange={(e) => setPp(e.target.value)} placeholder="2900" />
           </Field>
         </div>
         <Field label="Разговор с клиентом" optional hint="Например: озвучил 4500 ₽, предложил два варианта, клиент подумает до завтра">

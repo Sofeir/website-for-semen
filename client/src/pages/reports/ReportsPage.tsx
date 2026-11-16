@@ -127,7 +127,7 @@ export default function ReportsPage() {
                 icon={<Download size={18} aria-hidden />}
                 onClick={() => (window.location.href = `/api/reports/works.xlsx?month=${month}`)}
               >
-                Картриджи и ремонты, Excel
+                Скачать отчёт Excel
               </Button>
             )}
           </>

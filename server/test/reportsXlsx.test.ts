@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import ExcelJS from 'exceljs';
 import { pool } from '../src/db/pool';
 import { groupWorks, worksText, type MonthWork } from '../src/services/monthWorks';
-import { loginAs, resetDb } from './helpers';
+import { intakeLaptop, loginAs, resetDb } from './helpers';
 
 beforeAll(resetDb);
 afterAll(() => pool.end());
@@ -69,5 +69,26 @@ describe('работы за месяц в формате их таблицы', (
     expect((await semen.get('/api/reports/works.xlsx?month=2026-13')).status).toBe(400);
     const master = await loginAs('kataev');
     expect((await master.get(`/api/reports/works.xlsx?month=${month}`)).status).toBe(403);
+  });
+
+  it('пока сумма в работах не записана, берётся согласованная сумма заявки; записанную не удваивает', async () => {
+    const semen = await loginAs('semen');
+    const year = new Date().getFullYear();
+    const month = `${year}-04`;
+    const at = `${year}-04-10 12:00`;
+    const users = (await pool.query(`SELECT id FROM users WHERE login = 'semen'`)).rows[0];
+    const a = await intakeLaptop(semen, users.id, '+7 900 000-00-11');
+    const b = await intakeLaptop(semen, users.id, '+7 900 000-00-12');
+    await pool.query(`UPDATE orders SET agreed_sum = 2500, issued_at = $2 WHERE id = $1`, [a, at]);
+    await pool.query(`UPDATE orders SET agreed_sum = 9999, issued_at = $2 WHERE id = $1`, [b, at]);
+    // у второй заявки сумма записана в работе: согласованная не добавляется
+    await pool.query(
+      `INSERT INTO device_works (client_id, device_id, order_id, kind, title, qty, done_at, amount) SELECT client_id, device_id, id, 'repair', 'Замена памяти', 1, $2, 1800 FROM orders WHERE id = $1`,
+      [b, at],
+    );
+    const res = await semen.get(`/api/reports/works.xlsx?month=${month}`).buffer(true).parse(binary);
+    const rows = (await readSheet(res.body as Buffer)).slice(1);
+    const sums = rows.map((r) => r[0]).sort();
+    expect(sums).toEqual([1800, 2500]);
   });
 });
