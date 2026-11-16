@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { can, closeTasksSchema, taskKindSchema, taskSchema, transferTaskSchema, type Attachment, type TaskDetail } from '@sd/shared';
+import { can, closeTasksSchema, reopenTaskSchema, taskKindSchema, taskSchema, transferTaskSchema, type Attachment, type TaskDetail } from '@sd/shared';
 import { many, one, pool, tx } from '../db/pool';
 import { forbidden, h, HttpError, intParam, parse } from '../lib/http';
 import { requirePermission } from '../auth/session';
@@ -150,7 +150,7 @@ tasksRouter.get(
     await assertTaskVisible(req.user!, id);
     const steps = await many(
       `SELECT st.id, st.assignee_id AS "assigneeId", ua.full_name AS "assigneeName", uf.full_name AS "fromUserName",
-              st.assigned_at AS "assignedAt", st.due_at AS "dueAt", st.done_at AS "doneAt", st.comment
+              st.assigned_at AS "assignedAt", st.due_at AS "dueAt", st.done_at AS "doneAt", st.comment, st.result_comment AS "resultComment"
          FROM task_steps st JOIN users ua ON ua.id = st.assignee_id LEFT JOIN users uf ON uf.id = st.from_user_id
         WHERE st.task_id = $1 ORDER BY st.assigned_at, st.id`,
       [id],
@@ -407,8 +407,9 @@ tasksRouter.post(
   '/tasks/:id/reopen',
   h(async (req, res) => {
     const id = intParam(req.params.id);
+    const input = parse(reopenTaskSchema, req.body);
     const outbox = new Outbox();
-    await tx((db) => reopenTask(db, req.user!, id, outbox));
+    await tx((db) => reopenTask(db, req.user!, id, input.comment, outbox));
     await outbox.flush();
     res.json({ ok: true });
   }),

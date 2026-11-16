@@ -266,7 +266,14 @@ export async function closeTasks(
       `UPDATE tasks SET status = 'done', closed_at = now(), closed_by = $2, close_comment = $3, ${CLEAR_CONFIRM}, updated_at = now() WHERE id = $1`,
       [t.id, actor.id, comment],
     );
-    await db.query(`UPDATE task_steps SET done_at = now() WHERE task_id = $1 AND done_at IS NULL`, [t.id]);
+    // Итог исполнителя остаётся в цепочке под его шагом (у закрывшего, иначе у первого открытого шага)
+    await db.query(
+      `WITH open_steps AS (SELECT id, assignee_id FROM task_steps WHERE task_id = $1 AND done_at IS NULL),
+            pick AS (SELECT id FROM open_steps ORDER BY (assignee_id = $2) DESC, id LIMIT 1)
+       UPDATE task_steps SET done_at = now(), result_comment = CASE WHEN id = (SELECT id FROM pick) THEN $3 END
+        WHERE id IN (SELECT id FROM open_steps)`,
+      [t.id, actor.id, comment],
+    );
     closed.push(t.id);
     notifyParticipants(outbox, await taskParticipantIds(db, t.id), [actor.id], {
       type: 'task_closed',
@@ -422,7 +429,7 @@ export async function requestTaskExtension(db: Db, actor: Actor, id: number, wan
   outbox.touch('tasks');
 }
 
-export async function reopenTask(db: Db, actor: Actor, id: number, outbox: Outbox) {
+export async function reopenTask(db: Db, actor: Actor, id: number, reason: string, outbox: Outbox) {
   const t = await one<TaskRow>(`SELECT ${TASK_ROW_FIELDS} FROM tasks t WHERE t.id = $1 FOR UPDATE OF t`, [id], db);
   if (!t) throw new HttpError(404, 'Задача не найдена');
   if (!canTouchTask(actor, t)) throw forbidden();
@@ -433,13 +440,13 @@ export async function reopenTask(db: Db, actor: Actor, id: number, outbox: Outbo
   );
   await db.query(
     `INSERT INTO task_steps (task_id, assignee_id, from_user_id, due_at, comment)
-     SELECT t.id, ta.user_id, $2, t.due_at, 'Возвращена в работу' FROM tasks t JOIN task_assignees ta ON ta.task_id = t.id WHERE t.id = $1`,
-    [id, actor.id],
+     SELECT t.id, ta.user_id, $2, t.due_at, $3 FROM tasks t JOIN task_assignees ta ON ta.task_id = t.id WHERE t.id = $1`,
+    [id, actor.id, `Возвращена в работу: ${reason}`],
   );
   notifyParticipants(outbox, await taskParticipantIds(db, id), [actor.id], {
     type: 'task_reopened',
     title: `Задача снова в работе: ${t.title}`,
-    body: `Кто вернул: ${actor.fullName}.`,
+    body: [`Кто вернул: ${actor.fullName}.`, `Что доделать: ${reason}`].join('\n'),
     link: `/tasks?task=${id}`,
   });
   outbox.touch('tasks');

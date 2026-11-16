@@ -329,6 +329,8 @@ export interface TaskStep {
   dueAt: string | null;
   doneAt: string | null;
   comment: string | null;
+  /** Итог исполнителя при закрытии задачи (остаётся, если задачу вернули в работу). */
+  resultComment: string | null;
 }
 
 export interface TaskListItem {
