@@ -85,6 +85,13 @@
   white-space: pre-line;
 }
 
+.stepResult {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  font-weight: 600;
+  white-space: pre-line;
+}
+
 .checklist {
   display: flex;
   flex-direction: column;

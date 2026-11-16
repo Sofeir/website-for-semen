@@ -423,6 +423,10 @@ export const transferTaskSchema = z.object({
 });
 export type TransferTaskInput = z.infer<typeof transferTaskSchema>;
 
+/** Вернуть закрытую задачу в работу: причина обязательна, исполнитель увидит её в цепочке и уведомлении. */
+export const reopenTaskSchema = z.object({ comment: text(2000).min(3, 'Напишите, что нужно доделать') });
+export type ReopenTaskInput = z.infer<typeof reopenTaskSchema>;
+
 // ---------- Акты ----------
 
 export const actItemSchema = z.object({

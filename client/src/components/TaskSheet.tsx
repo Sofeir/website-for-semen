@@ -19,13 +19,15 @@ import { TaskFormSheet } from './TaskFormSheet';
 import { VisitDevices } from './VisitDevices';
 import s from './TaskSheet.module.css';
 
-type Mode = 'view' | 'close' | 'transfer' | 'request' | 'extend' | 'due';
+type Mode = 'view' | 'close' | 'transfer' | 'request' | 'extend' | 'due' | 'reopen';
 
 interface ChainNode {
   key: string;
   name: string;
   meta: string;
   comment?: string | null;
+  /** Итог исполнителя при закрытии. */
+  result?: string | null;
   done: boolean;
 }
 
@@ -64,6 +66,7 @@ function buildChain(steps: TaskStep[]): ChainNode[] {
         name: st.assigneeName,
         meta: `${from && from !== st.assigneeName ? `от ${from}, ` : ''}${fmtWhen(st.assignedAt)}${st.dueAt ? `, срок ${fmtWhen(st.dueAt)}` : ''}`,
         comment: inserted ? null : st.comment,
+        result: st.resultComment,
         done: Boolean(st.doneAt),
       });
     }
@@ -279,9 +282,13 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   };
 
   const reopen = async () => {
+    if (comment.trim().length < 3) return setError('Напишите, что нужно доделать');
+    setError('');
     try {
-      await api.post(`/tasks/${task!.id}/reopen`);
+      await api.post(`/tasks/${task!.id}/reopen`, { comment: comment.trim() });
       inv('tasks', 'task', 'dashboard');
+      setComment('');
+      setMode('view');
       toast.success('Задача снова в работе');
     } catch (e) {
       toast.error('Не получилось', (e as ApiError).message);
@@ -331,9 +338,34 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
               Удалить
             </Button>
           )}
-          <Button variant="secondary" icon={<RotateCcw size={18} aria-hidden />} onClick={reopen}>
-            Вернуть в работу
-          </Button>
+          {mode === 'reopen' ? (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setMode('view');
+                  setError('');
+                }}
+              >
+                Назад
+              </Button>
+              <Button icon={<RotateCcw size={18} aria-hidden />} onClick={reopen}>
+                Вернуть в работу
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="secondary"
+              icon={<RotateCcw size={18} aria-hidden />}
+              onClick={() => {
+                setComment('');
+                setError('');
+                setMode('reopen');
+              }}
+            >
+              Вернуть в работу
+            </Button>
+          )}
         </>
       );
     } else if (mode === 'view') {
@@ -508,6 +540,11 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                 )}
               </div>
             )}
+            {mode === 'reopen' && (
+              <Field label="Что нужно доделать" hint="Исполнитель увидит это в задаче и в уведомлении">
+                <Textarea value={comment} onChange={(e) => setComment(e.target.value)} data-autofocus maxLength={2000} />
+              </Field>
+            )}
             {mode === 'close' && (
               <Field label="Комментарий для постановщика" optional hint="Постановщик получит уведомление с этим текстом">
                 <Textarea value={comment} onChange={(e) => setComment(e.target.value)} data-autofocus maxLength={2000} />
@@ -677,6 +714,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                             <b>{st.name}</b>
                             <span className={s.stepMeta}>{st.meta}</span>
                             {st.comment && <span className={s.stepComment}>{st.comment}</span>}
+                            {st.result && <span className={s.stepResult}>Итог: {st.result}</span>}
                           </div>
                         </li>
                       ))}
