@@ -11,6 +11,7 @@ import { channels } from '../notify/channels';
 import { createLinkCode, formatCode, getBotUsername } from '../notify/maxLink';
 import { Outbox } from '../notify/notify';
 import { config } from '../config';
+import { TASK_NOT_CARTRIDGE } from '../services/sql';
 
 export const authRouter = Router();
 
@@ -227,7 +228,7 @@ authRouter.get(
     // сколько открытых задач сейчас попадёт в ленту: сравнить с тем, что видно в самом календаре
     const now = u?.token
       ? await one<{ n: number }>(
-          `SELECT count(*)::int AS n FROM tasks t WHERE t.status = 'open' AND EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1)`,
+          `SELECT count(*)::int AS n FROM tasks t WHERE t.status = 'open' AND ${TASK_NOT_CARTRIDGE} AND EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1)`,
           [req.user!.id],
         )
       : null;

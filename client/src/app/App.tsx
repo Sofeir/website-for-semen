@@ -17,6 +17,7 @@ const RegisterPage = lazy(() => import('@/pages/RegisterPage'));
 const VisitsPage = lazy(() => import('@/pages/visits/VisitsPage'));
 const PlanPage = lazy(() => import('@/pages/plan/PlanPage'));
 const ReadyPage = lazy(() => import('@/pages/orders/ReadyPage'));
+const CartridgesPage = lazy(() => import('@/pages/orders/CartridgesPage'));
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'));
 const AnalyticsPage = lazy(() => import('@/pages/reports/AnalyticsPage'));
 const ServiceLogPage = lazy(() => import('@/pages/reports/ServiceLogPage'));
@@ -134,6 +135,14 @@ export function App() {
                         element={
                           <Workspace>
                             <ClientPage />
+                          </Workspace>
+                        }
+                      />
+                      <Route
+                        path="cartridges"
+                        element={
+                          <Workspace>
+                            <CartridgesPage />
                           </Workspace>
                         }
                       />

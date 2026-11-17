@@ -1,6 +1,7 @@
 import { config } from '../config';
 import { many, one, pool } from '../db/pool';
 import { DEFAULT_REMINDERS } from '@sd/shared';
+import { TASK_NOT_CARTRIDGE } from './sql';
 import { formatDateTimeRu } from './workTime';
 
 /**
@@ -271,7 +272,7 @@ async function desiredFor(userId: number): Promise<Desired[]> {
        FROM tasks t
        LEFT JOIN orders o ON o.id = t.order_id
        LEFT JOIN clients c ON c.id = coalesce(t.client_id, o.client_id)
-      WHERE EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1)
+      WHERE ${TASK_NOT_CARTRIDGE} AND EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1)
         AND (
           (t.status = 'open' AND t.due_at > now() - interval '1 day' AND t.due_at < now() + interval '180 days')
           OR (t.status <> 'open' AND t.stage_id IS NULL AND t.closed_at > now() - interval '7 days')

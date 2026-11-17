@@ -195,6 +195,9 @@ export interface OrderFilters {
   issued?: string;
   sort?: string;
   client?: number;
+  /** cartridge — только картриджи, equipment — вся остальная техника. */
+  type?: 'cartridge' | 'equipment';
+  limit?: number;
 }
 
 export const useOrders = (f: OrderFilters = {}, enabled = true) =>

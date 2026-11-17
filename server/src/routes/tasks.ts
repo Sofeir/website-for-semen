@@ -28,7 +28,7 @@ import {
 } from '../services/tasks';
 import { closeStageTasks, reassignOrder } from '../services/orders';
 import { deleteTasksForever } from '../services/testDataCleanup';
-import { isAssignee, isWatcher, likeEscape, TASK_AWAITING_ISSUE, TASK_OVERDUE, TASK_SELECT } from '../services/sql';
+import { isAssignee, isWatcher, likeEscape, TASK_AWAITING_ISSUE, TASK_NOT_CARTRIDGE, TASK_OVERDUE, TASK_SELECT } from '../services/sql';
 import { assertTaskVisible } from '../services/access';
 import { runServicePlansSoon } from '../services/servicePlans';
 import { formatDateTimeRu } from '../services/workTime';
@@ -82,6 +82,8 @@ tasksRouter.get(
       add((p) => `t.due_at < ${p}`, new Date(String(req.query.to)));
     }
     if (req.query.order) add((p) => `t.order_id = ${p}`, Number(req.query.order));
+    // Задачи по картриджам в общие списки не попадают (их видно в самих заявках); просьбы директору о подтверждении и список одной заявки не трогаем
+    else if (scope !== 'confirm') where.push(TASK_NOT_CARTRIDGE);
     if (req.query.kind) add((p) => `t.kind_id = ${p}`, Number(req.query.kind));
     const q = String(req.query.q ?? '').trim();
     if (q) add((p) => `(t.title ILIKE ${p} OR t.description ILIKE ${p} OR o.number ILIKE ${p})`, `%${likeEscape(q)}%`);

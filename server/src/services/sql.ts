@@ -10,7 +10,15 @@ export const TASK_AWAITING_ISSUE = `(t.status = 'open' AND t.due_at >= now() AND
 /** Открытая просроченная задача (кроме ожидающих выдачи). Для псевдонима `t`. */
 export const TASK_OVERDUE = `(t.status = 'open' AND (t.due_at < now() OR t.was_overdue) AND NOT ${TASK_AWAITING_ISSUE})`;
 
-export const DEVICE_TITLE = `concat_ws(' ', dt.name, coalesce(b.name, d.brand_text), coalesce(m.name, d.model_text))`;
+/**
+ * Задача не относится к заявке на картриджи. Картриджей много, и их задачи этапов закрывали бы всё в «Задачах», «Сегодня» и календаре.
+ * Сами заявки на картриджи остаются в «Заявках» и на странице «Картриджи». Для псевдонима `t`.
+ */
+export const CARTRIDGE_DEVICE_TYPE = 'Картридж';
+export const TASK_NOT_CARTRIDGE = `NOT EXISTS (SELECT 1 FROM orders co JOIN devices cd ON cd.id = co.device_id JOIN device_types cdt ON cdt.id = cd.device_type_id
+   WHERE co.id = t.order_id AND cdt.name = '${CARTRIDGE_DEVICE_TYPE}')`;
+
+export const DEVICE_TITLE =`concat_ws(' ', dt.name, coalesce(b.name, d.brand_text), coalesce(m.name, d.model_text))`;
 
 export const ORDER_SELECT = `
   SELECT o.id, o.number,
