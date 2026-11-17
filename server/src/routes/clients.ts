@@ -15,7 +15,7 @@ import { requirePermission } from '../auth/session';
 import { createClient, replaceFleet, updateClient } from '../services/clients';
 import { mergeClients, previewMerge } from '../services/clientMerge';
 import { deleteClients } from '../services/testDataCleanup';
-import { CLIENT_FIELDS, DEVICE_SELECT, isAssignee, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT, taskAccess } from '../services/sql';
+import { CLIENT_FIELDS, DEVICE_SELECT, isAssignee, likeEscape, ORDER_SELECT, orderAccess, TASK_NOT_CARTRIDGE, TASK_SELECT, taskAccess } from '../services/sql';
 import { broadcast } from '../notify/hub';
 import {
   getServicePlan,
@@ -94,7 +94,7 @@ clientsRouter.get(
         seeAll ? [id] : [id, req.user!.id],
       ),
       many(
-        `${TASK_SELECT} WHERE coalesce(t.client_id, o.client_id) = $1 ${seeAllTasks ? '' : `AND ${taskAccess('t', '$2')}`}
+        `${TASK_SELECT} WHERE coalesce(t.client_id, o.client_id) = $1 AND ${TASK_NOT_CARTRIDGE} ${seeAllTasks ? '' : `AND ${taskAccess('t', '$2')}`}
           ORDER BY (t.status = 'open') DESC, t.due_at DESC LIMIT 100`,
         seeAllTasks ? [id] : [id, req.user!.id],
       ),

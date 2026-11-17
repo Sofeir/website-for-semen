@@ -23,7 +23,7 @@ import {
   reassignOrder,
   reopenOrder,
 } from '../services/orders';
-import { DEVICE_SELECT, DEVICE_TITLE, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT, WORK_SELECT } from '../services/sql';
+import { CARTRIDGE_DEVICE_TYPE, DEVICE_SELECT, DEVICE_TITLE, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT, WORK_SELECT } from '../services/sql';
 import { assertOrderVisible } from '../services/access';
 
 export const ordersRouter = Router();
@@ -143,6 +143,9 @@ ordersRouter.get(
     if (req.query.mine === '1') add((p) => `o.responsible_id = ${p}`, req.user!.id);
     if (req.query.kind === 'person' || req.query.kind === 'legal') add((p) => `c.kind = ${p}`, req.query.kind);
     if (req.query.client) add((p) => `o.client_id = ${p}`, Number(req.query.client));
+    // type: cartridge — только заявки на картриджи, equipment — всё остальное
+    if (req.query.type === 'cartridge') add((p) => `dt.name = ${p}`, CARTRIDGE_DEVICE_TYPE);
+    else if (req.query.type === 'equipment') add((p) => `dt.name <> ${p}`, CARTRIDGE_DEVICE_TYPE);
     if (req.query.overdue === '1') where.push(`o.stage_due_at < now() AND NOT s.is_final`);
     // По умолчанию выданные показываем только за последние 14 дней, чтобы список не разрастался.
     if (req.query.issued === 'all') {

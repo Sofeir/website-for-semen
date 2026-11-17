@@ -4,6 +4,7 @@ import { h, HttpError } from '../lib/http';
 import { buildCalendar, type CalendarEventItem, type CalendarTask } from '../services/ical';
 import { DEFAULT_REMINDERS } from '@sd/shared';
 import { config } from '../config';
+import { TASK_NOT_CARTRIDGE } from '../services/sql';
 
 /**
  * Публичная лента задач для подписки из внешнего календаря. Входа в сервис там нет: доступ даёт длинная случайная
@@ -32,7 +33,7 @@ calendarFeedRouter.get(
          FROM tasks t
          LEFT JOIN orders o ON o.id = t.order_id
          LEFT JOIN clients c ON c.id = coalesce(t.client_id, o.client_id)
-        WHERE t.status = 'open' AND EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1)
+        WHERE t.status = 'open' AND ${TASK_NOT_CARTRIDGE} AND EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1)
         ORDER BY t.due_at LIMIT 500`,
       [user.id],
     );

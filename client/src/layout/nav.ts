@@ -8,6 +8,7 @@ import {
   LineChart,
   PackageCheck,
   PlusCircle,
+  Printer,
   Settings2,
   Truck,
   Sun,
@@ -28,6 +29,7 @@ export interface NavItem {
 export const NAV: NavItem[] = [
   { to: '/', label: 'Сегодня', icon: Sun, end: true },
   { to: '/orders', label: 'Заявки', icon: ClipboardList, permission: 'workspace.view' },
+  { to: '/cartridges', label: 'Картриджи', icon: Printer, permission: 'workspace.view' },
   { to: '/intake', label: 'Приём', icon: PlusCircle, permission: 'intake.create' },
   { to: '/tasks', label: 'Задачи', icon: ListChecks },
   { to: '/calendar', label: 'Календарь', icon: CalendarDays },
