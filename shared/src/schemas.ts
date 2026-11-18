@@ -326,6 +326,14 @@ export const reassignOrderSchema = z.object({
 });
 export type ReassignOrderInput = z.infer<typeof reassignOrderSchema>;
 
+/** Возврат заявки на этап назад: причина обязательна. */
+export const stepBackOrderSchema = z.object({
+  responsibleId: id,
+  dueAt: isoDate.optional().nullable(),
+  comment: text(2000).min(3, 'Напишите причину возврата'),
+});
+export type StepBackOrderInput = z.infer<typeof stepBackOrderSchema>;
+
 /** Повторное открытие выданной заявки: гарантийный возврат или новая поломка. */
 export const reopenOrderSchema = z.object({
   reason: z.enum(['warranty', 'new_fault']),

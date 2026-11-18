@@ -38,6 +38,11 @@ describe('картриджи отдельно от техники', () => {
 
     const dash = (await isak.get('/api/dashboard')).body;
     expect(dash.myTasksToday.map((t: any) => t.id)).not.toContain(cartridgeTask.id);
+    // «Сегодня»: заявка на картриджи в блоке «Картриджи», а не в общих списках и счётчиках
+    const dashAll = (await s.get('/api/dashboard')).body;
+    expect(dashAll.cartridges.fresh).toBeGreaterThanOrEqual(1);
+    expect(dashAll.newOrders.map((o: any) => o.id)).not.toContain(cartridgeOrder);
+    expect(dashAll.newOrders.map((o: any) => o.id)).toContain(laptopOrder);
 
     // список задач одной заявки и сама задача по ссылке остаются доступны
     const ofOrder = (await s.get(`/api/tasks?scope=all&order=${cartridgeOrder}`)).body.map((t: any) => t.id);

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, ArrowRightLeft, Ban, Check, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowRightLeft, Ban, Check, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Stage } from '@sd/shared';
 import { useMe } from '@/app/auth';
 import { ApiError } from '@/api/http';
-import { useAdvanceOrder, useDictionaries, useReassignOrder, useReopenOrder, useSettings, useUsers } from '@/api/queries';
+import { useAdvanceOrder, useDictionaries, useReassignOrder, useReopenOrder, useSettings, useStepBackOrder, useUsers } from '@/api/queries';
 import { defaultDueDate } from '@/lib/dates';
 import { dueDaysFor, preferRolesFor } from '@/lib/stages';
 import { Button } from '@/ui/Button';
@@ -382,6 +382,83 @@ export function ReopenSheet({ order, onClose }: { order: AdvanceTarget | null; o
         </Field>
         <Field label="Комментарий" optional>
           <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3} maxLength={2000} />
+        </Field>
+      </div>
+    </Sheet>
+  );
+}
+
+/** Возврат заявки на этап назад: причина обязательна, на прошлом этапе ставится новая задача. */
+export function StepBackSheet({
+  order,
+  prev,
+  defaultResponsibleId,
+  onClose,
+}: {
+  order: AdvanceTarget | null;
+  prev: Stage | null;
+  defaultResponsibleId?: number | null;
+  onClose: () => void;
+}) {
+  const me = useMe();
+  const settings = useSettings();
+  const toast = useToast();
+  const back = useStepBackOrder(order?.id ?? 0);
+  const [responsible, setResponsible] = useState('');
+  const [due, setDue] = useState('');
+  const [comment, setComment] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!order) return;
+    setResponsible(String(defaultResponsibleId ?? order.responsibleId ?? me.id));
+    setDue(defaultDueDate(settings.data?.work, dueDaysFor(prev)).toISOString());
+    setComment('');
+    setError('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order, settings.data?.work, me.id]);
+
+  const submit = async () => {
+    setError('');
+    if (!responsible) return setError('Выберите ответственного');
+    if (comment.trim().length < 3) return setError('Напишите причину возврата');
+    try {
+      await back.mutateAsync({ responsibleId: Number(responsible), dueAt: due, comment: comment.trim() });
+      toast.success(`Заявка №${order!.number} вернулась на этап «${prev?.name}»`);
+      onClose();
+    } catch (e) {
+      setError((e as ApiError).message);
+    }
+  };
+
+  return (
+    <Sheet
+      open={Boolean(order)}
+      onClose={onClose}
+      title={`Вернуть на этап «${prev?.name ?? ''}»`}
+      subtitle={order && `№${order.number}, ${order.deviceTitle}. Сейчас этап «${order.stageName}»`}
+      width={520}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button onClick={submit} loading={back.isPending} icon={<ArrowLeft size={18} aria-hidden />}>
+            Вернуть
+          </Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {error && <ErrorBox>{error}</ErrorBox>}
+        <Field label="Причина возврата" hint="Что нужно переделать или исправить. Её увидит ответственный">
+          <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={4} maxLength={2000} autoFocus />
+        </Field>
+        <Field label={`Ответственный на этапе «${prev?.name ?? ''}»`}>
+          <UserSelect value={responsible} onChange={(e) => setResponsible(e.target.value)} preferRoles={preferRolesFor(prev)} />
+        </Field>
+        <Field label="Срок" hint={`Рабочий день до ${settings.data?.work.workEnd ?? '20:00'}`}>
+          <DueInput value={due} onChange={setDue} />
         </Field>
       </div>
     </Sheet>

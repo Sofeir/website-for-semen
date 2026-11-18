@@ -369,7 +369,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
         </>
       );
     } else if (mode === 'view') {
-      // Верхний ряд: «Закрыть задачу», «Открыть заявку», «Передать». Ниже отдельной строкой «Назад» (закрывает окно).
+      // Верхний ряд: «Закрыть задачу», «Открыть заявку», «Передать». Ниже отдельной строкой «Закрыть» (закрывает окно).
       footer = (
         <div className={s.footStack}>
           <div className={s.footRow}>
@@ -404,7 +404,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
           </div>
           <div className={s.footRow}>
             <Button variant="ghost" onClick={onClose}>
-              Назад
+              Закрыть
             </Button>
           </div>
         </div>

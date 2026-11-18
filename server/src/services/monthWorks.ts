@@ -17,9 +17,9 @@ export interface MonthWork {
 
 /**
  * Работы за месяц по всем клиентам или по одному. Журнал тот же, что в помесячном отчёте.
- * Пока сотрудники не привыкли записывать сумму в «Записать работу», подставляется согласованная с клиентом сумма заявки
- * (заявки, выданные в этом месяце): она ставится на работу заявки без суммы, а если работ нет, добавляется строкой с названием техники.
- * Если у заявки сумма записана в работах, согласованная не добавляется, чтобы не считать дважды.
+ * Сумму по заявке берём из блока «Согласовано с клиентом» (заявки, выданные в этом месяце): она ставится на первую работу заявки,
+ * а если работ нет, добавляется строкой с названием техники. Суммы, записанные в самих работах этой заявки, не считаются,
+ * чтобы не посчитать дважды. Работы без заявки (например, заправка из карточки клиента) остаются со своей суммой.
  */
 export async function loadMonthWorks(range: { from: Date; to: Date }, clientId?: number): Promise<MonthWork[]> {
   const works = await many<MonthWork>(
@@ -43,14 +43,15 @@ export async function loadMonthWorks(range: { from: Date; to: Date }, clientId?:
        LEFT JOIN brands b ON b.id = d.brand_id
        LEFT JOIN models m ON m.id = d.model_id
       WHERE o.issued_at >= $1 AND o.issued_at < $2 AND ($3::int IS NULL OR o.client_id = $3)
-        AND o.agreed_sum IS NOT NULL AND o.agreed_sum > 0
-        AND NOT EXISTS (SELECT 1 FROM device_works x WHERE x.order_id = o.id AND x.amount IS NOT NULL)`,
+        AND o.agreed_sum IS NOT NULL AND o.agreed_sum > 0`,
     [range.from, range.to, clientId ?? null],
   );
   for (const a of agreed) {
-    const own = works.find((w) => w.orderNumber === a.orderNumber && w.amount === null);
-    if (own) own.amount = a.amount;
-    else works.push(a);
+    const own = works.filter((w) => w.orderNumber === a.orderNumber);
+    if (own.length) {
+      for (const w of own) w.amount = null;
+      own[0].amount = a.amount;
+    } else works.push(a);
   }
   return works.sort(
     (x, y) => x.clientName.toLowerCase().localeCompare(y.clientName.toLowerCase(), 'ru') || x.doneAt.getTime() - y.doneAt.getTime() || x.id - y.id,

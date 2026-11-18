@@ -71,7 +71,7 @@ describe('работы за месяц в формате их таблицы', (
     expect((await master.get(`/api/reports/works.xlsx?month=${month}`)).status).toBe(403);
   });
 
-  it('пока сумма в работах не записана, берётся согласованная сумма заявки; записанную не удваивает', async () => {
+  it('сумма по заявке берётся из «Согласовано с клиентом»; суммы её работ не добавляются', async () => {
     const semen = await loginAs('semen');
     const year = new Date().getFullYear();
     const month = `${year}-04`;
@@ -81,7 +81,7 @@ describe('работы за месяц в формате их таблицы', (
     const b = await intakeLaptop(semen, users.id, '+7 900 000-00-12');
     await pool.query(`UPDATE orders SET agreed_sum = 2500, issued_at = $2 WHERE id = $1`, [a, at]);
     await pool.query(`UPDATE orders SET agreed_sum = 9999, issued_at = $2 WHERE id = $1`, [b, at]);
-    // у второй заявки сумма записана в работе: согласованная не добавляется
+    // у второй заявки в работе записана своя сумма: в отчёт идёт согласованная, а не сумма работы
     await pool.query(
       `INSERT INTO device_works (client_id, device_id, order_id, kind, title, qty, done_at, amount) SELECT client_id, device_id, id, 'repair', 'Замена памяти', 1, $2, 1800 FROM orders WHERE id = $1`,
       [b, at],
@@ -89,6 +89,6 @@ describe('работы за месяц в формате их таблицы', (
     const res = await semen.get(`/api/reports/works.xlsx?month=${month}`).buffer(true).parse(binary);
     const rows = (await readSheet(res.body as Buffer)).slice(1);
     const sums = rows.map((r) => r[0]).sort();
-    expect(sums).toEqual([1800, 2500]);
+    expect(sums).toEqual([2500, 9999]);
   });
 });

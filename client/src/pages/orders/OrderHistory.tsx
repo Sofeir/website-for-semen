@@ -73,7 +73,7 @@ export function OrderHistory({
           const body = (
             <>
               <b>
-                {h.kind === 'transfer' ? `Передано: ${h.responsibleName ?? '—'}` : h.kind === 'reopen' ? `Открыта заново: ${h.stageName}` : h.stageName}
+                {h.kind === 'transfer' ? `Передано: ${h.responsibleName ?? '—'}` : h.kind === 'reopen' ? `Открыта заново: ${h.stageName}` : h.kind === 'back' ? `Возврат на этап: ${h.stageName}` : h.stageName}
                 {h.kind !== 'transfer' && h.responsibleName && <span className={s.hWho}>, {h.responsibleName}</span>}
               </b>
               <span className={s.hMeta}>

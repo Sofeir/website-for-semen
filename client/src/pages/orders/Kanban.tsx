@@ -11,7 +11,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'motion/react';
-import { ChevronsRight, Clock, FileText, UserRound } from 'lucide-react';
+import { ArrowLeft, ChevronsRight, Clock, FileText, UserRound } from 'lucide-react';
 import type { OrderListItem, Stage } from '@sd/shared';
 import { fmtWhen } from '@/lib/dates';
 import { useMediaQuery } from '@/lib/hooks';
@@ -46,6 +46,9 @@ export function Kanban({ stages, orders, canAdvance, onAdvance }: Props) {
   const board = useRef<HTMLDivElement>(null);
   const phone = useMediaQuery('(max-width: 639px)');
   const [picked, setPicked] = useState<number | null>(null);
+  // Широкий экран: нажатие на этап показывает только его заявки сеткой, «Назад» возвращает колонки
+  const [focused, setFocused] = useState<number | null>(null);
+  const focusedStage = !phone && focused !== null ? (columns.find((st) => st.id === focused) ?? null) : null;
   // открыт выбранный этап; пока не выбран, первый, где есть заявки
   const activeId = picked ?? columns.find((st) => (byStage.get(st.id)?.length ?? 0) > 0)?.id ?? columns[0]?.id ?? null;
   const shown = phone ? columns.filter((st) => st.id === activeId) : columns;
@@ -75,9 +78,7 @@ export function Kanban({ stages, orders, canAdvance, onAdvance }: Props) {
 
   const jump = (stageId: number) => {
     if (phone) return setPicked(stageId);
-    board.current
-      ?.querySelector(`[data-stage="${stageId}"]`)
-      ?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+    setFocused(stageId);
   };
 
   const allowedTarget = dragging ? nextOf(dragging)?.id : null;
@@ -90,8 +91,8 @@ export function Kanban({ stages, orders, canAdvance, onAdvance }: Props) {
             key={st.id}
             type="button"
             onClick={() => jump(st.id)}
-            className={cx(s.stageJumpBtn, phone && st.id === activeId && s.stageJumpActive)}
-            aria-pressed={phone ? st.id === activeId : undefined}
+            className={cx(s.stageJumpBtn, (phone ? st.id === activeId : st.id === focusedStage?.id) && s.stageJumpActive)}
+            aria-pressed={phone ? st.id === activeId : st.id === focusedStage?.id}
           >
             <span className={cx(s.stageDot, s[`dot_${st.color}`])} aria-hidden />
             {st.name}
@@ -105,6 +106,38 @@ export function Kanban({ stages, orders, canAdvance, onAdvance }: Props) {
         onDragEnd={onDragEnd}
         onDragCancel={() => setDragging(null)}
       >
+        {focusedStage ? (
+          <section className={s.focus} aria-label={`${focusedStage.name}, ${byStage.get(focusedStage.id)?.length ?? 0}`}>
+            <header className={s.focusHead}>
+              <button type="button" className={s.focusBack} onClick={() => setFocused(null)}>
+                <ArrowLeft size={18} aria-hidden />
+                Назад
+              </button>
+              <h2 className={s.colTitle}>{focusedStage.isFinal ? 'Выдано' : focusedStage.name}</h2>
+              <span className={s.colCount}>{byStage.get(focusedStage.id)?.length ?? 0}</span>
+              {focusedStage.isFinal && <span className={s.colHint}>за последние 14 дней</span>}
+            </header>
+            {(byStage.get(focusedStage.id) ?? []).length === 0 ? (
+              <p className={s.focusEmpty}>Пусто</p>
+            ) : (
+              <div className={s.focusGrid}>
+                {(byStage.get(focusedStage.id) ?? []).map((o) => {
+                  const next = nextOf(o);
+                  return (
+                    <KanbanCard
+                      key={o.id}
+                      order={o}
+                      next={next}
+                      canAdvance={canAdvance(o) && Boolean(next)}
+                      onAdvance={() => onAdvance(o)}
+                      dimmed={false}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        ) : (
         <div className={s.board} ref={board}>
           {shown.map((st) => (
             <Column
@@ -132,6 +165,7 @@ export function Kanban({ stages, orders, canAdvance, onAdvance }: Props) {
             </Column>
           ))}
         </div>
+        )}
         <DragOverlay dropAnimation={null}>{dragging && <CardBody order={dragging} lifted />}</DragOverlay>
       </DndContext>
     </>

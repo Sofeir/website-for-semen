@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
+  ArrowLeft,
   ArrowRightLeft,
   Eye,
   EyeOff,
@@ -23,7 +24,7 @@ import { fmtWhen } from '@/lib/dates';
 import { useDocumentTitle } from '@/lib/hooks';
 import { BackLink } from '@/components/BackLink';
 import { OrderHistory } from './OrderHistory';
-import { AdvanceSheet, ReassignSheet, ReopenSheet } from '@/components/AdvanceSheet';
+import { AdvanceSheet, ReassignSheet, ReopenSheet, StepBackSheet } from '@/components/AdvanceSheet';
 import { AttachHint, AttachmentList, UploadButton } from '@/components/Attachments';
 import { DeviceJournalSheet } from '@/components/DeviceJournalSheet';
 import { StageRail } from '@/components/StageRail';
@@ -51,6 +52,7 @@ export default function OrderPage() {
   const [reassignOpen, setReassignOpen] = useState(false);
   const [reassignFix, setReassignFix] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
+  const [backOpen, setBackOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
   const [workOpen, setWorkOpen] = useState(false);
   const [agreedOpen, setAgreedOpen] = useState(false);
@@ -174,6 +176,11 @@ export default function OrderPage() {
             }}
           >
             Передать
+          </Button>
+        )}
+        {o.prevStage && (
+          <Button variant="secondary" icon={<ArrowLeft size={18} aria-hidden />} onClick={() => setBackOpen(true)}>
+            На этап назад
           </Button>
         )}
         {o.canReopen && (
@@ -503,6 +510,12 @@ export default function OrderPage() {
       <AdvanceSheet order={advanceOpen ? target : null} next={o.nextStage} onClose={() => setAdvanceOpen(false)} />
       <ReassignSheet order={reassignOpen ? target : null} correction={reassignFix} onClose={() => setReassignOpen(false)} />
       <ReopenSheet order={reopenOpen ? target : null} onClose={() => setReopenOpen(false)} />
+      <StepBackSheet
+        order={backOpen ? target : null}
+        prev={o.prevStage}
+        defaultResponsibleId={o.prevStage ? [...o.history].reverse().find((h) => h.stageId === o.prevStage!.id && h.responsibleId)?.responsibleId : null}
+        onClose={() => setBackOpen(false)}
+      />
       <DeviceJournalSheet device={journalOpen ? o.device : null} orderId={o.id} onClose={() => setJournalOpen(false)} />
       <WorkSheet
         open={workOpen}
@@ -611,7 +624,7 @@ function AgreedSheet({
           <Field label="Срок" optional hint="Можно текстом: до пятницы, 3 рабочих дня" className={formStyles.span2}>
             <Input value={t} onChange={(e) => setT(e.target.value)} maxLength={200} data-autofocus />
           </Field>
-          <Field label="Сумма, ₽" optional>
+          <Field label="Сумма, ₽" optional hint="Идёт в месячный Excel-отчёт">
             <Input inputMode="decimal" value={m} onChange={(e) => setM(e.target.value)} placeholder="4500" />
           </Field>
           <Field label="Закупочная цена, ₽" optional hint="Видят все сотрудники, клиент не видит">
