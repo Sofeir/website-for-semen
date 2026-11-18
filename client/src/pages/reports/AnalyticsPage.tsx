@@ -558,6 +558,7 @@ export default function AnalyticsPage() {
       <div className={s.tabs}>
         <Tabs<Tab>
           label="Разделы аналитики"
+          grid
           value={tab}
           onChange={setTab}
           items={[

@@ -196,6 +196,7 @@ export default function TasksPage() {
       <div className={s.toolbar}>
         <Tabs
           label="Чьи задачи"
+          grid
           items={scopeItems}
           value={scope}
           onChange={(v) => {

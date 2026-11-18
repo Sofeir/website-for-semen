@@ -98,6 +98,7 @@ export default function CartridgesPage() {
       <div className={s.toolbar}>
         <Tabs
           label="Состояние"
+          grid
           value={status}
           onChange={setStatus}
           items={[

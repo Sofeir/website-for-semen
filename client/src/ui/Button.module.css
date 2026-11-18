@@ -20,6 +20,16 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Телефон: длинная подпись переносится на вторую строку, а не уходит за край экрана */
+@media (max-width: 639px) {
+  .btn {
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+    padding-block: 8px;
+  }
+}
+
 .btn:active:not(:disabled) {
   transform: scale(0.98);
 }

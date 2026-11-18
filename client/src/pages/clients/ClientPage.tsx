@@ -230,7 +230,7 @@ export default function ClientPage() {
       <MergeClientSheet open={merging} onClose={() => setMerging(false)} from={{ id: c.id, name: c.name }} />
 
       <div className={s.tabs}>
-        <Tabs label="Разделы карточки" items={tabs} value={tab} onChange={setTab} />
+        <Tabs label="Разделы карточки" grid items={tabs} value={tab} onChange={setTab} />
       </div>
 
       {tab === 'orders' && (

@@ -40,6 +40,7 @@ export default function SettingsPage() {
       <div className={s.tabs}>
         <Tabs
           label="Разделы настроек"
+          grid
           value={section}
           onChange={setSection}
           items={[
