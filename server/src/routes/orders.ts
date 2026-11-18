@@ -6,6 +6,7 @@ import {
   intakeSchema,
   reassignOrderSchema,
   reopenOrderSchema,
+  stepBackOrderSchema,
   type Contact,
   type DeviceWork,
   type OrderDetail,
@@ -22,6 +23,8 @@ import {
   nextStageFor,
   reassignOrder,
   reopenOrder,
+  stepBackOrder,
+  prevStageFor,
 } from '../services/orders';
 import { CARTRIDGE_DEVICE_TYPE, DEVICE_SELECT, DEVICE_TITLE, likeEscape, ORDER_SELECT, orderAccess, TASK_SELECT, WORK_SELECT } from '../services/sql';
 import { assertOrderVisible } from '../services/access';
@@ -269,6 +272,7 @@ ordersRouter.get(
       receiptUrl: raw.batch_id ? `/api/documents/receipt/${raw.batch_id}.pdf` : '',
       nextStage: next,
       canAdvance: Boolean(next) && canAdvanceOrder(req.user!, raw),
+      prevStage: prevStageFor(stages, raw.stage_id, device.deviceType),
       handedOverByMe,
     };
     res.json(detail);
@@ -308,6 +312,18 @@ ordersRouter.post(
     await tx((db) => reassignOrder(db, req.user!, id, input, outbox));
     await outbox.flush();
     res.json({ ok: true });
+  }),
+);
+
+ordersRouter.post(
+  '/orders/:id/stepback',
+  h(async (req, res) => {
+    const id = intParam(req.params.id);
+    const input = parse(stepBackOrderSchema, req.body);
+    const outbox = new Outbox();
+    const stage = await tx((db) => stepBackOrder(db, req.user!, id, input, outbox));
+    await outbox.flush();
+    res.json({ ok: true, stage });
   }),
 );
 

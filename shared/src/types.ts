@@ -217,7 +217,7 @@ export interface OrderListItem {
 
 export interface StageHistoryItem {
   id: number;
-  kind: 'stage' | 'transfer' | 'reopen';
+  kind: 'stage' | 'transfer' | 'reopen' | 'back';
   stageId: number;
   stageName: string;
   stageCode: string;
@@ -316,6 +316,8 @@ export interface OrderDetail extends OrderListItem {
   receiptUrl: string;
   nextStage: Stage | null;
   canAdvance: boolean;
+  /** Этап, на который можно вернуть заявку (null: вернуть нельзя). */
+  prevStage: Stage | null;
   /** Сотрудник сам передал эту заявку и она ещё у адресата: передать её заново он может. */
   handedOverByMe: boolean;
 }
@@ -504,6 +506,8 @@ export interface DashboardData {
   newOrders: OrderListItem[];
   readyOrders: OrderListItem[];
   counts: { inWork: number; ready: number; overdue: number; today: number };
+  /** Картриджи отдельно от остальной техники: новые за 2 дня, в работе, готовы к выдаче. */
+  cartridges: { fresh: number; inWork: number; ready: number };
 }
 
 export interface FleetRowDto {

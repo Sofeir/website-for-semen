@@ -140,6 +140,34 @@ export default function DashboardPage() {
               )}
             </Card>
           )}
+          {workspace && (
+            <Card>
+              <CardHead title="Картриджи">
+                <Link to="/cartridges" className={s.more}>
+                  Все картриджи
+                </Link>
+              </CardHead>
+              {!d ? (
+                <ListSkeleton />
+              ) : (
+                <div className={s.cartridges}>
+                  {[
+                    { label: 'Новые', hint: 'за 2 дня', value: d.cartridges.fresh, to: '/cartridges?status=new' },
+                    { label: 'В работе', value: d.cartridges.inWork, to: '/cartridges' },
+                    { label: 'Готово к выдаче', value: d.cartridges.ready, to: '/cartridges?status=ready', ok: true },
+                  ].map((c) => (
+                    <Link key={c.label} to={c.to} className={s.cartridge}>
+                      <span className={cx(s.cartridgeValue, c.ok && c.value > 0 && s.cartridgeOk)}>{c.value}</span>
+                      <span className={s.cartridgeLabel}>
+                        {c.label}
+                        {c.hint && <small> {c.hint}</small>}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
         </div>
         <div className={s.col}>
           <Card>

@@ -45,3 +45,10 @@
   font-size: var(--fs-sm);
   color: var(--text-muted);
 }
+
+.selectBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}

@@ -14,6 +14,28 @@ import { Kanban } from './Kanban';
 import { OrdersTable } from './OrdersTable';
 import s from './Orders.module.css';
 
+const CARTRIDGES_KEY = 'orders.showCartridges';
+
+/** Показывать ли картриджи в «Заявках»: по умолчанию скрыты, выбор запоминается в браузере сотрудника. */
+function useShowCartridges() {
+  const [on, setOn] = useState(() => {
+    try {
+      return localStorage.getItem(CARTRIDGES_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const set = (v: boolean) => {
+    setOn(v);
+    try {
+      localStorage.setItem(CARTRIDGES_KEY, v ? '1' : '0');
+    } catch {
+      /* без хранилища выбор живёт до перезагрузки */
+    }
+  };
+  return [on, set] as const;
+}
+
 export default function OrdersPage() {
   useDocumentTitle('Заявки');
   const { can } = useAuth();
@@ -26,6 +48,7 @@ export default function OrdersPage() {
   const [q, setQ] = useState(params.get('q') ?? '');
   const dq = useDebounced(q.trim(), 250);
   const [showFilters, setShowFilters] = useState(false);
+  const [showCartridges, setShowCartridges] = useShowCartridges();
 
   const stages = useMemo(() => (dict.data?.stages ?? []).filter((st) => st.isActive), [dict.data]);
   const stageParam = params.get('stage');
@@ -46,6 +69,7 @@ export default function OrdersPage() {
     stage: view === 'list' ? stageId : ('' as const),
     issued: view === 'list' ? (params.get('issued') ?? '') : '',
     sort: params.get('sort') ?? '',
+    type: showCartridges ? undefined : ('equipment' as const),
   };
   const orders = useOrders(filters);
   const [advance, setAdvance] = useState<{ order: AdvanceTarget; next: Stage } | null>(null);
@@ -146,6 +170,11 @@ export default function OrdersPage() {
                 onChange={(e) => set('responsible', e.target.checked ? String(me.id) : null)}
               />
             )}
+            <Checkbox
+              label="Показывать картриджи"
+              checked={showCartridges}
+              onChange={(e) => setShowCartridges(e.target.checked)}
+            />
             {view === 'list' && (
               <Checkbox
                 label="С выданными"

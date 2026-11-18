@@ -37,6 +37,7 @@ import type {
   Paged,
   ReassignOrderInput,
   ReopenOrderInput,
+  StepBackOrderInput,
   TaskDetail,
   TaskKind,
   TaskListItem,
@@ -388,6 +389,14 @@ export function useReassignOrder(orderId: number) {
   return useMutation({
     mutationFn: (input: ReassignOrderInput) => api.post(`/orders/${orderId}/reassign`, input as any),
     onSuccess: () => inv('orders', 'order', 'tasks', 'dashboard'),
+  });
+}
+
+export function useStepBackOrder(orderId: number) {
+  const inv = useInvalidate();
+  return useMutation({
+    mutationFn: (input: StepBackOrderInput) => api.post(`/orders/${orderId}/stepback`, input as any),
+    onSuccess: () => inv('orders', 'order', 'tasks', 'dashboard', 'client'),
   });
 }
 

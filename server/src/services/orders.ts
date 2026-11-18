@@ -7,6 +7,7 @@ import {
   type IntakeResult,
   type ReassignOrderInput,
   type Stage,
+  type StepBackOrderInput,
 } from '@sd/shared';
 import { many, one, type Db } from '../db/pool';
 import { forbidden, HttpError } from '../lib/http';
@@ -57,7 +58,19 @@ async function deviceTypeName(db: Db, deviceId: number): Promise<string | null> 
   return r?.name ?? null;
 }
 
-/** Следующий допустимый этап. Перескакивать и возвращаться нельзя. */
+/**
+ * Этап, на который можно вернуть заявку. На «Приём» не возвращаем (с него начинается заявка), выданную открывают заново.
+ * Для картриджей «Согласование» пропускаем и в обратную сторону.
+ */
+export function prevStageFor(stages: Stage[], currentId: number, deviceType: string | null | undefined): Stage | null {
+  const idx = stages.findIndex((s) => s.id === currentId);
+  if (idx < 2 || stages[idx]?.isFinal) return null;
+  let prev = stages[idx - 1];
+  if (deviceType === CARTRIDGE_TYPE && prev.code === 'approval') prev = stages[idx - 2];
+  return prev && stages.indexOf(prev) >= 1 ? prev : null;
+}
+
+/** Следующий допустимый этап. Перескакивать нельзя. */
 export function nextStageOf(stages: Stage[], currentId: number): Stage | null {
   const idx = stages.findIndex((s) => s.id === currentId);
   if (idx < 0) return null;
@@ -769,4 +782,74 @@ export async function reopenOrder(db: Db, actor: Actor, orderId: number, input: 
     link: `/orders/${orderId}`,
   });
   outbox.touch('orders', 'tasks', 'dashboard', 'clients');
+}
+
+/**
+ * Возврат на этап назад: ошибка или нужно доделать. Причина обязательна. Задача текущего этапа закрывается с этой причиной,
+ * на предыдущем этапе ставится новая задача. Сейчас это может сделать любой сотрудник; позже, возможно, ограничим ответственным и директором.
+ */
+export async function stepBackOrder(db: Db, actor: Actor, orderId: number, input: StepBackOrderInput, outbox: Outbox) {
+  const order = await lockOrder(db, orderId);
+  const stages = await activeStages(db);
+  const current = stages.find((s) => s.id === order.stage_id);
+  if (current?.isFinal) throw new HttpError(409, 'Заявка уже выдана: её можно открыть заново');
+  const prev = prevStageFor(stages, order.stage_id, await deviceTypeName(db, order.device_id));
+  if (!prev) throw new HttpError(409, 'Дальше назад идти некуда: это первый рабочий этап');
+  const responsible = await assertActiveUser(db, input.responsibleId);
+  const ws = await getWorkSettings(db);
+  const due = await normalizeDue(db, input.dueAt ?? defaultDue(ws).toISOString());
+  const note = `Возврат с этапа «${current?.name ?? '—'}»: ${input.comment}`;
+
+  // Текущий этап закрываем; «Итог: отремонтировано» с него снимаем, чтобы отчёты не считали его дважды
+  await db.query('UPDATE order_history SET finished_at = now(), outcome = NULL WHERE order_id = $1 AND finished_at IS NULL', [orderId]);
+  const openStageTasks = await many<{ id: number }>(
+    `SELECT id FROM tasks WHERE order_id = $1 AND stage_id IS NOT NULL AND status = 'open'`,
+    [orderId],
+    db,
+  );
+  if (openStageTasks.length) {
+    await closeTasks(db, actor, openStageTasks.map((t) => t.id), `Возврат на этап «${prev.name}»: ${input.comment}`, outbox);
+  }
+  await db.query(
+    `INSERT INTO order_history (order_id, kind, stage_id, responsible_id, from_user_id, due_at, comment)
+     VALUES ($1, 'back', $2, $3, $4, $5, $6)`,
+    [orderId, prev.id, responsible.id, actor.id, due, input.comment],
+  );
+  await db.query(
+    `UPDATE orders SET stage_id = $2, responsible_id = $3, stage_started_at = now(), stage_due_at = $4,
+            outcome = NULL, updated_at = now()
+      WHERE id = $1`,
+    [orderId, prev.id, responsible.id, due],
+  );
+  const title = await deviceTitle(db, order.device_id);
+  await createTask(
+    db,
+    actor,
+    {
+      title: stageTaskTitle(prev, title, order.number),
+      description: note,
+      assigneeId: responsible.id,
+      orderId,
+      clientId: order.client_id,
+      startAt: new Date().toISOString(),
+      dueAt: due.toISOString(),
+      deadlineAt: null,
+      stageId: prev.id,
+    },
+    outbox,
+  );
+  const already = new Set(outbox.notices.map((n) => n.userId));
+  notifyParticipants(
+    outbox,
+    (await orderParticipantIds(db, orderId)).filter((u) => !already.has(u)),
+    [actor.id, responsible.id],
+    {
+      type: 'order_stage',
+      title: `Заявка №${order.number} вернулась на этап «${prev.name}»`,
+      body: [`Вернул: ${actor.fullName}. Ответственный: ${responsible.full_name}.`, `Причина: ${input.comment}`, ...(await orderContext(db, orderId))].join('\n'),
+      link: `/orders/${orderId}`,
+    },
+  );
+  outbox.touch('orders', 'tasks', 'dashboard', 'clients');
+  return prev;
 }

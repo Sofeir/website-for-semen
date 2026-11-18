@@ -18,6 +18,13 @@ export const CARTRIDGE_DEVICE_TYPE = 'Картридж';
 export const TASK_NOT_CARTRIDGE = `NOT EXISTS (SELECT 1 FROM orders co JOIN devices cd ON cd.id = co.device_id JOIN device_types cdt ON cdt.id = cd.device_type_id
    WHERE co.id = t.order_id AND cdt.name = '${CARTRIDGE_DEVICE_TYPE}')`;
 
+/** То же для заявки (псевдоним `o`): заявка не на картриджи. Подходит там, где нет присоединённого типа техники. */
+export const ORDER_NOT_CARTRIDGE = `NOT EXISTS (SELECT 1 FROM devices cd2 JOIN device_types cdt2 ON cdt2.id = cd2.device_type_id
+   WHERE cd2.id = o.device_id AND cdt2.name = '${CARTRIDGE_DEVICE_TYPE}')`;
+/** Заявка на картриджи (псевдоним `o`). */
+export const ORDER_IS_CARTRIDGE = `EXISTS (SELECT 1 FROM devices cd3 JOIN device_types cdt3 ON cdt3.id = cd3.device_type_id
+   WHERE cd3.id = o.device_id AND cdt3.name = '${CARTRIDGE_DEVICE_TYPE}')`;
+
 export const DEVICE_TITLE =`concat_ws(' ', dt.name, coalesce(b.name, d.brand_text), coalesce(m.name, d.model_text))`;
 
 export const ORDER_SELECT = `

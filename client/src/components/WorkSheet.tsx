@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { can, formatMoney, REFILL_OPS, REFILL_OP_LABELS, WORK_KINDS, WORK_KIND_LABELS, type RefillOp, type WorkKind } from '@sd/shared';
+import { can, REFILL_OPS, REFILL_OP_LABELS, WORK_KINDS, WORK_KIND_LABELS, type RefillOp, type WorkKind } from '@sd/shared';
 import { api, ApiError } from '@/api/http';
 import { useMe } from '@/app/auth';
 import { useClient, useInvalidate } from '@/api/queries';
@@ -54,7 +54,6 @@ export function WorkSheet({
   const [performerId, setPerformerId] = useState(String(me.id));
   const [qty, setQty] = useState('1');
   const [amount, setAmount] = useState('');
-  const [purchase, setPurchase] = useState('');
   const [counter, setCounter] = useState('');
   const [resource, setResource] = useState('');
   const [brand, setBrand] = useState('');
@@ -78,7 +77,6 @@ export function WorkSheet({
     setPerformerId(String(me.id));
     setQty('1');
     setAmount('');
-    setPurchase('');
     setCounter('');
     setResource('');
     setBrand('');
@@ -99,9 +97,8 @@ export function WorkSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chooseOrder, open, orders.length]);
 
-  // Рекомендованная цена продажи: закупочная + 20%, до целого рубля вверх. В поле «Сумма» она только подсказка, сама не подставляется.
-  const purchaseNum = num(purchase);
-  const recommended = purchaseNum !== null && Number.isFinite(purchaseNum) && purchaseNum > 0 ? Math.ceil(purchaseNum * 1.2) : null;
+  // Сумма по заявке вносится в блок «Согласовано с клиентом» самой заявки. Здесь сумму спрашиваем только у работы без заявки.
+  const linkedToOrder = Boolean(target.orderId || Number(orderId));
 
   const save = async () => {
     setError('');
@@ -117,8 +114,7 @@ export function WorkSheet({
         title: what.trim(),
         qty: Number(qty) || 1,
         performerId: Number(performerId),
-        amount: num(amount),
-        purchasePrice: num(purchase),
+        amount: linkedToOrder ? null : num(amount),
         counter: kind === 'part' ? num(counter) : null,
         resource: kind === 'part' ? num(resource) : null,
         partBrand: kind === 'part' ? brand.trim() || null : null,
@@ -213,21 +209,11 @@ export function WorkSheet({
           <Field label={kind === 'refill' ? 'Сколько картриджей' : 'Количество'}>
             <Input inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)} />
           </Field>
-          <Field label="Закупочная цена, ₽" optional hint="Видят все сотрудники, клиент не видит">
-            <Input inputMode="decimal" value={purchase} onChange={(e) => setPurchase(e.target.value)} placeholder="2900" />
-          </Field>
-          <Field
-            label="Сумма, ₽"
-            optional
-            hint={recommended !== null ? `Рекомендованная цена: закупочная + 20% (${formatMoney(recommended)})` : undefined}
-          >
-            <Input
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder={recommended !== null ? String(recommended) : '3500'}
-            />
-          </Field>
+          {!linkedToOrder && (
+            <Field label="Сумма, ₽" optional hint="Работа без заявки: сумма попадёт в отчёт. По заявке сумму вносят в «Согласовано с клиентом»">
+              <Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="3500" />
+            </Field>
+          )}
         </div>
 
         {kind === 'refill' && (
