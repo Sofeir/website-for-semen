@@ -179,14 +179,17 @@ export function Tabs<T extends string>({
   value,
   onChange,
   label,
+  grid,
 }: {
+  /** На телефоне вкладки встают в две колонки вместо бокового скролла (если вкладок мало или названия длинные) */
+  grid?: boolean;
   items: { value: T; label: string; count?: number }[];
   value: T;
   onChange: (v: T) => void;
   label: string;
 }) {
   return (
-    <div className={s.tabs} role="tablist" aria-label={label}>
+    <div className={cx(s.tabs, grid && s.tabsGrid)} role="tablist" aria-label={label}>
       {items.map((it) => (
         <button
           key={it.value}

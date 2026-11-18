@@ -54,7 +54,7 @@
   margin-bottom: var(--s-4);
 }
 
-/* Действия: на телефоне прилипают к низу над нижней панелью */
+/* Действия: на телефоне главная кнопка во всю ширину, остальные по две в ряд (три в ряд не помещались: текст упирался в края) */
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -64,26 +64,24 @@
 
 @media (max-width: 767.98px) {
   .actions {
-    position: sticky;
-    bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 8px);
-    z-index: 5;
     padding: var(--s-2);
-    margin: 0 calc(var(--s-2) * -1) var(--s-5);
+    margin: 0 0 var(--s-5);
     border-radius: var(--r-lg);
     background: var(--glass-strong);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    box-shadow:
-      var(--shadow-md),
-      inset 0 0 0 1px var(--glass-border);
-    order: 10;
+    box-shadow: inset 0 0 0 1px var(--glass-border);
   }
   .actions > :first-child {
     flex: 1 1 100%;
   }
   .actions > :not(:first-child) {
-    flex: 1 1 0;
-    padding: 0 var(--s-3);
+    /* ширина по тексту, но не уже половины ряда: короткие кнопки встают по две, длинная занимает весь ряд */
+    flex: 1 1 auto;
+    min-width: calc(50% - var(--s-2));
+    max-width: 100%;
+    min-height: 44px;
+    padding: 6px var(--s-3);
+    font-size: var(--fs-sm);
+    text-align: center;
   }
 }
 

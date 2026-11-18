@@ -17,22 +17,14 @@
 
 .dictNav {
   display: flex;
+  flex-wrap: wrap; /* на телефоне справочники переносятся в несколько рядов, а не прячутся за край */
   gap: var(--s-2);
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin: 0 calc(var(--gutter) * -1);
-  padding: 0 var(--gutter);
-}
-
-.dictNav::-webkit-scrollbar {
-  display: none;
 }
 
 @media (min-width: 1024px) {
   .dictNav {
     flex-direction: column;
-    margin: 0;
-    padding: 0;
+    flex-wrap: nowrap;
     gap: 2px;
   }
 }
