@@ -412,16 +412,21 @@
     0 6px 12px -8px rgba(7, 29, 52, 0.6);
 }
 
+/* Вкладки, которых мало: переносятся на следующий ряд вместо бокового скролла (на экране 1024 последняя пряталась за краем) */
+.tabsGrid {
+  flex-wrap: wrap;
+  overflow: visible;
+  margin: 0;
+  padding: 4px 0 8px;
+  gap: var(--s-2);
+}
+
 /* Телефон: вкладки в две колонки, ничего не уходит за край экрана */
 @media (max-width: 639px) {
   .tabsGrid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
-    overflow: visible;
-    margin: 0;
-    padding: 4px 0 8px;
-    gap: var(--s-2);
   }
   .tabsGrid .tab {
     flex: none;
