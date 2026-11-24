@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRightLeft, CalendarClock, Check, ClipboardList, Pencil, RotateCcw, Send, Trash2, Undo2 } from 'lucide-react';
 import type { TaskStep } from '@sd/shared';
 import { useAuth, useMe } from '@/app/auth';
@@ -85,6 +85,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   const inv = useInvalidate();
   const settings = useSettings();
   const close = useCloseTasks();
+  const navigate = useNavigate();
   const transfer = useTransferTask(taskId ?? 0);
   // Задача этапа заявки: её закрытие двигает заявку, поэтому окно закрытия — это окно перехода этапа
   const stageOrder = useOrder(task?.isStageTask && task.status === 'open' && task.orderId ? task.orderId : 0);
@@ -136,6 +137,21 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   // Передал не тому: передавший задачу может передать её заново, пока она у адресата (других прав у него нет)
   const canRedirect = Boolean(task && !canTouch && task.status === 'open' && task.handedOverById === me.id);
 
+  // Что мешает закрыть задачу этапа: показываем заранее, с переходом к нужному месту, а не отказом после нажатия
+  const stageNow = task && task.status === 'open' && task.isStageTask && stageOrder.data && stageOrder.data.stageId === task.stageId ? stageOrder.data : null;
+  const blockers: { text: string; focus?: 'works' | 'agreed' }[] = [];
+  if (stageNow) {
+    if (!stageNow.canAdvance) {
+      blockers.push({ text: `Заявку двигает ответственный${stageNow.responsibleName ? ` (${stageNow.responsibleName})` : ''} или директор` });
+    }
+    if (stageNow.stageCode === 'repair' && stageNow.works.length === 0) {
+      blockers.push({ text: 'Не записана работа по заявке', focus: 'works' });
+    }
+    if (stageNow.stageCode === 'approval' && (!stageNow.agreedTerm?.trim() || stageNow.agreedSum == null)) {
+      blockers.push({ text: 'Для «Согласовано» нужны срок и сумма, согласованные с клиентом (для «Отказа» не нужны)', focus: 'agreed' });
+    }
+  }
+
   const doClose = async () => {
     setError('');
     try {
@@ -143,7 +159,22 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
       toast.success('Задача закрыта', task!.creatorId !== me.id ? `${task!.creatorName} получит уведомление` : undefined);
       onClose();
     } catch (e) {
-      setError((e as ApiError).message);
+      const err = e as ApiError;
+      const need = err.data?.need;
+      // Согласование и выдача закрываются в окне этапа, а не простым «Закрыть»: открываем это окно сами
+      if ((need === 'decision' || need === 'issue') && stageOrder.data) {
+        setMode('view');
+        setAdvanceOpen(true);
+        return;
+      }
+      // Не записана работа или не внесены срок и сумма: ведём на страницу заявки, нужное место там подсвечено
+      if ((need === 'works' || need === 'agreed') && task?.orderId && can('workspace.view')) {
+        toast.error('Сначала заполните', err.message);
+        onClose();
+        navigate(`/orders/${task.orderId}?focus=${need}`);
+        return;
+      }
+      setError(err.message);
     }
   };
 
@@ -381,6 +412,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
               <Button
                 variant="success"
                 icon={<Check size={18} aria-hidden />}
+                disabled={Boolean(stageNow && !stageNow.canAdvance)}
                 onClick={() => (stageOrder.data && stageOrder.data.stageId === task.stageId && stageOrder.data.nextStage ? setAdvanceOpen(true) : setMode('close'))}
               >
                 Закрыть задачу
@@ -620,6 +652,24 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                     Это этап заявки №{task.orderNumber}. Когда закроете задачу, заявка перейдёт на следующий этап: в открывшемся окне выберите, кто
                     отвечает дальше.
                   </p>
+                )}
+                {blockers.length > 0 && (
+                  <div className={s.stageHint}>
+                    <b>Чтобы закрыть задачу:</b>
+                    <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                      {blockers.map((b) => (
+                        <li key={b.text}>
+                          {b.text}
+                          {b.focus && task.orderId && can('workspace.view') && (
+                            <>
+                              {' '}
+                              <Link to={`/orders/${task.orderId}?focus=${b.focus}`}>Перейти</Link>
+                            </>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
                 {task.description && <p className={s.desc}>{task.description}</p>}
                 <DescList

@@ -612,9 +612,9 @@ export async function closeStageTasks(db: Db, actor: Actor, ids: number[], comme
     } else if (t.overdue && !confirms) {
       needConfirm.push(t.id);
     } else if (current?.code === 'approval') {
-      blocked.push({ id: t.id, message: 'Согласование закрывается кнопками «Согласовано» или «Отказ» в окне задачи', need: 'decision' });
+      blocked.push({ id: t.id, message: 'Согласование закрывается решением клиента. Откройте задачу, нажмите «Закрыть задачу» и выберите «Согласовано» или «Отказ»', need: 'decision' });
     } else if (!next || next.isFinal) {
-      blocked.push({ id: t.id, message: 'Выдачу закрывают в окне задачи: отметьте, что техника возвращена клиенту', need: 'issue' });
+      blocked.push({ id: t.id, message: 'Выдача закрывается в окне выдачи. Откройте задачу, нажмите «Закрыть задачу» и отметьте, что техника возвращена клиенту', need: 'issue' });
     } else {
       try {
         await advanceOrder(
