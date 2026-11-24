@@ -36,7 +36,14 @@ export default function DashboardPage() {
       await closeTasks.mutateAsync({ ids: [id], comment: null });
       toast.success('Задача закрыта');
     } catch (e) {
-      toast.error('Не получилось закрыть', (e as ApiError).message);
+      const err = e as ApiError;
+      // Нужно решение клиента, выдача или подтверждение директора: такая задача закрывается в своём окне, открываем его
+      if (err.data?.need || err.status === 403) {
+        toast.error('Эту задачу закрывают в её окне', err.message);
+        setOpenTask(id);
+        return;
+      }
+      toast.error('Не получилось закрыть', err.message);
     }
   };
 

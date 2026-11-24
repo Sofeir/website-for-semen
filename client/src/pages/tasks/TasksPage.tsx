@@ -125,6 +125,8 @@ export default function TasksPage() {
               ? `Просроченные (${r.needConfirm.length}) закрывает только директор: откройте задачу и запросите подтверждение`
               : 'Эти задачи уже закрыты или вам не принадлежат',
         );
+        // Одна задача не закрылась из списка: открываем её окно, там есть нужные кнопки
+        if (selected.size === 1 && (r.blocked?.length || r.needConfirm.length)) setTaskParam([...selected][0]!);
       }
       setSelected(new Set());
       setComment('');
