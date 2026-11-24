@@ -566,13 +566,13 @@ async function correctOrderReassign(db: Db, actor: Actor, order: OrderRow, input
       userId: responsible.id,
       type: 'order_assigned',
       title: `Вам передали заявку №${order.number}`,
-      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, `Причина и что сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
+      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, input.comment && `Что уже сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
       link: `/orders/${orderId}`,
     });
     notifyParticipants(outbox, await orderParticipantIds(db, orderId), [actor.id, responsible.id], {
       type: 'order_handover',
       title: `Заявку №${order.number} передали`,
-      body: [`От: ${actor.fullName}. Кому: ${responsible.full_name}.`, `Причина и что сделано: ${input.comment}`, ...ctx].join('\n'),
+      body: [`От: ${actor.fullName}. Кому: ${responsible.full_name}.`, input.comment && `Что уже сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
       link: `/orders/${orderId}`,
     });
   }
@@ -710,7 +710,7 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
   notifyParticipants(outbox, await orderParticipantIds(db, orderId), [actor.id, responsible.id], {
     type: 'order_handover',
     title: `Заявку №${order.number} передали`,
-    body: [`От: ${actor.fullName}. Кому: ${responsible.full_name}.`, `Причина и что сделано: ${input.comment}`, ...ctx].join('\n'),
+    body: [`От: ${actor.fullName}. Кому: ${responsible.full_name}.`, input.comment && `Что уже сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
     link: `/orders/${orderId}`,
   });
   if (responsible.id !== actor.id) {
@@ -719,7 +719,7 @@ export async function reassignOrder(db: Db, actor: Actor, orderId: number, input
       userId: responsible.id,
       type: 'order_assigned',
       title: `Вам передали заявку №${order.number}`,
-      body: [`От: ${actor.fullName}.`, due && `Срок — ${formatDateTimeRu(due)}.`, `Причина и что сделано: ${input.comment}`, ...ctx]
+      body: [`От: ${actor.fullName}.`, due && `Срок — ${formatDateTimeRu(due)}.`, input.comment && `Что уже сделано: ${input.comment}`, ...ctx]
         .filter(Boolean)
         .join('\n'),
       link: `/orders/${orderId}`,

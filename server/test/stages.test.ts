@@ -137,12 +137,16 @@ describe('переходы заявки по API', () => {
     expect(again.status).toBe(409);
   });
 
-  it('передача без причины отклоняется', async () => {
+  it('передача без комментария проходит, а исправление передачи («Передал не тому») без причины отклоняется', async () => {
     const semen = await loginAs('semen');
     const { users } = await dict();
     const id = await intakeLaptop(semen, users.isakov, '+7 900 000-00-17');
     const r = await semen.post(`/api/orders/${id}/reassign`, { responsibleId: users.kataev, comment: '' });
-    expect(r.status).toBe(400);
+    expect(r.status).toBe(200);
+    const noWhy = await semen.post(`/api/orders/${id}/reassign`, { responsibleId: users.golenkov, comment: '', correction: true });
+    expect(noWhy.status).toBe(400);
+    const taskId = (await semen.post('/api/tasks', { title: 'Без комментария', assigneeIds: [users.semen], startAt: new Date().toISOString(), dueAt: inDays(1) })).body.id;
+    expect((await semen.post(`/api/tasks/${taskId}/transfer`, { assigneeId: users.kataev, dueAt: inDays(1) })).status).toBe(200);
   });
 
   it('полный путь до выдачи; выданную заявку дальше не двигаем', async () => {

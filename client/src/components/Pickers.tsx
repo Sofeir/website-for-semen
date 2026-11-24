@@ -1,5 +1,6 @@
 import { forwardRef, useState, type SelectHTMLAttributes } from 'react';
 import { ROLE_LABELS, STAFF_ROLES, type Role } from '@sd/shared';
+import { useMe } from '@/app/auth';
 import { useSettings, useUsers } from '@/api/queries';
 import { defaultDueDate, fromLocalInput, sameDay, startForDue, toLocalInput } from '@/lib/dates';
 import { cx } from '@/ui/Button';
@@ -33,6 +34,52 @@ export const UserSelect = forwardRef<
     </Select>
   );
 });
+
+const RECENT_KEY = 'sd.recentRecipients';
+
+function readRecent(): number[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
+    return Array.isArray(v) ? v.filter((x) => Number.isInteger(x)) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Запоминает, кому передали: эти люди появятся быстрым выбором в окнах передачи. */
+export function rememberRecipient(userId: number) {
+  try {
+    const next = [userId, ...readRecent().filter((x) => x !== userId)].slice(0, 6);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    /* без хранилища быстрый выбор просто не появится */
+  }
+}
+
+/** Быстрый выбор: те, кому недавно передавали. Показывает до 4 активных сотрудников, себя не показывает. */
+export function RecentRecipients({ value, onPick }: { value: string; onPick: (id: string) => void }) {
+  const me = useMe();
+  const users = useUsers();
+  const list = readRecent()
+    .map((id) => (users.data ?? []).find((u) => u.id === id && u.isActive !== false))
+    .filter((u): u is NonNullable<typeof u> => Boolean(u) && u!.id !== me.id)
+    .slice(0, 4);
+  if (!list.length) return null;
+  return (
+    <div className={s.presets} role="group" aria-label="Недавние адресаты" style={{ marginTop: 'var(--s-2)' }}>
+      {list.map((u) => (
+        <button
+          key={u.id}
+          type="button"
+          className={cx(s.preset, value === String(u.id) && s.presetOn)}
+          onClick={() => onPick(String(u.id))}
+        >
+          {u.fullName}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** Выбор нескольких сотрудников галочками, сгруппированных по ролям. */
 export function UserMultiSelect({

@@ -315,15 +315,23 @@ export const advanceOrderSchema = z.object({
 });
 export type AdvanceOrderInput = z.infer<typeof advanceOrderSchema>;
 
-const reasonText = text(2000).min(3, 'Напишите причину передачи и что уже сделано');
+/** «Что уже сделано» при передаче: необязательно. Обязательно только когда передачу исправляют («Передал не тому»). */
+const handoverText = text(2000).optional().nullable().transform((v) => v ?? '');
+const requireWhyOnCorrection = (v: { correction?: boolean; comment: string }, ctx: z.RefinementCtx) => {
+  if (v.correction && v.comment.length < 3) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['comment'], message: 'Напишите, почему передача менялась' });
+  }
+};
 
-export const reassignOrderSchema = z.object({
-  responsibleId: id,
-  dueAt: isoDate.optional().nullable(),
-  comment: reasonText,
-  /** «Передал не тому»: ошибочная передача заменяется в истории и цепочке, а не дописывается. */
-  correction: z.boolean().optional(),
-});
+export const reassignOrderSchema = z
+  .object({
+    responsibleId: id,
+    dueAt: isoDate.optional().nullable(),
+    comment: handoverText,
+    /** «Передал не тому»: ошибочная передача заменяется в истории и цепочке, а не дописывается. */
+    correction: z.boolean().optional(),
+  })
+  .superRefine(requireWhyOnCorrection);
 export type ReassignOrderInput = z.infer<typeof reassignOrderSchema>;
 
 /** Возврат заявки на этап назад: причина обязательна. */
@@ -422,13 +430,15 @@ export const closeTasksSchema = z.object({
 });
 export type CloseTasksInput = z.infer<typeof closeTasksSchema>;
 
-export const transferTaskSchema = z.object({
-  assigneeId: id,
-  dueAt: isoDate,
-  comment: reasonText,
-  /** «Передал не тому»: ошибочная передача заменяется в цепочке, а не дописывается. */
-  correction: z.boolean().optional(),
-});
+export const transferTaskSchema = z
+  .object({
+    assigneeId: id,
+    dueAt: isoDate,
+    comment: handoverText,
+    /** «Передал не тому»: ошибочная передача заменяется в цепочке, а не дописывается. */
+    correction: z.boolean().optional(),
+  })
+  .superRefine(requireWhyOnCorrection);
 export type TransferTaskInput = z.infer<typeof transferTaskSchema>;
 
 /** Вернуть закрытую задачу в работу: причина обязательна, исполнитель увидит её в цепочке и уведомлении. */

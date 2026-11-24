@@ -14,7 +14,7 @@ import { AttachHint, AttachmentList, UploadButton } from './Attachments';
 import { useConfirm } from '@/ui/Confirm';
 import { useToast } from '@/ui/Toast';
 import { AdvanceSheet } from './AdvanceSheet';
-import { DueInput, UserSelect } from './Pickers';
+import { DueInput, RecentRecipients, rememberRecipient, UserSelect } from './Pickers';
 import { TaskFormSheet } from './TaskFormSheet';
 import { VisitDevices } from './VisitDevices';
 import s from './TaskSheet.module.css';
@@ -199,7 +199,8 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
   const doTransfer = async () => {
     setError('');
     if (!assignee) return setError('Выберите, кому передать');
-    if (comment.trim().length < 3) return setError('Напишите причину передачи и что уже сделано');
+    if (fixing && comment.trim().length < 3) return setError('Напишите, почему передача менялась');
+    if (toSelf && task?.overdue && !me.confirmsOverdue && comment.trim().length < 3) return setError('Напишите, почему нужно больше времени: директор получит это в запросе');
     try {
       const r = await transfer.mutateAsync({
         assigneeId: Number(assignee),
@@ -207,6 +208,7 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
         comment: comment.trim(),
         correction: fixing || undefined,
       });
+      if (!toSelf) rememberRecipient(Number(assignee));
       if (r.requested) toast.success('Запрос отправлен', 'Задача просрочена: срок согласует директор, он получил уведомление');
       else toast.success(fixing ? 'Передача исправлена' : toSelf ? 'Срок обновлён' : 'Задача передана');
       setFixing(false);
@@ -621,9 +623,10 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                     уведомлениях её заменит новая.
                   </p>
                 )}
-                <Field label="Кому передать">
+                <Field label="Кому">
                   <UserSelect value={assignee} onChange={(e) => setAssignee(e.target.value)} data-autofocus />
                 </Field>
+                <RecentRecipients value={assignee} onPick={setAssignee} />
                 {me.confirmsOverdue || toSelf || !task.overdue ? (
                   <Field
                     label="Крайний срок"
@@ -640,7 +643,14 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                     Задача просрочена, срок остаётся прежним: {fmtWhen(task.dueAt)}. Если нужно больше времени, запросите продление: срок двигает только директор.
                   </p>
                 )}
-                <Field label="Причина передачи и что уже сделано" hint="Увидят постановщик и руководитель">
+                <Field
+                  label={fixing ? 'Почему меняете передачу' : toSelf && task.overdue && !me.confirmsOverdue ? 'Почему нужно больше времени' : 'Что уже сделано'}
+                  hint={
+                    fixing || (toSelf && task.overdue && !me.confirmsOverdue)
+                      ? 'Обязательно'
+                      : 'Необязательно. Увидят постановщик и руководитель'
+                  }
+                >
                   <Textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={2000} />
                 </Field>
               </>
