@@ -12,7 +12,7 @@ import { ErrorBox, StagePill } from '@/ui/Display';
 import { Checkbox, Field, Input, Segmented, Textarea } from '@/ui/Form';
 import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
-import { DueInput, UserSelect } from './Pickers';
+import { DueInput, RecentRecipients, rememberRecipient, UserSelect } from './Pickers';
 
 export interface AdvanceTarget {
   id: number;
@@ -182,9 +182,12 @@ export function AdvanceSheet({
             <ErrorBox>Акта выполненных работ ещё нет. Выдать можно, но лучше сначала оформить акт.</ErrorBox>
           )}
           {(!isApproval || agreedStep) && (
-            <Field label={next.isFinal ? 'Кто выдаёт' : isApproval ? 'Кто делает ремонт' : 'Ответственный'}>
-              <UserSelect value={responsible} onChange={(e) => setResponsible(e.target.value)} preferRoles={preferRolesFor(next)} />
-            </Field>
+            <>
+              <Field label={next.isFinal ? 'Кто выдаёт' : isApproval ? 'Кто делает ремонт' : 'Ответственный'}>
+                <UserSelect value={responsible} onChange={(e) => setResponsible(e.target.value)} preferRoles={preferRolesFor(next)} />
+              </Field>
+              <RecentRecipients value={responsible} onPick={setResponsible} />
+            </>
           )}
           {!target!.isFinal && (!isApproval || agreedStep) && (
             <Field label="Срок" hint={`Рабочий день до ${settings.data?.work.workEnd ?? '20:00'}`}>
@@ -249,9 +252,10 @@ export function ReassignSheet({ order, onClose, correction = false }: { order: A
   const submit = async () => {
     setError('');
     if (!responsible) return setError('Выберите, кому передать');
-    if (comment.trim().length < 3) return setError('Напишите причину передачи и что уже сделано');
+    if (correction && comment.trim().length < 3) return setError('Напишите, почему передача менялась');
     try {
       await reassign.mutateAsync({ responsibleId: Number(responsible), dueAt: due, comment: comment.trim(), correction: correction || undefined });
+      rememberRecipient(Number(responsible));
       toast.success(correction ? `Заявка №${order!.number}: передача исправлена` : `Заявка №${order!.number} передана`);
       onClose();
     } catch (e) {
@@ -292,15 +296,19 @@ export function ReassignSheet({ order, onClose, correction = false }: { order: A
             data-autofocus
           />
         </Field>
+        <RecentRecipients value={responsible} onPick={setResponsible} />
         <Field label="Срок" hint={`Рабочий день до ${settings.data?.work.workEnd ?? '20:00'}`}>
           <DueInput value={due} onChange={setDue} />
         </Field>
-        <Field label="Причина передачи и что уже сделано" hint="Увидят постановщик и руководитель">
+        <Field
+          label={correction ? 'Почему меняете передачу' : 'Что уже сделано'}
+          hint={correction ? 'Обязательно' : 'Необязательно. Увидят постановщик и руководитель'}
+        >
           <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             rows={3}
-            placeholder="Например: заменил память, не хватило времени на тесты"
+            placeholder={correction ? undefined : 'Например: заменил память, не хватило времени на тесты'}
           />
         </Field>
       </div>

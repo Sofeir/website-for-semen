@@ -484,7 +484,7 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
       userId: input.assigneeId,
       type: 'task_assigned',
       title: `Вам передали задачу: ${t.title}`,
-      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, `Причина и что сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
+      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, input.comment && `Что уже сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
       link: `/tasks?task=${id}`,
     });
   }
@@ -492,7 +492,7 @@ export async function transferTask(db: Db, actor: Actor, id: number, input: Tran
   notifyParticipants(outbox, await taskParticipantIds(db, id), [actor.id, input.assigneeId], {
     type: 'task_handover',
     title: `Задачу передали: ${t.title}`,
-    body: [`От: ${actor.fullName}. Кому: ${next.full_name}.`, `Причина и что сделано: ${input.comment}`, ...ctx].join('\n'),
+    body: [`От: ${actor.fullName}. Кому: ${next.full_name}.`, input.comment && `Что уже сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
     link: `/tasks?task=${id}`,
   });
   outbox.touch('tasks');
@@ -529,13 +529,13 @@ async function correctTaskTransfer(db: Db, actor: Actor, t: TaskRow, input: Tran
       userId: next.id,
       type: 'task_assigned',
       title: `Вам передали задачу: ${t.title}`,
-      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, `Причина и что сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
+      body: [`От: ${actor.fullName}. Срок — ${formatDateTimeRu(due)}.`, input.comment && `Что уже сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
       link: `/tasks?task=${id}`,
     });
     notifyParticipants(outbox, await taskParticipantIds(db, id), [actor.id, next.id], {
       type: 'task_handover',
       title: `Задачу передали: ${t.title}`,
-      body: [`От: ${actor.fullName}. Кому: ${next.full_name}.`, `Причина и что сделано: ${input.comment}`, ...ctx].join('\n'),
+      body: [`От: ${actor.fullName}. Кому: ${next.full_name}.`, input.comment && `Что уже сделано: ${input.comment}`, ...ctx].filter(Boolean).join('\n'),
       link: `/tasks?task=${id}`,
     });
   }

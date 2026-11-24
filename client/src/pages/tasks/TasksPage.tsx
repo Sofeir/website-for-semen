@@ -9,7 +9,7 @@ import { api, ApiError } from '@/api/http';
 import { useCloseTasks, useInvalidate, useTaskKinds, useTasks, type TaskFilters } from '@/api/queries';
 import { addDays, startOfDay } from '@/lib/dates';
 import { useBack, useDebounced, useDocumentTitle } from '@/lib/hooks';
-import { UserSelect } from '@/components/Pickers';
+import { RecentRecipients, rememberRecipient, UserSelect } from '@/components/Pickers';
 import { TaskRow } from '@/components/TaskRow';
 import { TaskSheet } from '@/components/TaskSheet';
 import { TaskFormSheet } from '@/components/TaskFormSheet';
@@ -138,7 +138,6 @@ export default function TasksPage() {
 
   const doTransfer = async () => {
     if (!transferTo) return toast.error('Выберите, кому передать');
-    if (transferWhy.trim().length < 3) return toast.error('Напишите причину передачи и что уже сделано');
     setTransferring(true);
     let ok = 0;
     let failed = 0;
@@ -155,6 +154,7 @@ export default function TasksPage() {
         lastError = (e as ApiError).message;
       }
     }
+    if (ok) rememberRecipient(Number(transferTo));
     setTransferring(false);
     inv('tasks', 'task', 'dashboard', 'order', 'orders');
     if (ok) toast.success(`Передано: ${ok} ${pluralRu(ok, 'задача', 'задачи', 'задач')}`);
@@ -366,10 +366,11 @@ export default function TasksPage() {
         }
       >
         <div className="stack">
-          <Field label="Кому передать">
+          <Field label="Кому">
             <UserSelect value={transferTo} onChange={(e) => setTransferTo(e.target.value)} data-autofocus />
           </Field>
-          <Field label="Причина передачи и что уже сделано" hint="Увидят постановщики и руководитель">
+          <RecentRecipients value={transferTo} onPick={setTransferTo} />
+          <Field label="Что уже сделано" hint="Необязательно. Увидят постановщики и руководитель">
             <Textarea value={transferWhy} onChange={(e) => setTransferWhy(e.target.value)} rows={3} maxLength={2000} />
           </Field>
         </div>
