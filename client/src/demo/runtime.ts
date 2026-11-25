@@ -14,6 +14,7 @@ import { usersRouter } from '../../../server/src/routes/users';
 import { clientsRouter } from '../../../server/src/routes/clients';
 import { ordersRouter } from '../../../server/src/routes/orders';
 import { tasksRouter } from '../../../server/src/routes/tasks';
+import { purchasesRouter } from '../../../server/src/routes/purchases';
 import { equipmentRouter } from '../../../server/src/routes/equipment';
 import { reportsRouter } from '../../../server/src/routes/reports';
 import { contactsRouter } from '../../../server/src/routes/contacts';
@@ -48,6 +49,7 @@ for (const r of [
   clientsRouter,
   ordersRouter,
   tasksRouter,
+  purchasesRouter,
   equipmentRouter,
   reportsRouter,
   contactsRouter,

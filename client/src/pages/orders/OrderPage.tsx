@@ -72,6 +72,9 @@ export default function OrderPage() {
     next.delete('focus');
     setParams(next, { replace: true });
     setFlash(focusParam);
+    // Сразу открываем окно, где это заполняется: человек пришёл заполнить, а не искать кнопку
+    if (focusParam === 'works') setWorkOpen(true);
+    else if (can('orders.assign') || o.responsibleId === me.id) setAgreedOpen(true);
     // Таймеры не отменяем при смене адреса: сам параметр мы только что убрали из адреса, а прокрутка и подсветка должны дойти до конца
     setTimeout(() => document.getElementById(`focus-${focusParam}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
     setTimeout(() => setFlash(null), 7000);

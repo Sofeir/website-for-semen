@@ -55,6 +55,8 @@ export const PERMISSIONS = {
   'reports.view': ['admin', 'manager'],
   /** Подтверждать регистрации заказчиков и управлять их доступом. */
   'customers.manage': ['admin', 'manager'],
+  /** Согласовывать заявки на покупку. Создавать заявку и вести закупку может любой сотрудник. */
+  'purchases.approve': ['admin', 'manager'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;

@@ -85,7 +85,7 @@ export function denyCustomer(req: Request, _res: Response, next: NextFunction) {
 }
 
 /** Сотруднику «только задачи» открыты задачи, уведомления и «Сегодня»; сотрудники и справочники — на чтение. */
-const ASSISTANT_OPEN = ['/tasks', '/notifications', '/events', '/dashboard', '/auth'];
+const ASSISTANT_OPEN = ['/tasks', '/purchases', '/notifications', '/events', '/dashboard', '/auth'];
 const ASSISTANT_READ = ['/users', '/dictionaries', '/settings'];
 
 export function limitAssistant(req: Request, _res: Response, next: NextFunction) {

@@ -43,6 +43,9 @@ import type {
   TaskListItem,
   TransferTaskInput,
   ServicePlan,
+  PurchaseClientHit,
+  PurchaseDetail,
+  PurchaseItem,
   VisitsData,
   UserBrief,
   WorkSettings,
@@ -80,6 +83,7 @@ export const SCOPE_KEYS: Record<string, string[]> = {
   dictionaries: ['dictionaries'],
   acts: ['acts', 'act', 'order'],
   events: ['events'],
+  purchases: ['purchases', 'purchase'],
 };
 
 export interface MeResponse {
@@ -433,3 +437,25 @@ export function useSaveAct(id?: number) {
 }
 
 export type { IntakeResult };
+
+export const usePurchases = (scope: 'mine' | 'all') =>
+  useQuery({
+    queryKey: ['purchases', scope],
+    queryFn: () => api.get<PurchaseItem[]>(`/purchases${qs({ scope })}`),
+    placeholderData: keepPreviousData,
+  });
+
+export const usePurchase = (id: number | null) =>
+  useQuery({
+    queryKey: ['purchase', id],
+    queryFn: () => api.get<PurchaseDetail>(`/purchases/${id}`),
+    enabled: Boolean(id),
+  });
+
+export const usePurchaseClients = (q: string) =>
+  useQuery({
+    queryKey: ['purchaseClients', q],
+    queryFn: () => api.get<PurchaseClientHit[]>(`/purchases/clients${qs({ q })}`),
+    enabled: q.length >= 2,
+    placeholderData: keepPreviousData,
+  });

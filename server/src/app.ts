@@ -12,6 +12,7 @@ import { dictionariesRouter } from './routes/dictionaries';
 import { usersRouter } from './routes/users';
 import { clientsRouter } from './routes/clients';
 import { ordersRouter } from './routes/orders';
+import { purchasesRouter } from './routes/purchases';
 import { tasksRouter } from './routes/tasks';
 import { equipmentRouter } from './routes/equipment';
 import { reportsRouter } from './routes/reports';
@@ -96,6 +97,7 @@ export function createApp() {
   api.use(clientsRouter);
   api.use(ordersRouter);
   api.use(tasksRouter);
+  api.use(purchasesRouter);
   api.use(equipmentRouter);
   api.use(reportsRouter);
   api.use(reportsXlsxRouter);

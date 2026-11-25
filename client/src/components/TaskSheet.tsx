@@ -200,7 +200,6 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
     setError('');
     if (!assignee) return setError('Выберите, кому передать');
     if (fixing && comment.trim().length < 3) return setError('Напишите, почему передача менялась');
-    if (toSelf && task?.overdue && !me.confirmsOverdue && comment.trim().length < 3) return setError('Напишите, почему нужно больше времени: директор получит это в запросе');
     try {
       const r = await transfer.mutateAsync({
         assigneeId: Number(assignee),
@@ -644,12 +643,8 @@ export function TaskSheet({ taskId, onClose }: { taskId: number | null; onClose:
                   </p>
                 )}
                 <Field
-                  label={fixing ? 'Почему меняете передачу' : toSelf && task.overdue && !me.confirmsOverdue ? 'Почему нужно больше времени' : 'Что уже сделано'}
-                  hint={
-                    fixing || (toSelf && task.overdue && !me.confirmsOverdue)
-                      ? 'Обязательно'
-                      : 'Необязательно. Увидят постановщик и руководитель'
-                  }
+                  label={fixing ? 'Почему меняете передачу' : 'Что уже сделано'}
+                  hint={fixing ? 'Обязательно' : 'Необязательно. Увидят постановщик и руководитель'}
                 >
                   <Textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={2000} />
                 </Field>
