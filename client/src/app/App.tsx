@@ -29,6 +29,7 @@ const IntakePage = lazy(() => import('@/pages/intake/IntakePage'));
 const ClientsPage = lazy(() => import('@/pages/clients/ClientsPage'));
 const ClientPage = lazy(() => import('@/pages/clients/ClientPage'));
 const TasksPage = lazy(() => import('@/pages/tasks/TasksPage'));
+const PurchasesPage = lazy(() => import('@/pages/purchases/PurchasesPage'));
 const CalendarPage = lazy(() => import('@/pages/CalendarPage'));
 const ActsPage = lazy(() => import('@/pages/acts/ActsPage'));
 const ActPage = lazy(() => import('@/pages/acts/ActPage'));
@@ -156,6 +157,7 @@ export function App() {
                       />
                       <Route path="tasks" element={<TasksPage />} />
                       <Route path="calendar" element={<CalendarPage />} />
+                      <Route path="purchases" element={<PurchasesPage />} />
                       <Route
                         path="visits"
                         element={

@@ -912,3 +912,55 @@ export interface GoogleCalendarStatus {
   syncedAt: string | null;
   error: string | null;
 }
+
+// ---------- Закупки ----------
+
+export type PurchaseStatus = 'approval' | 'buying' | 'delivery' | 'done' | 'rejected' | 'cancelled';
+
+export const PURCHASE_STATUS_LABELS: Record<PurchaseStatus, string> = {
+  approval: 'Согласование',
+  buying: 'Закупка',
+  delivery: 'Доставка',
+  done: 'Готово',
+  rejected: 'Отказ',
+  cancelled: 'Отменена',
+};
+
+export interface PurchaseItem {
+  id: number;
+  title: string;
+  clientId: number | null;
+  clientName: string | null;
+  comment: string | null;
+  status: PurchaseStatus;
+  creatorId: number;
+  creatorName: string;
+  buyerId: number;
+  buyerName: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Следующий шаг за этим сотрудником: согласовать, купить или отвезти. */
+  waitingForMe: boolean;
+}
+
+export interface PurchaseEvent {
+  id: number;
+  action: 'created' | 'approved' | 'rejected' | 'bought' | 'delivered' | 'cancelled';
+  actorName: string;
+  comment: string | null;
+  createdAt: string;
+}
+
+export interface PurchaseDetail extends PurchaseItem {
+  events: PurchaseEvent[];
+  canApprove: boolean;
+  /** Отметить «Куплено» или «Отвёз»: покупатель или тот, кто согласует. */
+  canAdvance: boolean;
+  canCancel: boolean;
+}
+
+export interface PurchaseClientHit {
+  id: number;
+  name: string;
+  kind: 'legal' | 'person';
+}

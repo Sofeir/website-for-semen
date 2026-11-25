@@ -1,0 +1,200 @@
+.toolbar {
+  margin-bottom: var(--s-3);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 64px;
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--border-soft);
+  text-align: left;
+  border-radius: 0;
+}
+
+.list > .row:first-child {
+  border-top: 0;
+}
+
+@media (hover: hover) {
+  .row:hover .title {
+    color: var(--blue-700);
+  }
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.date {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.wait {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--blue-700);
+}
+
+/* Цепочка: согласование, закупка, доставка, готово */
+.chain {
+  display: flex;
+  gap: 4px;
+  margin: var(--s-2) 0 var(--s-4);
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  flex: 1;
+  min-width: 0;
+  padding: var(--s-2);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  text-align: center;
+}
+
+.stepDone {
+  background: var(--teal-50);
+  color: var(--text);
+}
+
+.stepNow {
+  background: var(--blue-100);
+  color: var(--blue-700);
+  font-weight: 700;
+}
+
+.stepBad {
+  background: var(--surface-2);
+  color: var(--danger-text);
+  font-weight: 700;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px var(--s-4);
+  margin: 0 0 var(--s-4);
+}
+
+.facts dt {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-4);
+  padding: 0;
+  list-style: none;
+}
+
+.history li {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.history time {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+/* Поиск клиента в форме закупки */
+.results {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--s-2);
+  padding: var(--s-1);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.hit {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 48px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+@media (hover: hover) {
+  .hit:hover {
+    background: var(--surface);
+  }
+}
+
+.hint {
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.picked {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--teal-50);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+}
+
+.picked b {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

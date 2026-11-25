@@ -656,3 +656,22 @@ export const calendarEventSchema = z.object({
   startAt: isoDate,
 });
 export type CalendarEventInput = z.infer<typeof calendarEventSchema>;
+
+// ---------- Закупки ----------
+
+/** Заявка на покупку: что купить, для кого (клиент или организация, по желанию) и кто покупает (по умолчанию тот, кто создал). */
+export const purchaseSchema = z.object({
+  title: text(200).min(2, 'Напишите, что купить'),
+  clientId: z.coerce.number().int().positive().optional().nullable(),
+  comment: optionalText(2000),
+  buyerId: z.coerce.number().int().positive().optional().nullable(),
+});
+export type PurchaseInput = z.infer<typeof purchaseSchema>;
+
+/** Шаг закупки (согласовать, отказать, куплено, отвезено, отменить): комментарий по желанию. */
+export const purchaseStepSchema = z.object({
+  comment: optionalText(2000),
+  /** Только при согласовании: директор может назначить другого покупателя. */
+  buyerId: z.coerce.number().int().positive().optional().nullable(),
+});
+export type PurchaseStepInput = z.infer<typeof purchaseStepSchema>;
